@@ -1,0 +1,37 @@
+"""Advanced Technical / Engineering Support Agent."""
+
+from __future__ import annotations
+
+from livekit.agents.llm import function_tool
+
+from call_management.agents.base import BaseAgent, RunContextT
+
+
+class TechnicalAgent(BaseAgent):
+    def __init__(self) -> None:
+        super().__init__(
+            name="technical",
+            instructions=(
+                "You are a senior technical support engineer. Handle complex troubleshooting, "
+                "integrations, API/performance issues. Collect logs as needed. "
+                "Escalate to specialists when required."
+            ),
+        )
+
+    @function_tool
+    async def collect_diagnostics(self, details: str, context: RunContextT) -> str:
+        """Record diagnostic information provided by the customer."""
+        ctx = context.userdata
+        ctx.call_notes.append(f"Diagnostics: {details}")
+        return (
+            "Diagnostics recorded. Engineering will review. "
+            "Would you like a follow-up engineer callback?"
+        )
+
+    @function_tool
+    async def schedule_engineer_callback(self, when: str, context: RunContextT) -> str:
+        """Schedule a callback with a specialist engineer."""
+        ctx = context.userdata
+        ctx.outcome = "engineer_callback_scheduled"
+        ctx.appointment_details["engineer_callback"] = when
+        return f"Engineer callback scheduled for {when}. Reference has been noted on your account."

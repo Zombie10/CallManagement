@@ -1,0 +1,50 @@
+[project]
+name = "call-management"
+version = "0.1.0"
+description = "Production-ready Call Management System built with LiveKit Agents framework - AI-powered voice agents for inbound/outbound telephony, intelligent routing, CRM integration, and multi-agent workflows."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    { name = "Reynaldo", email = "rey.garcia@outlook.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "livekit-agents[openai,silero,deepgram,cartesia,turn-detector,xai]>=1.0.0",
+    "livekit-api>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "aiosqlite>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+call-management = "call_management.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.14,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.4.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

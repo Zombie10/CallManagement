@@ -1,0 +1,9 @@
+{
+  "name": "CallManagement-Support",
+  "type": "direct",
+  "room": "support-${sip.phoneNumber}-${timestamp}",
+  "agent": {
+    "agent_name": "call-management",
+    "metadata": "{\"department\":\"support\"}"
+  }
+}

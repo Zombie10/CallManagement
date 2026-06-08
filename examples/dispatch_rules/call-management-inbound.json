@@ -1,0 +1,9 @@
+{
+  "name": "CallManagement-Inbound-All",
+  "type": "direct",
+  "room": "call-${sip.phoneNumber}-${timestamp}",
+  "agent": {
+    "agent_name": "call-management",
+    "metadata": "{\"source\":\"inbound\"}"
+  }
+}
