@@ -1,13 +1,4 @@
-"""Async SQLite-backed CRM for Call Management.
-
-Stores:
-- Customers (by phone number)
-- Call records with notes, outcome, duration
-- Appointments / callbacks
-
-This is intentionally simple and self-contained. Replace with real CRM
-(Postgres + SQLAlchemy, Airtable, HubSpot, etc.) as needed.
-"""
+"""Async SQLite-backed CRM for Call Management."""
 
 from __future__ import annotations
 
@@ -15,13 +6,16 @@ import os
 import sqlite3
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 import aiosqlite
 
+from call_management.utils.time import utc_now_iso
+
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+SCHEMA_VERSION = 1
 
 
 @dataclass
@@ -31,8 +25,8 @@ class Customer:
     email: str | None = None
     notes: str | None = None
     vip: bool = False
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=utc_now_iso)
+    updated_at: str = field(default_factory=utc_now_iso)
 
 
 @dataclass
@@ -41,9 +35,9 @@ class CallRecord:
     room_name: str
     from_number: str
     to_number: str | None = None
-    start_time: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    start_time: str = field(default_factory=utc_now_iso)
     end_time: str | None = None
-    outcome: str | None = None  # "resolved", "escalated", "callback_scheduled", "transferred", etc.
+    outcome: str | None = None
     summary: str | None = None
     agent_notes: str | None = None
     transferred_to: str | None = None
@@ -57,7 +51,7 @@ class Appointment:
     scheduled_time: str = ""
     purpose: str = ""
     notes: str | None = None
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=utc_now_iso)
 
 
 class CRMDatabase:
@@ -67,8 +61,15 @@ class CRMDatabase:
         self.db_path = Path(db_path)
 
     async def initialize(self) -> None:
-        """Create tables if they don't exist."""
         async with self._connect() as db:
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )
+                """
+            )
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS customers (
@@ -112,6 +113,10 @@ class CRMDatabase:
                 )
                 """
             )
+            await db.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                (SCHEMA_VERSION, utc_now_iso()),
+            )
             await db.commit()
 
     @asynccontextmanager
@@ -120,10 +125,7 @@ class CRMDatabase:
             db.row_factory = sqlite3.Row
             yield db
 
-    # ---------------- Customer methods ----------------
-
     async def get_or_create_customer(self, phone_number: str) -> Customer:
-        """Get existing customer or create a stub."""
         async with self._connect() as db:
             async with db.execute(
                 "SELECT * FROM customers WHERE phone_number = ?", (phone_number,)
@@ -140,14 +142,12 @@ class CRMDatabase:
                     updated_at=row["updated_at"],
                 )
 
-            # Create new (safe against race conditions)
-            now = datetime.utcnow().isoformat()
+            now = utc_now_iso()
             await db.execute(
                 "INSERT OR IGNORE INTO customers (phone_number, created_at, updated_at) VALUES (?, ?, ?)",
                 (phone_number, now, now),
             )
             await db.commit()
-            # Re-fetch in case it already existed
             async with db.execute(
                 "SELECT * FROM customers WHERE phone_number = ?", (phone_number,)
             ) as cursor:
@@ -163,7 +163,7 @@ class CRMDatabase:
             )
 
     async def update_customer(self, customer: Customer) -> None:
-        customer.updated_at = datetime.utcnow().isoformat()
+        customer.updated_at = utc_now_iso()
         async with self._connect() as db:
             await db.execute(
                 """
@@ -186,10 +186,8 @@ class CRMDatabase:
         customer = await self.get_or_create_customer(phone_number)
         existing = customer.notes or ""
         separator = "\n---\n" if existing else ""
-        customer.notes = f"{existing}{separator}{datetime.utcnow().isoformat()}: {note}"
+        customer.notes = f"{existing}{separator}{utc_now_iso()}: {note}"
         await self.update_customer(customer)
-
-    # ---------------- Call records ----------------
 
     async def create_call_record(self, record: CallRecord) -> None:
         async with self._connect() as db:
@@ -239,9 +237,7 @@ class CRMDatabase:
 
     async def get_call_record(self, call_id: str) -> CallRecord | None:
         async with self._connect() as db:
-            async with db.execute(
-                "SELECT * FROM call_records WHERE call_id = ?", (call_id,)
-            ) as cursor:
+            async with db.execute("SELECT * FROM call_records WHERE call_id = ?", (call_id,)) as cursor:
                 row = await cursor.fetchone()
             if not row:
                 return None
@@ -259,12 +255,10 @@ class CRMDatabase:
                 duration_seconds=row["duration_seconds"],
             )
 
-    # ---------------- Appointments ----------------
-
     async def create_appointment(self, appt: Appointment) -> str:
         if not appt.id:
             appt.id = (
-                f"appt_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{appt.customer_phone[-4:]}"
+                f"appt_{utc_now_iso().replace(':', '').replace('-', '')[:15]}_{appt.customer_phone[-4:]}"
             )
         async with self._connect() as db:
             await db.execute(
@@ -284,9 +278,7 @@ class CRMDatabase:
             await db.commit()
         return appt.id
 
-    async def get_upcoming_appointments(
-        self, phone_number: str, limit: int = 5
-    ) -> list[Appointment]:
+    async def get_upcoming_appointments(self, phone_number: str, limit: int = 5) -> list[Appointment]:
         async with self._connect() as db:
             async with db.execute(
                 """
@@ -311,17 +303,25 @@ class CRMDatabase:
             ]
 
     async def close(self) -> None:
-        # aiosqlite connections are closed via context managers
         pass
 
 
-# Global singleton helper
 _db: CRMDatabase | None = None
 
 
-async def get_crm() -> CRMDatabase:
+async def get_crm(db_path: Path | str | None = None) -> CRMDatabase:
     global _db
+    if db_path is not None:
+        db = CRMDatabase(db_path)
+        await db.initialize()
+        return db
     if _db is None:
         _db = CRMDatabase()
         await _db.initialize()
     return _db
+
+
+def reset_crm_singleton() -> None:
+    """Reset the process-wide CRM singleton (useful in tests)."""
+    global _db
+    _db = None

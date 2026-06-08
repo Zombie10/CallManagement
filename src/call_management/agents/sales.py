@@ -8,12 +8,15 @@ from livekit.agents.llm import function_tool
 from pydantic import Field
 
 from call_management.agents.base import BaseAgent, RunContextT
+from call_management.config import get_model_config, get_voice_for_agent
 
 
 class SalesAgent(BaseAgent):
     def __init__(self) -> None:
+        cfg = get_model_config()
         super().__init__(
             name="sales",
+            preferred_voice=get_voice_for_agent("sales", cfg.provider),
             instructions=(
                 "You are a professional sales representative. "
                 "Your goal is to understand the caller's needs, qualify the opportunity, "

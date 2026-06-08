@@ -1,7 +1,4 @@
-"""Customer Support Agent.
-
-Handles billing, account issues, basic troubleshooting, and appointment scheduling.
-"""
+"""Customer Support Agent."""
 
 from __future__ import annotations
 
@@ -11,13 +8,16 @@ from livekit.agents.llm import function_tool
 from pydantic import Field
 
 from call_management.agents.base import BaseAgent, RunContextT
-from call_management.crm.database import Appointment
+from call_management.config import get_model_config, get_voice_for_agent
+from call_management.scheduling.calendar import CalendarService, schedule_appointment
 
 
 class SupportAgent(BaseAgent):
     def __init__(self) -> None:
+        cfg = get_model_config()
         super().__init__(
             name="support",
+            preferred_voice=get_voice_for_agent("support", cfg.provider),
             instructions=(
                 "You are an experienced customer support specialist. "
                 "You help existing customers with account questions, billing, "
@@ -30,8 +30,6 @@ class SupportAgent(BaseAgent):
             ),
         )
 
-    # ---------------- Support-specific Tools ----------------
-
     @function_tool
     async def check_upcoming_appointments(self, context: RunContextT) -> str:
         """Show the caller what upcoming appointments or callbacks they have on file."""
@@ -39,15 +37,16 @@ class SupportAgent(BaseAgent):
         if not ctx.crm or not ctx.from_number:
             return "I don't have access to our scheduling system right now."
 
-        appts = await ctx.crm.get_upcoming_appointments(ctx.from_number)
+        service = CalendarService(crm=ctx.crm)
+        appts = await service.list_upcoming(ctx.from_number)
         if not appts:
             return "You don't have any upcoming appointments scheduled with us."
 
         lines = ["Here are your upcoming appointments:"]
-        for a in appts:
-            lines.append(f"- {a.scheduled_time}: {a.purpose}")
-            if a.notes:
-                lines.append(f"  Notes: {a.notes}")
+        for appt in appts:
+            lines.append(f"- {appt.scheduled_time}: {appt.purpose}")
+            if appt.notes:
+                lines.append(f"  Notes: {appt.notes}")
         return "\n".join(lines)
 
     @function_tool
@@ -67,23 +66,18 @@ class SupportAgent(BaseAgent):
         if not ctx.crm or not ctx.from_number:
             return "Unable to access scheduling right now. I'll take your details for a callback."
 
-        appt = Appointment(
-            customer_phone=ctx.from_number,
-            scheduled_time=when,
+        _, details = await schedule_appointment(
+            ctx.crm,
+            phone_number=ctx.from_number,
+            when=when,
             purpose=purpose,
             notes=f"Requested via support agent. Caller: {ctx.customer_name or ctx.from_number}",
         )
-        appt_id = await ctx.crm.create_appointment(appt)
-
-        ctx.appointment_details = {
-            "id": appt_id,
-            "time": when,
-            "purpose": purpose,
-        }
+        ctx.appointment_details = details
         ctx.outcome = "callback_scheduled"
 
         return (
-            f"Callback scheduled for {when} ({purpose}). Ref: {appt_id}. "
+            f"Callback scheduled for {when} ({purpose}). Ref: {details['id']}. "
             "Anything else before we end the call?"
         )
 

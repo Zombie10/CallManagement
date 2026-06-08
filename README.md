@@ -83,6 +83,55 @@ You can also use the classic pipeline (`USE_GROK_REALTIME=false`) with Grok STT 
 
 Grok models excel at tool use, reasoning, and natural conversation — perfect for call management.
 
+### xAI Tools (Function Calling + Built-in Tools)
+
+This project supports both layers from the [xAI tools docs](https://docs.x.ai/developers/tools/function-calling):
+
+| Layer | Examples in this repo | Where they run |
+|-------|----------------------|----------------|
+| **Custom function calling** | CRM lookup, routing, SIP transfer, scheduling | Your agent process (LiveKit `@function_tool`) |
+| **Built-in xAI tools** | `web_search`, `x_search`, `file_search`, `code_interpreter` | xAI servers |
+| **Remote MCP tools** | Zendesk, KB, DeepWiki, custom MCP HTTP servers | xAI servers (xAI connects to your MCP URL) |
+
+Enable built-in tools in `.env`:
+
+```bash
+XAI_ENABLE_WEB_SEARCH=true
+XAI_ENABLE_X_SEARCH=false
+XAI_ENABLE_FILE_SEARCH=false
+XAI_ENABLE_CODE_INTERPRETER=false
+# XAI_VECTOR_STORE_IDS=vs_abc123      # required for file_search
+# XAI_ALLOWED_X_HANDLES=@yourcompany  # optional filter for x_search
+```
+
+Tools are assigned per agent (e.g. sales gets `web_search` + `x_search`, technical gets `code_interpreter`).
+
+#### Remote MCP (recommended for external integrations in voice)
+
+xAI connects to external [MCP servers](https://docs.x.ai/developers/tools/remote-mcp) on your behalf — ideal for Grok Realtime voice with lower latency than local MCP bridges.
+
+```bash
+XAI_ENABLE_REMOTE_MCP=true
+XAI_MCP_SERVERS=[
+  {
+    "id": "deepwiki",
+    "server_url": "https://mcp.deepwiki.com/mcp",
+    "server_label": "deepwiki",
+    "agents": ["technical"]
+  },
+  {
+    "id": "knowledge",
+    "server_url": "https://kb.example.com/mcp",
+    "server_label": "knowledge",
+    "allowed_tools": ["search_articles"],
+    "authorization_env": "KB_MCP_TOKEN",
+    "agents": ["support"]
+  }
+]
+```
+
+Default MCP profiles by agent id: `support→knowledge`, `sales→crm`, `technical→deepwiki+knowledge`, `escalation→tickets`. Server ids must match entries in `XAI_MCP_SERVERS`.
+
 ### 4. Run in console mode (uses your local microphone/speakers)
 
 ```bash
@@ -93,7 +142,7 @@ call-management console
 
 This is the fastest way to test the conversation flow without any telephony.
 
-### 4. Run in development mode (with hot reload)
+### 5. Run in development mode (with hot reload)
 
 ```bash
 uv run -m call_management.server dev
@@ -165,8 +214,14 @@ src/call_management/
 │   └── database.py           # SQLite-backed customer & call records
 ├── scheduling/
 │   └── calendar.py           # Mock scheduling tools
+├── xai/
+│   ├── tools.py              # xAI built-in provider tools (web_search, etc.)
+│   └── mcp.py                # xAI Remote MCP provider tools
 └── utils/
-    └── logging.py
+    ├── logging.py
+    ├── notifications.py      # Escalation webhooks (Slack/generic)
+    ├── summary.py            # Post-call summaries
+    └── time.py
 ```
 
 ## Customization
@@ -188,6 +243,13 @@ uv run -m call_management.server start
 
 Deploy as a Docker container or use LiveKit's managed agent hosting (see docs).
 
+```bash
+docker build -t call-management .
+docker run --env-file .env -v $(pwd)/data:/app/data call-management
+```
+
+The container includes a health check (`scripts/healthcheck.py`) that verifies core modules load correctly.
+
 ### Self-hosted / Kubernetes
 
 Use the official [LiveKit Agents deployment guides](https://docs.livekit.io/agents/ops/deployment.md).
@@ -197,6 +259,9 @@ Key environment variables for production:
 - Set proper `LOG_LEVEL=INFO`
 - Use a persistent volume for `CRM_DB_PATH`
 - Enable `preemptive_generation` and good turn detection for lower latency
+- Configure `ESCALATION_WEBHOOK_URL` or `SLACK_WEBHOOK_URL` for supervisor alerts
+- Set `DEFAULT_LOCALE` (`en`, `es`, or `multi`) for language behavior
+- Enable `ENABLE_POST_CALL_SUMMARY=true` for AI-generated CRM summaries
 - Monitor via LiveKit Cloud observability or your own logging + traces
 
 ## Testing & Quality
@@ -212,13 +277,20 @@ uv run pytest
 
 ## Next Steps & Roadmap Ideas
 
-- Real calendar integration (Google Calendar, Calendly)
-- Human escalation via SMS / Slack / Zendesk ticket + warm transfer
-- Call recording + post-call AI summarization
+- Real calendar integration (Google Calendar, Calendly) — replace `scheduling/calendar.py`
+- Zendesk / SMS escalation channels in addition to webhooks
+- Call recording ingestion + richer post-call analytics
 - DTMF fallback + IVR-style menu as backup
 - Analytics dashboard (FastAPI + HTMX or Streamlit)
-- Multi-language support
 - PCI-compliant payment collection flows
+
+Already implemented in this repo:
+
+- VIP routing (direct to support)
+- Per-agent voice presets (`XAI_VOICES` / `VOICE_PRESETS`)
+- Post-call summaries (structured + optional LLM enrichment)
+- Escalation webhooks
+- GitHub Actions CI (ruff + pytest)
 
 ## Resources
 

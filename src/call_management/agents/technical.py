@@ -5,12 +5,15 @@ from __future__ import annotations
 from livekit.agents.llm import function_tool
 
 from call_management.agents.base import BaseAgent, RunContextT
+from call_management.config import get_model_config, get_voice_for_agent
 
 
 class TechnicalAgent(BaseAgent):
     def __init__(self) -> None:
+        cfg = get_model_config()
         super().__init__(
             name="technical",
+            preferred_voice=get_voice_for_agent("technical", cfg.provider),
             instructions=(
                 "You are a senior technical support engineer. Handle complex troubleshooting, "
                 "integrations, API/performance issues. Collect logs as needed. "
@@ -23,10 +26,7 @@ class TechnicalAgent(BaseAgent):
         """Record diagnostic information provided by the customer."""
         ctx = context.userdata
         ctx.call_notes.append(f"Diagnostics: {details}")
-        return (
-            "Diagnostics recorded. Engineering will review. "
-            "Would you like a follow-up engineer callback?"
-        )
+        return "Diagnostics recorded. Engineering will review. Would you like a follow-up engineer callback?"
 
     @function_tool
     async def schedule_engineer_callback(self, when: str, context: RunContextT) -> str:
