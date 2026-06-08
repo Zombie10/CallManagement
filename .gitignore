@@ -14,5 +14,8 @@ wheels/
 .env.local
 *.env
 
-# Local data
+# Local data (SQLite CRM, call records — never commit)
 data/
+*.db
+*.sqlite
+*.sqlite3
