@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import type { AdminRole } from "../lib/api";
+import { normalizeAppPath } from "../lib/paths";
 
 const ROLE_ROUTES: Record<AdminRole, string[]> = {
   super_admin: [
@@ -31,7 +32,7 @@ function routeAllowed(role: AdminRole, path: string): boolean {
 export function RequireAuth() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const path = location.pathname;
+  const path = normalizeAppPath(location.pathname);
 
   if (loading) {
     return (

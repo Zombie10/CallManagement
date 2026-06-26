@@ -347,7 +347,10 @@ def _mount_static() -> None:
             raise HTTPException(status_code=404)
         index = ADMIN_UI_DIST / "index.html"
         if index.exists():
-            return FileResponse(index)
+            return FileResponse(
+                index,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
         raise HTTPException(status_code=404, detail="Admin UI not built")
 
 

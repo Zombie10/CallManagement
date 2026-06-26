@@ -11,6 +11,7 @@ import {
   prepareRequestOptions,
 } from "../lib/webauthn";
 import clsx from "clsx";
+import { normalizeAppPath } from "../lib/paths";
 
 export function Login() {
   const navigate = useNavigate();
@@ -29,7 +30,9 @@ export function Login() {
   const finishLogin = async (loginResult?: { default_route?: string }) => {
     try {
       const me = await refresh();
-      const target = from || loginResult?.default_route || me.default_route || "/";
+      const target = normalizeAppPath(
+        from || loginResult?.default_route || me.default_route || "/",
+      );
       navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo validar la sesión");
