@@ -62,22 +62,28 @@ def get_tenant_context(
 
 def resolve_dispatch(
     *,
+    dialed_number: str | None = None,
     phone_number: str | None = None,
     tenant_id: str | None = None,
     agent_instance_id: str | None = None,
 ) -> tuple[Tenant, AgentInstance | None, str]:
-    """Map inbound call metadata to tenant + initial template agent name."""
+    """Map inbound call metadata to tenant + initial template agent name.
+
+    ``dialed_number`` is the trunk/DID the caller dialed (primary for SIP inbound).
+    ``phone_number`` is kept for backwards compatibility and tests.
+    """
     store = get_platform_store()
     agent: AgentInstance | None = None
     tenant: Tenant | None = None
+    lookup_number = dialed_number or phone_number
 
     if agent_instance_id:
         agent = store.get_agent(agent_instance_id)
         if agent:
             tenant = store.get_tenant(agent.tenant_id)
 
-    if not agent and phone_number:
-        route = store.resolve_phone(phone_number)
+    if not agent and lookup_number:
+        route = store.resolve_phone(lookup_number)
         if route:
             agent = store.get_agent(route.agent_instance_id)
             tenant = store.get_tenant(route.tenant_id)

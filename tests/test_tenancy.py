@@ -59,6 +59,12 @@ async def test_agent_instance_and_phone_route(platform_db):
     assert resolved_agent.id == agent.id
     assert template == "banking_support"
 
+    by_dialed, resolved_agent2, template2 = resolve_dispatch(dialed_number="+15103750043")
+    assert by_dialed.id == tenant.id
+    assert resolved_agent2 is not None
+    assert resolved_agent2.id == agent.id
+    assert template2 == "banking_support"
+
 
 def test_tenant_metrics_and_limits(platform_db):
     tenant = platform_db.create_tenant(slug="limited", name="Limited Co", max_agents=1)

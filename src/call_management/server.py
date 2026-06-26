@@ -133,13 +133,19 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
     }
 
 
-def _build_session(call_ctx: CallContext, ctx: JobContext) -> AgentSession[CallContext]:
+def _build_session(
+    call_ctx: CallContext,
+    ctx: JobContext,
+    *,
+    voice_override: str | None = None,
+    template_agent: str = "receptionist",
+) -> AgentSession[CallContext]:
     cfg = get_model_config()
     vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
 
     if cfg.provider == "xai":
         if cfg.use_grok_realtime:
-            initial_voice = get_voice_for_agent("receptionist", cfg.provider)
+            initial_voice = voice_override or get_voice_for_agent(template_agent, cfg.provider)
             logger.info(
                 "Using xAI Grok Realtime (model=%s, voice=%s)",
                 cfg.grok_realtime_model,
@@ -214,17 +220,39 @@ async def entrypoint(ctx: JobContext) -> None:
 
     from call_management.tenancy.context import resolve_crm_for_tenant, resolve_dispatch
 
+    from call_management.tenancy.platform_store import get_platform_store
+    from call_management.tenancy.scheduling import is_agent_available
+
     tenant, agent_instance, routed_template = resolve_dispatch(
-        phone_number=from_number if from_number != "unknown" else None,
+        dialed_number=to_number,
         tenant_id=overrides.get("tenant_id"),  # type: ignore[arg-type]
         agent_instance_id=overrides.get("agent_instance_id"),  # type: ignore[arg-type]
     )
     if not department_hint:
         department_hint = routed_template
-    if agent_instance:
-        from call_management.tenancy.platform_store import get_platform_store
 
-        get_platform_store().increment_agent_calls(agent_instance.id)
+    after_hours_note = ""
+    if agent_instance:
+        if agent_instance.status != "active":
+            logger.warning(
+                "Agent instance %s is %s — using default tenant routing",
+                agent_instance.id,
+                agent_instance.status,
+            )
+            agent_instance = None
+            department_hint = department_hint or "receptionist"
+        elif not is_agent_available(agent_instance.id):
+            logger.info(
+                "Agent %s outside business hours — after-hours message",
+                agent_instance.display_name,
+            )
+            department_hint = routed_template
+            after_hours_note = (
+                "\n\nFuera del horario de atención de este agente. "
+                "Indica el horario configurado, ofrece tomar un mensaje y agenda un callback si aplica."
+            )
+        else:
+            get_platform_store().increment_agent_calls(agent_instance.id)
 
     cfg = get_model_config()
     crm = await resolve_crm_for_tenant(tenant.id)
@@ -276,7 +304,13 @@ async def entrypoint(ctx: JobContext) -> None:
     }
     call_ctx.agents = agents_registry
 
-    session = _build_session(call_ctx, ctx)
+    voice_override = agent_instance.voice if agent_instance else None
+    session = _build_session(
+        call_ctx,
+        ctx,
+        voice_override=voice_override,
+        template_agent=routed_template,
+    )
 
     sip_tools = make_sip_tools(sip)
     receptionist.tools.extend(sip_tools)
@@ -295,6 +329,17 @@ async def entrypoint(ctx: JobContext) -> None:
             agent_name,
             for_voice=cfg.use_grok_realtime,
         )
+
+    if agent_instance:
+        routed = agents_registry.get(routed_template)
+        if routed:
+            extra = ""
+            if agent_instance.custom_instructions:
+                extra += f"\n\n{agent_instance.custom_instructions.strip()}"
+            if after_hours_note:
+                extra += after_hours_note
+            if extra:
+                routed._instructions = f"{routed._instructions}{extra}"
 
     initial_agent, route_reason = _resolve_initial_agent(
         agents_registry,

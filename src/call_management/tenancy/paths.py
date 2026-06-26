@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from call_management.admin.env_store import PROJECT_ROOT
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 TENANTS_ROOT = Path(os.getenv("TENANTS_DATA_ROOT", PROJECT_ROOT / "data" / "tenants"))
 
