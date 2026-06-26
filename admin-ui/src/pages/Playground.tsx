@@ -14,9 +14,10 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Select } from "../components/Select";
 import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
+import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
 import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
@@ -42,7 +43,7 @@ function TextPlayground() {
   const [toolLog, setToolLog] = useState<ToolCallEntry[]>([]);
   const [input, setInput] = useState("");
   const [initialAgent, setInitialAgent] = useState("banking_support");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useChatAutoScroll(lines);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
 
@@ -116,15 +117,11 @@ function TextPlayground() {
     },
   });
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lines]);
-
   const busy = startSession.isPending || sendMessage.isPending || resetSession.isPending;
 
   return (
-    <div className="glass-card flex min-h-[520px] flex-col lg:flex-row">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="glass-card flex h-[min(640px,calc(100vh-11rem))] min-h-[520px] flex-col lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
           {!sessionId ? (
             <>
@@ -163,11 +160,10 @@ function TextPlayground() {
           )}
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div ref={chatScrollRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">
           {lines.map((line) => (
             <ChatBubble key={line.id} line={line} />
           ))}
-          <div ref={bottomRef} />
         </div>
 
         <form
@@ -194,7 +190,7 @@ function TextPlayground() {
           <p className="px-4 pb-4 text-sm text-red-400">{(startSession.error || sendMessage.error)?.message}</p>
         )}
       </div>
-      <aside className="w-full border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
+      <aside className="min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
         <ToolCallLog entries={toolLog} title="Tools (texto)" />
       </aside>
     </div>
@@ -323,16 +319,12 @@ function XaiVoicePanel() {
   const [agent, setAgent] = useState("banking_support");
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useXaiVoice();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useChatAutoScroll(voice.transcript);
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [voice.transcript, voice.toolCalls]);
-
   return (
-    <div className="animate-fade-in flex min-h-[400px] flex-col lg:flex-row">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="animate-fade-in flex h-[min(640px,calc(100vh-11rem))] min-h-[400px] flex-col lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
           <Select
             className="w-52"
@@ -384,7 +376,7 @@ function XaiVoicePanel() {
           </div>
         )}
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <div ref={chatScrollRef} className="flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4">
           {!voice.transcript.length && !voice.connected && (
             <p className="text-center text-sm text-slate-500">
               Elige un agente y conecta. El agente te saludará como en una llamada real — di tu motivo y, si hace
@@ -402,11 +394,10 @@ function XaiVoicePanel() {
               }}
             />
           ))}
-          <div ref={bottomRef} />
         </div>
         {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
       </div>
-      <aside className="w-full border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
+      <aside className="min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
         <ToolCallLog entries={voice.toolCalls} title="Tools (voz xAI)" />
       </aside>
     </div>
