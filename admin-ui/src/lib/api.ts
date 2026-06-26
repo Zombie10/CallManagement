@@ -2,6 +2,7 @@ const API = "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     ...init,
   });
@@ -13,6 +14,42 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => request<AuthStatusResponse>("/auth/status"),
+  authMe: () => request<AuthUserResponse>("/auth/me"),
+  login: (username: string, password: string) =>
+    request<AuthLoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+  passkeyLoginOptions: (username?: string) =>
+    request<PasskeyOptionsResponse>("/auth/passkey/login/options", {
+      method: "POST",
+      body: JSON.stringify({ username: username || null }),
+    }),
+  passkeyLoginVerify: (challengeId: string, credential: Record<string, unknown>) =>
+    request<AuthLoginResponse>("/auth/passkey/login/verify", {
+      method: "POST",
+      body: JSON.stringify({ challenge_id: challengeId, credential }),
+    }),
+  passkeyRegisterOptions: (deviceName: string) =>
+    request<PasskeyRegisterOptionsResponse>("/auth/passkey/register/options", {
+      method: "POST",
+      body: JSON.stringify({ device_name: deviceName }),
+    }),
+  passkeyRegisterVerify: (
+    challengeId: string,
+    credential: Record<string, unknown>,
+    deviceName: string,
+  ) =>
+    request<{ registered: boolean }>("/auth/passkey/register/verify", {
+      method: "POST",
+      body: JSON.stringify({
+        challenge_id: challengeId,
+        credential,
+        device_name: deviceName,
+      }),
+    }),
   health: () => request<{ status: string }>("/health"),
   dashboard: () => request<DashboardResponse>("/dashboard"),
   settings: () => request<SettingsResponse>("/settings"),
@@ -207,12 +244,44 @@ export interface ListResponse<T> {
   total: number;
 }
 
+export interface AuthStatusResponse {
+  enabled: boolean;
+  rp_id: string;
+  origin: string;
+  passkey_supported: boolean;
+}
+
+export interface AuthUserResponse {
+  id: string;
+  username: string;
+  display_name: string;
+  passkeys: Array<{ id: string; device_name: string; created_at: string }>;
+  has_passkeys: boolean;
+}
+
+export interface AuthLoginResponse {
+  username: string;
+  display_name: string;
+}
+
+export interface PasskeyOptionsResponse {
+  challenge_id: string;
+  options: PublicKeyCredentialRequestOptions;
+}
+
+export interface PasskeyRegisterOptionsResponse {
+  challenge_id: string;
+  options: PublicKeyCredentialCreationOptions;
+  device_name: string;
+}
+
 export interface ChatStatusResponse {
   ready: boolean;
   provider: string;
   model: string;
   voice_model?: string;
   voice_ready?: boolean;
+  xai_voice_ready?: boolean;
   livekit_ready?: boolean;
   livekit_issues?: string[];
   requires_worker?: boolean;

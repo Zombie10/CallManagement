@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import os
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from call_management.admin.auth_middleware import AdminAuthMiddleware
+from call_management.admin.auth_routes import router as auth_router
+from call_management.admin.auth_store import ensure_bootstrap_user
 from call_management.admin.chat_runner import get_chat_manager
 from call_management.admin.livekit_playground import (
     create_livekit_playground_session,
@@ -34,19 +39,29 @@ from call_management.xai.mcp import load_remote_mcp_config
 
 ADMIN_UI_DIST = PROJECT_ROOT / "admin-ui" / "dist"
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ensure_bootstrap_user()
+    yield
+
+
 app = FastAPI(
     title="Call Management Admin",
     description="Web console for system configuration and CRM",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("ADMIN_CORS_ORIGINS", "http://127.0.0.1:8080,http://localhost:8080").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AdminAuthMiddleware)
+app.include_router(auth_router)
 
 
 @app.get("/api/health")

@@ -21,6 +21,11 @@ export default {
       },
       boxShadow: {
         glow: "0 0 40px rgba(34, 211, 238, 0.12)",
+        "glow-lg": "0 0 60px rgba(34, 211, 238, 0.18), 0 25px 50px rgba(0, 0, 0, 0.35)",
+      },
+      animation: {
+        "fade-in": "fadeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in-up": "fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

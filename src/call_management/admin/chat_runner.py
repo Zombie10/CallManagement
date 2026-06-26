@@ -108,12 +108,14 @@ class ChatSessionManager:
         cfg = get_model_config()
         has_xai = bool(os.getenv("XAI_API_KEY"))
         lk_ready, lk_issues = livekit_playground_ready()
+        xai_voice_ready = cfg.provider == "xai" and has_xai
         return {
             "ready": cfg.provider == "xai" and has_xai or cfg.provider != "xai",
             "provider": cfg.provider,
             "model": cfg.xai_llm_model if cfg.provider == "xai" else cfg.llm_model,
             "voice_model": cfg.grok_realtime_model,
-            "voice_ready": lk_ready,
+            "voice_ready": lk_ready or xai_voice_ready,
+            "xai_voice_ready": xai_voice_ready,
             "livekit_ready": lk_ready,
             "livekit_issues": lk_issues,
             "active_sessions": len(self._sessions),
