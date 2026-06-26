@@ -1,0 +1,16 @@
+[Unit]
+Description=Call Management Admin Web
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/callmanagement
+EnvironmentFile=/opt/callmanagement/.env
+Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/.local/bin/uv run call-management-admin
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
