@@ -50,6 +50,12 @@ export const api = {
     }),
   voiceConfig: (agent: string) =>
     request<VoiceSessionConfig>(`/voice/config/${encodeURIComponent(agent)}`),
+  livekitStatus: () => request<LiveKitStatusResponse>("/livekit/status"),
+  createLiveKitPlayground: (data: LiveKitPlaygroundInput) =>
+    request<LiveKitPlaygroundResponse>("/livekit/playground", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
   calls: (limit = 50) => request<ListResponse<CallRecord>>(`/calls?limit=${limit}`),
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
@@ -207,8 +213,37 @@ export interface ChatStatusResponse {
   model: string;
   voice_model?: string;
   voice_ready?: boolean;
+  livekit_ready?: boolean;
+  livekit_issues?: string[];
+  requires_worker?: boolean;
   active_sessions: number;
   requires_xai_key: boolean;
+}
+
+export interface LiveKitStatusResponse {
+  ready: boolean;
+  issues: string[];
+  requires_worker: boolean;
+}
+
+export interface LiveKitPlaygroundInput {
+  initial_agent?: string;
+  phone_number?: string;
+  customer_name?: string;
+  vip?: boolean;
+}
+
+export interface LiveKitPlaygroundResponse {
+  room_name: string;
+  token: string;
+  url: string;
+  identity: string;
+  initial_agent: string;
+  dispatch_id: string;
+  agent_name: string;
+  provider: string;
+  model: string;
+  pipeline: string;
 }
 
 export interface VoiceSessionResponse {

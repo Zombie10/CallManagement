@@ -1,18 +1,23 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  Headphones,
   Loader2,
   MessageSquare,
   Mic,
   MicOff,
+  Phone,
   RefreshCw,
   Send,
   User,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useXaiVoice } from "../hooks/useXaiVoice";
+import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { api } from "../lib/api";
 import clsx from "clsx";
+import type { LucideIcon } from "lucide-react";
 
 type ChatLine = {
   id: string;
@@ -28,19 +33,24 @@ function TextPlayground() {
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [input, setInput] = useState("");
   const [initialAgent, setInitialAgent] = useState("receptionist");
+  const [phone, setPhone] = useState("+15551234567");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
 
   const startSession = useMutation({
-    mutationFn: () => api.createChatSession({ initial_agent: initialAgent }),
+    mutationFn: () =>
+      api.createChatSession({
+        initial_agent: initialAgent,
+        phone_number: phone,
+      }),
     onSuccess: (data) => {
       setSessionId(data.session_id);
       setLines([
         {
           id: "welcome",
           role: "system",
-          text: `Sesión texto · ${data.initial_agent} · ${data.provider} / ${data.model} (handoffs multi-agente)`,
+          text: `Sesión texto · ${data.initial_agent} · ${data.provider} / ${data.model} · handoffs LiveKit`,
         },
       ]);
     },
@@ -85,7 +95,7 @@ function TextPlayground() {
   const busy = startSession.isPending || sendMessage.isPending || resetSession.isPending;
 
   return (
-    <div className="glass-card flex min-h-[480px] flex-col">
+    <div className="glass-card flex min-h-[520px] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
         {!sessionId ? (
           <>
@@ -100,20 +110,35 @@ function TextPlayground() {
                 </option>
               ))}
             </select>
+            <input
+              className="input-field w-44"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Teléfono CRM"
+            />
             <button
               type="button"
               className="btn-primary"
               disabled={!status?.ready || busy}
               onClick={() => startSession.mutate()}
             >
-              {startSession.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+              {startSession.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4" />
+              )}
               Iniciar chat
             </button>
           </>
         ) : (
           <>
             <span className="text-sm text-slate-400">Multi-agente · {status?.model}</span>
-            <button type="button" className="btn-ghost ml-auto text-sm" disabled={busy} onClick={() => resetSession.mutate()}>
+            <button
+              type="button"
+              className="btn-ghost ml-auto text-sm"
+              disabled={busy}
+              onClick={() => resetSession.mutate()}
+            >
               <RefreshCw className="h-4 w-4" /> Reiniciar
             </button>
           </>
@@ -155,25 +180,25 @@ function TextPlayground() {
 }
 
 function VoicePlayground() {
-  const [agent, setAgent] = useState("receptionist");
+  const [initialAgent, setInitialAgent] = useState("receptionist");
+  const [phone, setPhone] = useState("+15551234567");
+  const [customerName, setCustomerName] = useState("");
+  const [vip, setVip] = useState(false);
+
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
-  const voice = useXaiVoice();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const voice = useLiveKitVoice();
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [voice.transcript]);
-
-  const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 400))}%`;
+  const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
+  const busy = voice.connecting;
 
   return (
-    <div className="glass-card flex min-h-[480px] flex-col">
+    <div className="glass-card flex min-h-[520px] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
         <select
           className="input-field w-auto"
-          value={agent}
-          onChange={(e) => setAgent(e.target.value)}
-          disabled={voice.connected}
+          value={initialAgent}
+          onChange={(e) => setInitialAgent(e.target.value)}
+          disabled={voice.connected || busy}
         >
           {AGENTS.map((a) => (
             <option key={a} value={a}>
@@ -181,68 +206,178 @@ function VoicePlayground() {
             </option>
           ))}
         </select>
+        <input
+          className="input-field w-40"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+15551234567"
+          disabled={voice.connected || busy}
+        />
+        <input
+          className="input-field w-36"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          placeholder="Nombre cliente"
+          disabled={voice.connected || busy}
+        />
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={vip}
+            onChange={(e) => setVip(e.target.checked)}
+            disabled={voice.connected || busy}
+            className="h-4 w-4 rounded border-white/20"
+          />
+          VIP
+        </label>
 
         {!voice.connected ? (
           <button
             type="button"
             className="btn-primary"
-            disabled={!status?.voice_ready}
+            disabled={!status?.livekit_ready || busy}
             onClick={() => {
               voice.setError(null);
-              voice.start(agent).catch((err) => voice.setError(String(err)));
+              voice
+                .start({
+                  initial_agent: initialAgent,
+                  phone_number: phone,
+                  customer_name: customerName || undefined,
+                  vip,
+                })
+                .catch((err) => voice.setError(String(err)));
             }}
           >
-            <Mic className="h-4 w-4" />
-            Hablar con micrófono
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+            Conectar voz
           </button>
         ) : (
           <button type="button" className="btn-ghost text-red-300" onClick={() => voice.stop()}>
             <MicOff className="h-4 w-4" />
-            Detener
+            Desconectar
           </button>
-        )}
-
-        {voice.sessionInfo && (
-          <span className="text-xs text-slate-500">
-            {voice.sessionInfo.model} · {voice.currentAgent} · voz {voice.sessionInfo.voice}
-            {voice.sessionInfo.language_hint ? ` · ${voice.sessionInfo.language_hint}` : ""}
-          </span>
         )}
       </div>
 
-      {voice.connected && (
-        <div className="border-b border-white/5 px-4 py-2">
-          <div className="flex items-center gap-2 text-xs text-cyan-300">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
-            Escuchando… habla naturalmente (VAD del servidor xAI)
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-cyan-500 transition-all" style={{ width: levelWidth }} />
-          </div>
+      {!status?.livekit_ready && (
+        <div className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100">
+          <p className="font-medium">Requiere pipeline de producción</p>
+          <ul className="mt-1 list-inside list-disc text-amber-200/90">
+            {(status?.livekit_issues || ["Configura LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET y XAI_API_KEY"]).map(
+              (issue) => (
+                <li key={issue}>{issue}</li>
+              ),
+            )}
+          </ul>
+          <p className="mt-2 text-xs text-amber-200/80">
+            En otra terminal:{" "}
+            <code className="text-amber-50">uv run -m call_management.server dev</code>
+          </p>
         </div>
       )}
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {!voice.transcript.length && (
-          <p className="text-center text-sm text-slate-500">
-            Conexión directa a xAI Voice Agent API — sin LiveKit. Incluye tools configurados por agente.
+      <div className="grid gap-4 border-b border-white/5 p-4 sm:grid-cols-3">
+        <StatusTile
+          icon={voice.connected ? Wifi : WifiOff}
+          label="Sala LiveKit"
+          value={voice.connected ? voice.sessionInfo?.room_name || "conectado" : "desconectado"}
+          active={voice.connected}
+        />
+        <StatusTile
+          icon={Bot}
+          label="Agente"
+          value={
+            voice.agentJoined
+              ? voice.agentIdentity || voice.sessionInfo?.initial_agent || "activo"
+              : voice.connected
+                ? "esperando dispatch…"
+                : "—"
+          }
+          active={voice.agentJoined}
+        />
+        <StatusTile
+          icon={Headphones}
+          label="Pipeline"
+          value={
+            voice.sessionInfo
+              ? `${voice.sessionInfo.pipeline} · ${voice.sessionInfo.model}`
+              : status?.voice_model || "grok-voice-latest"
+          }
+          active={Boolean(voice.sessionInfo)}
+        />
+      </div>
+
+      {voice.connected && (
+        <div className="border-b border-white/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-cyan-200">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+            {voice.agentJoined
+              ? `Hablando con ${voice.sessionInfo?.initial_agent} — mismo worker que consola/producción`
+              : "Conectado a la sala — esperando que el worker acepte el dispatch…"}
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-cyan-500 transition-all" style={{ width: levelWidth }} />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            <Phone className="mr-1 inline h-3 w-3" />
+            CRM: {phone}
+            {customerName ? ` · ${customerName}` : ""}
+            {vip ? " · VIP" : ""}
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        {!voice.connected && !busy && (
+          <>
+            <div className="rounded-2xl bg-cyan-500/10 p-4">
+              <Mic className="h-8 w-8 text-cyan-400" />
+            </div>
+            <p className="max-w-md text-sm text-slate-400">
+              Voz por <strong className="text-slate-200">LiveKit + xAI Grok</strong> — handoffs, CRM, tools y MCP
+              igual que la consola y las llamadas SIP. No es el WebSocket directo de xAI.
+            </p>
+          </>
+        )}
+        {busy && (
+          <p className="flex items-center gap-2 text-sm text-slate-300">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Creando sala y despachando agente…
           </p>
         )}
-        {voice.transcript.map((line) => (
-          <ChatBubble
-            key={line.id}
-            line={{
-              id: line.id,
-              role: line.role === "system" ? "system" : line.role,
-              text: line.text,
-              agent: line.role === "assistant" ? voice.currentAgent : undefined,
-            }}
-          />
-        ))}
-        <div ref={bottomRef} />
+        {voice.connected && voice.agentJoined && (
+          <p className="text-sm text-slate-300">El agente te escucha. Habla con naturalidad.</p>
+        )}
       </div>
 
       {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
+    </div>
+  );
+}
+
+function StatusTile({
+  icon: Icon,
+  label,
+  value,
+  active,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={clsx(
+        "rounded-xl border px-3 py-2",
+        active ? "border-cyan-400/20 bg-cyan-500/5" : "border-white/5 bg-white/[0.02]",
+      )}
+    >
+      <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-slate-500">
+        <Icon className="h-3 w-3" />
+        {label}
+      </p>
+      <p className="mt-1 truncate text-sm font-medium text-slate-200">{value}</p>
     </div>
   );
 }
@@ -290,7 +425,7 @@ export function Playground() {
       <header>
         <h1 className="font-display text-3xl font-semibold">Probar agente</h1>
         <p className="mt-1 text-slate-400">
-          Voz nativa xAI ({status?.voice_model || "grok-voice-latest"}) o texto multi-agente con handoffs
+          Voz LiveKit + Grok ({status?.voice_model || "grok-voice-latest"}) o texto multi-agente
         </p>
       </header>
 
@@ -306,14 +441,14 @@ export function Playground() {
           className={clsx("btn-ghost", mode === "voice" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("voice")}
         >
-          <Mic className="h-4 w-4" /> Voz (micrófono)
+          <Mic className="h-4 w-4" /> Voz (LiveKit)
         </button>
         <button
           type="button"
           className={clsx("btn-ghost", mode === "text" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("text")}
         >
-          <MessageSquare className="h-4 w-4" /> Texto (multi-agente)
+          <MessageSquare className="h-4 w-4" /> Texto
         </button>
       </div>
 

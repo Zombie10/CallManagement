@@ -115,6 +115,17 @@ async def test_chat_status():
 
 
 @pytest.mark.asyncio
+async def test_livekit_status_endpoint():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/livekit/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "ready" in body
+    assert "issues" in body
+
+
+@pytest.mark.asyncio
 async def test_voice_config_endpoint(agent_profiles_file):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

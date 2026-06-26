@@ -49,11 +49,12 @@ def print_dev_preflight() -> int:
     for issue in issues:
         print(f"  • {issue}")
     print("\nGet them from: https://cloud.livekit.io/ → Project → Settings → Keys")
-    print("\nAlternative without LiveKit (text chat in browser):")
+    print("\nAdmin playground (voice needs this worker + LiveKit creds):")
     print("  uv run call-management-admin  →  http://127.0.0.1:8080/playground")
-    print("\nAlternative without LiveKit (local voice/text):")
-    print("  uv run -m call_management.server console")
-    print("  uv run -m call_management.server console --text")
+    print("\nLocal console (mic/speakers, no Cloud worker):")
+    print("  uv run -m call_management.server console -a receptionist -q")
+    print("  uv run -m call_management.server console --text -q")
+    print("  call-management console-help")
     print("\nThe worker will keep retrying with 401 errors until credentials are fixed.\n")
     return 1
 

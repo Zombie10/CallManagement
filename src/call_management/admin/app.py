@@ -10,6 +10,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from call_management.admin.chat_runner import get_chat_manager
+from call_management.admin.livekit_playground import (
+    create_livekit_playground_session,
+    livekit_playground_ready,
+)
 from call_management.admin.voice_session import create_browser_voice_session
 from call_management.admin.env_store import PROJECT_ROOT, load_settings, save_settings
 from call_management.admin.schemas import (
@@ -17,6 +21,7 @@ from call_management.admin.schemas import (
     ChatMessagePayload,
     ChatSessionCreate,
     VoiceSessionCreate,
+    LiveKitPlaygroundCreate,
     CustomerCreate,
     CustomerUpdate,
     SettingsUpdate,
@@ -237,6 +242,27 @@ async def delete_chat_session(session_id: str):
 async def create_voice_session(payload: VoiceSessionCreate):
     try:
         return await create_browser_voice_session(agent_name=payload.agent)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/livekit/status")
+async def livekit_status():
+    ready, issues = livekit_playground_ready()
+    return {"ready": ready, "issues": issues, "requires_worker": True}
+
+
+@app.post("/api/livekit/playground")
+async def create_livekit_playground(payload: LiveKitPlaygroundCreate):
+    try:
+        return await create_livekit_playground_session(
+            initial_agent=payload.initial_agent,
+            phone_number=payload.phone_number,
+            customer_name=payload.customer_name,
+            vip=payload.vip,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

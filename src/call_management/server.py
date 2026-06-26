@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 
@@ -21,13 +22,14 @@ from call_management.agents import (
     SupportAgent,
     TechnicalAgent,
 )
+from call_management.agent_store import get_effective_instructions
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import CallRecord, get_crm
 from call_management.telephony.sip_tools import SIPManager, make_sip_tools
 from call_management.utils.logging import configure_logging
 from call_management.utils.summary import generate_call_summary
 from call_management.utils.time import utc_now_iso
-from call_management.xai.tools import attach_xai_provider_tools
+from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_config
 
 load_dotenv()
 
@@ -70,6 +72,56 @@ def _resolve_initial_agent(
         )
 
     return receptionist, "receptionist"
+
+
+def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
+    """Merge dispatch metadata and console CLI env overrides."""
+    department_hint: str | None = None
+    from_number: str | None = None
+    customer_name: str | None = None
+    vip: bool | None = None
+
+    if metadata_raw:
+        try:
+            meta = json.loads(metadata_raw)
+            raw_department = meta.get("department") or meta.get("team") or meta.get("initial_agent")
+            if raw_department:
+                hint = str(raw_department).lower()
+                if hint in VALID_DEPARTMENTS:
+                    department_hint = hint
+                else:
+                    logger.warning("Invalid department in metadata: %s", hint)
+            if meta.get("phone_number"):
+                from_number = str(meta["phone_number"])
+            if meta.get("customer_name"):
+                customer_name = str(meta["customer_name"])
+            if "vip" in meta:
+                vip = bool(meta["vip"])
+            logger.info("Dispatch metadata: %s", meta)
+        except json.JSONDecodeError:
+            logger.warning("Could not parse job metadata as JSON: %s", metadata_raw)
+
+    env_agent = os.getenv("CALL_INITIAL_AGENT", "").strip().lower()
+    if env_agent in VALID_DEPARTMENTS:
+        department_hint = env_agent
+
+    env_phone = os.getenv("CALL_FROM_NUMBER", "").strip()
+    if env_phone:
+        from_number = env_phone
+
+    env_customer = os.getenv("CALL_CUSTOMER_NAME", "").strip()
+    if env_customer:
+        customer_name = env_customer
+
+    if os.getenv("CALL_VIP", "").lower() == "true":
+        vip = True
+
+    return {
+        "department_hint": department_hint,
+        "from_number": from_number,
+        "customer_name": customer_name,
+        "vip": vip,
+    }
 
 
 def _build_session(call_ctx: CallContext, ctx: JobContext) -> AgentSession[CallContext]:
@@ -134,7 +186,6 @@ async def entrypoint(ctx: JobContext) -> None:
 
     from_number = "unknown"
     to_number = None
-    department_hint = None
 
     for identity, participant in ctx.room.remote_participants.items():
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
@@ -147,23 +198,23 @@ async def entrypoint(ctx: JobContext) -> None:
                 attrs.get("sip.callStatus"),
             )
 
-    if ctx.job.metadata:
-        try:
-            meta = json.loads(ctx.job.metadata)
-            raw_department = meta.get("department") or meta.get("team")
-            if raw_department:
-                department_hint = str(raw_department).lower()
-                if department_hint not in VALID_DEPARTMENTS:
-                    logger.warning("Invalid department in metadata: %s", department_hint)
-            logger.info("Dispatch metadata: %s", meta)
-        except json.JSONDecodeError:
-            logger.warning("Could not parse job metadata as JSON: %s", ctx.job.metadata)
+    overrides = _parse_session_overrides(ctx.job.metadata)
+    department_hint = overrides["department_hint"]  # type: ignore[assignment]
+    if overrides["from_number"]:
+        from_number = str(overrides["from_number"])
 
     cfg = get_model_config()
     crm = await get_crm()
     sip = SIPManager(ctx)
 
     customer = await crm.get_or_create_customer(from_number)
+    if overrides["customer_name"]:
+        customer.name = str(overrides["customer_name"])
+        await crm.update_customer(customer)
+    if overrides["vip"] is True:
+        customer.vip = True
+        await crm.update_customer(customer)
+
     if customer.name:
         logger.info("Returning customer: %s (%s)", customer.name, from_number)
 
@@ -209,6 +260,13 @@ async def entrypoint(ctx: JobContext) -> None:
         attach_xai_provider_tools(
             agents_registry,
             realtime=cfg.use_grok_realtime,
+            cfg=get_xai_tools_config(),
+        )
+
+    for agent_name, agent in agents_registry.items():
+        agent._instructions = get_effective_instructions(
+            agent_name,
+            for_voice=cfg.use_grok_realtime,
         )
 
     initial_agent, route_reason = _resolve_initial_agent(
@@ -335,6 +393,14 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
 def main() -> None:
     """Entry point for the `call-management` console script."""
     import sys
+
+    from call_management.console_cli import apply_console_cli_overrides, print_console_usage
+
+    if len(sys.argv) > 1 and sys.argv[1] == "console-help":
+        print_console_usage()
+        raise SystemExit(0)
+
+    sys.argv = apply_console_cli_overrides()
 
     if len(sys.argv) > 1 and sys.argv[1] == "dev":
         from call_management.dev_check import print_dev_preflight

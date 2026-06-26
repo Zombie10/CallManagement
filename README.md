@@ -143,6 +143,24 @@ call-management console
 
 This is the fastest way to test the conversation flow without any telephony.
 
+**Pick the starting agent and reduce log noise:**
+
+```bash
+# Start with support, quieter logs (INFO)
+call-management console -a support -q
+
+# Sales + simulated CRM phone number
+call-management console --agent sales --phone +15559876543 --customer "María"
+
+# Text mode instead of microphone
+call-management console -a receptionist --text -q
+
+# Full custom flag list
+call-management console-help
+```
+
+Console uses the same production pipeline as `dev`/`start` (LiveKit Agents + xAI Grok Voice when `USE_GROK_REALTIME=true`).
+
 ### 5. Run in development mode (with hot reload)
 
 ```bash

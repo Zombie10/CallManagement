@@ -103,16 +103,22 @@ class ChatSessionManager:
         self._sessions: dict[str, ManagedChatSession] = {}
 
     def status(self) -> dict[str, Any]:
+        from call_management.admin.livekit_playground import livekit_playground_ready
+
         cfg = get_model_config()
         has_xai = bool(os.getenv("XAI_API_KEY"))
+        lk_ready, lk_issues = livekit_playground_ready()
         return {
             "ready": cfg.provider == "xai" and has_xai or cfg.provider != "xai",
             "provider": cfg.provider,
             "model": cfg.xai_llm_model if cfg.provider == "xai" else cfg.llm_model,
             "voice_model": cfg.grok_realtime_model,
-            "voice_ready": cfg.provider == "xai" and has_xai,
+            "voice_ready": lk_ready,
+            "livekit_ready": lk_ready,
+            "livekit_issues": lk_issues,
             "active_sessions": len(self._sessions),
             "requires_xai_key": cfg.provider == "xai" and not has_xai,
+            "requires_worker": True,
         }
 
     async def create(

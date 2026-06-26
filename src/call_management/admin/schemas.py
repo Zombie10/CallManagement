@@ -40,6 +40,13 @@ class VoiceSessionCreate(BaseModel):
     agent: str = "receptionist"
 
 
+class LiveKitPlaygroundCreate(BaseModel):
+    initial_agent: str = "receptionist"
+    phone_number: str = "+15551234567"
+    customer_name: str | None = None
+    vip: bool = False
+
+
 class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None
