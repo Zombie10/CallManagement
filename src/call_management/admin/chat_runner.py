@@ -20,6 +20,7 @@ from call_management.agents import (
     SupportAgent,
     TechnicalAgent,
 )
+from call_management.agent_store import get_effective_instructions
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.utils.time import utc_now_iso
@@ -165,6 +166,9 @@ class ChatSessionManager:
 
         if cfg.provider == "xai":
             attach_xai_provider_tools(agents_registry, realtime=False, cfg=get_xai_tools_config())
+
+        for agent_name, agent in agents_registry.items():
+            agent._instructions = get_effective_instructions(agent_name)
 
         session.userdata = call_ctx
         start_agent = agents_registry[initial_agent]

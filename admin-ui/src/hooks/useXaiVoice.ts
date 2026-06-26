@@ -1,16 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type VoiceSessionResponse } from "../lib/api";
+import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
 import { base64PCM16ToFloat32, float32ToPCM16Base64 } from "../lib/audio";
 
 const CHUNK_MS = 100;
 
+const HANDOFF_TARGETS: Record<string, string> = {
+  transfer_to_support: "support",
+  transfer_to_sales: "sales",
+  transfer_to_technical: "technical",
+  transfer_to_scheduling: "support",
+  transfer_to_escalation: "escalation",
+  transfer_to_receptionist: "receptionist",
+  to_support: "support",
+  to_sales: "sales",
+  to_technical: "technical",
+  to_scheduling: "support",
+  to_escalation: "escalation",
+  to_receptionist: "receptionist",
+};
+
 export type VoiceTranscriptLine = {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   text: string;
 };
 
 type XaiMessage = { type: string; [key: string]: unknown };
+
+type SessionLike = VoiceSessionResponse | VoiceSessionConfig;
 
 export function useXaiVoice() {
   const [connected, setConnected] = useState(false);
@@ -19,6 +36,7 @@ export function useXaiVoice() {
   const [transcript, setTranscript] = useState<VoiceTranscriptLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sessionInfo, setSessionInfo] = useState<VoiceSessionResponse | null>(null);
+  const [currentAgent, setCurrentAgent] = useState<string>("receptionist");
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -29,8 +47,13 @@ export function useXaiVoice() {
   const playingRef = useRef(false);
   const playbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const configuredRef = useRef(false);
-  const sessionConfigRef = useRef<VoiceSessionResponse | null>(null);
+  const sessionConfigRef = useRef<SessionLike | null>(null);
   const currentLineRef = useRef<{ role: "user" | "assistant"; content: string } | null>(null);
+  const sampleRateRef = useRef(24000);
+
+  const appendSystem = useCallback((text: string) => {
+    setTranscript((prev) => [...prev, { id: `sys-${Date.now()}`, role: "system", text }]);
+  }, []);
 
   const stopPlayback = useCallback(() => {
     if (playbackSourceRef.current) {
@@ -94,6 +117,83 @@ export function useXaiVoice() {
     ]);
   }, []);
 
+  const sendSessionUpdate = useCallback((ws: WebSocket, cfg: SessionLike, sampleRate: number) => {
+    const session: Record<string, unknown> = {
+      instructions: cfg.instructions,
+      voice: cfg.voice,
+      turn_detection: cfg.turn_detection,
+      audio: {
+        input: {
+          format: { type: "audio/pcm", rate: sampleRate },
+          ...(cfg.language_hint
+            ? { transcription: { language_hint: cfg.language_hint } }
+            : {}),
+        },
+        output: { format: { type: "audio/pcm", rate: sampleRate } },
+      },
+    };
+    if (cfg.tools?.length) session.tools = cfg.tools;
+    if ("reasoning_effort" in cfg && cfg.reasoning_effort) {
+      session.reasoning = { effort: cfg.reasoning_effort };
+    }
+    ws.send(JSON.stringify({ type: "session.update", session }));
+  }, []);
+
+  const applyAgentConfig = useCallback(
+    async (targetAgent: string) => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const cfg = await api.voiceConfig(targetAgent);
+      sessionConfigRef.current = cfg;
+      setCurrentAgent(targetAgent);
+      setSessionInfo((prev) =>
+        prev
+          ? { ...prev, agent: targetAgent, voice: cfg.voice, instructions: cfg.instructions, tools: cfg.tools, language_hint: cfg.language_hint }
+          : prev,
+      );
+      sendSessionUpdate(ws, cfg, sampleRateRef.current);
+    },
+    [sendSessionUpdate],
+  );
+
+  const handleFunctionCall = useCallback(
+    async (message: XaiMessage) => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const callId = message.call_id as string | undefined;
+      const name = message.name as string | undefined;
+      if (!callId || !name) return;
+
+      const handoffTarget = HANDOFF_TARGETS[name];
+      let output: string;
+
+      if (handoffTarget) {
+        output = `Transferred to ${handoffTarget} agent. Continue the conversation as that specialist.`;
+        await applyAgentConfig(handoffTarget);
+        appendSystem(`Transferencia de voz → ${handoffTarget}`);
+      } else if (name === "lookup_customer") {
+        output = "Customer lookup is not available in browser voice demo. Ask the caller for their details.";
+      } else {
+        output = `Function ${name} acknowledged.`;
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: "conversation.item.create",
+          item: {
+            type: "function_call_output",
+            call_id: callId,
+            output,
+          },
+        }),
+      );
+      ws.send(JSON.stringify({ type: "response.create" }));
+    },
+    [applyAgentConfig, appendSystem],
+  );
+
   const handleServerMessage = useCallback(
     (message: XaiMessage) => {
       if (message.type === "response.output_audio.delta" && typeof message.delta === "string") {
@@ -104,6 +204,9 @@ export function useXaiVoice() {
       }
       if (message.type === "response.done") {
         currentLineRef.current = null;
+      }
+      if (message.type === "response.function_call_arguments.done") {
+        void handleFunctionCall(message);
       }
       if (message.type === "input_audio_buffer.speech_started") {
         stopPlayback();
@@ -134,34 +237,7 @@ export function useXaiVoice() {
         }
       }
     },
-    [appendTranscript, playAudio, stopPlayback],
-  );
-
-  const configureSession = useCallback(
-    (ws: WebSocket, sampleRate: number) => {
-      const cfg = sessionConfigRef.current;
-      if (!cfg) return;
-
-      const session: Record<string, unknown> = {
-        instructions: cfg.instructions,
-        voice: cfg.voice,
-        turn_detection: cfg.turn_detection,
-        audio: {
-          input: {
-            format: { type: "audio/pcm", rate: sampleRate },
-            ...(cfg.language_hint
-              ? { transcription: { language_hint: cfg.language_hint } }
-              : {}),
-          },
-          output: { format: { type: "audio/pcm", rate: sampleRate } },
-        },
-      };
-      if (cfg.tools?.length) session.tools = cfg.tools;
-      if (cfg.reasoning_effort) session.reasoning = { effort: cfg.reasoning_effort };
-
-      ws.send(JSON.stringify({ type: "session.update", session }));
-    },
-    [],
+    [appendTranscript, handleFunctionCall, playAudio, stopPlayback],
   );
 
   const stopCapture = useCallback(() => {
@@ -189,6 +265,7 @@ export function useXaiVoice() {
     async (agent: string) => {
       setError(null);
       setTranscript([]);
+      setCurrentAgent(agent);
       currentLineRef.current = null;
       disconnect();
 
@@ -200,6 +277,7 @@ export function useXaiVoice() {
       audioCtxRef.current = ctx;
       if (ctx.state === "suspended") await ctx.resume();
       const sampleRate = ctx.sampleRate;
+      sampleRateRef.current = sampleRate;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -230,7 +308,7 @@ export function useXaiVoice() {
             (message.type === "conversation.created" || message.type === "session.created") &&
             !configuredRef.current
           ) {
-            configureSession(ws, sampleRate);
+            sendSessionUpdate(ws, voiceSession, sampleRate);
           }
           if (message.type === "session.updated" && !configuredRef.current) {
             configuredRef.current = true;
@@ -298,7 +376,7 @@ export function useXaiVoice() {
       processorRef.current = processor;
       setCapturing(true);
     },
-    [configureSession, disconnect, handleServerMessage, stopCapture],
+    [disconnect, handleServerMessage, sendSessionUpdate, stopCapture],
   );
 
   useEffect(() => () => disconnect(), [disconnect]);
@@ -310,6 +388,7 @@ export function useXaiVoice() {
     transcript,
     error,
     sessionInfo,
+    currentAgent,
     start,
     stop: disconnect,
     setError,

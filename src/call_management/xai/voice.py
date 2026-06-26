@@ -31,11 +31,9 @@ def language_hint_for_locale(locale: str | None) -> str | None:
 
 
 def language_hint_for_agent(agent_name: str) -> str | None:
-    from call_management.agent_store import get_profile
+    from call_management.agent_store import get_voice_language_for_agent
 
-    profile = get_profile(agent_name)
-    locale = profile.locale if profile else "en"
-    return language_hint_for_locale(locale)
+    return get_voice_language_for_agent(agent_name)
 
 
 def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
@@ -80,33 +78,17 @@ def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
                 entry["allowed_tools"] = server.allowed_tools
             tools.append(entry)
 
+    from call_management.agent_store import get_function_tool_profile
+    from call_management.agents.registry import build_voice_function_tools
+
+    tools.extend(build_voice_function_tools(agent_name, get_function_tool_profile(agent_name)))
     return tools
 
 
 def get_agent_instructions(agent_name: str) -> str:
-    from call_management.agents import (
-        EscalationAgent,
-        ReceptionistAgent,
-        SalesAgent,
-        SupportAgent,
-        TechnicalAgent,
-    )
+    from call_management.agent_store import get_effective_instructions
 
-    registry = {
-        "receptionist": ReceptionistAgent,
-        "support": SupportAgent,
-        "sales": SalesAgent,
-        "technical": TechnicalAgent,
-        "escalation": EscalationAgent,
-    }
-    factory = registry.get(agent_name, ReceptionistAgent)
-    agent = factory()
-    language = get_language_instruction_for_agent(agent_name)
-    return (
-        f"{agent.instructions}\n\n"
-        f"{language}\n\n"
-        "You are in a live voice call. Keep responses concise and natural for speech."
-    )
+    return get_effective_instructions(agent_name, for_voice=True)
 
 
 async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[str, Any]:

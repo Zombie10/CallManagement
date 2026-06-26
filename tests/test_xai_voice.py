@@ -22,3 +22,10 @@ def test_build_voice_tools_web_search(monkeypatch):
     monkeypatch.setenv("XAI_ENABLE_WEB_SEARCH", "true")
     tools = build_voice_tools("receptionist")
     assert any(t["type"] == "web_search" for t in tools)
+
+
+def test_build_voice_tools_includes_handoff_functions():
+    tools = build_voice_tools("receptionist")
+    fn_names = {t.get("name") for t in tools if t.get("type") == "function"}
+    assert "transfer_to_support" in fn_names
+    assert "transfer_to_sales" in fn_names

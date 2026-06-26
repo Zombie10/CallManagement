@@ -54,6 +54,12 @@ async def test_admin_agents_list(agent_profiles_file):
     assert "profiles" in body
     assert "catalog" in body
     assert any(p["name"] == "receptionist" for p in body["profiles"])
+    catalog = body["catalog"]
+    assert "voice_library" in catalog
+    assert "function_tool_catalog" in catalog
+    receptionist = next(p for p in body["profiles"] if p["name"] == "receptionist")
+    assert "default_instructions" in receptionist
+    assert receptionist.get("function_tools")
 
 
 @pytest.mark.asyncio
@@ -106,6 +112,18 @@ async def test_chat_status():
     body = resp.json()
     assert "ready" in body
     assert "provider" in body
+
+
+@pytest.mark.asyncio
+async def test_voice_config_endpoint(agent_profiles_file):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/voice/config/receptionist")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["agent"] == "receptionist"
+    assert body["instructions"]
+    assert any(t.get("type") == "function" for t in body["tools"])
 
 
 @pytest.mark.asyncio

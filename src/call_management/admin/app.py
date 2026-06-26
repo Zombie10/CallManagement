@@ -21,12 +21,8 @@ from call_management.admin.schemas import (
     CustomerUpdate,
     SettingsUpdate,
 )
-from call_management.agent_store import (
-    delete_profile,
-    get_catalog,
-    load_profiles,
-    upsert_profile,
-)
+from call_management.agent_store import delete_profile, get_catalog, load_profiles, upsert_profile
+from call_management.agents.registry import get_default_instructions
 from call_management.config import get_model_config
 from call_management.crm.database import Customer, get_crm
 from call_management.xai.mcp import load_remote_mcp_config
@@ -88,10 +84,27 @@ def _agents_response() -> dict:
     mcp_cfg = load_remote_mcp_config()
     mcp_server_ids = [server.id for server in mcp_cfg.servers]
     return {
-        "profiles": [profile.to_dict() for profile in profiles.values()],
+        "profiles": [
+            {
+                **profile.to_dict(),
+                "default_instructions": get_default_instructions(profile.name),
+                "has_custom_instructions": bool(profile.custom_instructions.strip()),
+            }
+            for profile in profiles.values()
+        ],
         "catalog": get_catalog(),
         "mcp_server_ids": mcp_server_ids,
     }
+
+
+@app.get("/api/voice/config/{agent_name}")
+async def get_voice_agent_config(agent_name: str):
+    from call_management.xai.voice import build_voice_session_payload
+
+    try:
+        return build_voice_session_payload(agent_name)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/agents")

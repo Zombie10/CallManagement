@@ -44,8 +44,11 @@ class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None
     provider: str = "xai"
-    voice: str = "Ara"
+    voice: str = "ara"
     locale: str = "en"
+    voice_language: str = ""
+    custom_instructions: str = ""
     tools: list[str] = Field(default_factory=list)
+    function_tools: list[str] = Field(default_factory=list)
     mcp_servers: list[str] = Field(default_factory=list)
     enabled: bool = True

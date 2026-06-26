@@ -48,6 +48,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ agent }),
     }),
+  voiceConfig: (agent: string) =>
+    request<VoiceSessionConfig>(`/voice/config/${encodeURIComponent(agent)}`),
   customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
   calls: (limit = 50) => request<ListResponse<CallRecord>>(`/calls?limit=${limit}`),
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
@@ -89,15 +91,40 @@ export interface SettingsResponse {
   sections: Record<string, SettingField[]>;
 }
 
+export interface VoiceLibraryEntry {
+  id: string;
+  name: string;
+  gender: string;
+  age_group: string;
+  tone: string;
+  description: string;
+  languages: string[];
+}
+
+export interface VoiceLanguageOption {
+  code: string;
+  label: string;
+}
+
+export interface FunctionToolOption {
+  id: string;
+  label: string;
+}
+
 export interface AgentProfile {
   name: string;
   display_name: string;
   provider: string;
   voice: string;
   locale: string;
+  voice_language: string;
+  custom_instructions: string;
   tools: string[];
+  function_tools: string[];
   mcp_servers: string[];
   enabled: boolean;
+  default_instructions?: string;
+  has_custom_instructions?: boolean;
 }
 
 export interface AgentProfileInput {
@@ -106,7 +133,10 @@ export interface AgentProfileInput {
   provider?: string;
   voice?: string;
   locale?: string;
+  voice_language?: string;
+  custom_instructions?: string;
   tools?: string[];
+  function_tools?: string[];
   mcp_servers?: string[];
   enabled?: boolean;
 }
@@ -116,7 +146,23 @@ export interface AgentsCatalog {
   available_locales: string[];
   available_providers: string[];
   available_xai_voices: string[];
+  voice_library: VoiceLibraryEntry[];
+  voice_language_options: VoiceLanguageOption[];
+  gender_options: string[];
+  age_group_options: string[];
+  function_tool_catalog: FunctionToolOption[];
   protected_agents: string[];
+}
+
+export interface VoiceSessionConfig {
+  agent: string;
+  model: string;
+  voice: string;
+  instructions: string;
+  language_hint?: string | null;
+  tools: Array<Record<string, unknown>>;
+  turn_detection: Record<string, unknown>;
+  reasoning_effort?: string | null;
 }
 
 export interface AgentsResponse {

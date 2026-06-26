@@ -204,7 +204,7 @@ function VoicePlayground() {
 
         {voice.sessionInfo && (
           <span className="text-xs text-slate-500">
-            {voice.sessionInfo.model} · voz {voice.sessionInfo.voice}
+            {voice.sessionInfo.model} · {voice.currentAgent} · voz {voice.sessionInfo.voice}
             {voice.sessionInfo.language_hint ? ` · ${voice.sessionInfo.language_hint}` : ""}
           </span>
         )}
@@ -233,9 +233,9 @@ function VoicePlayground() {
             key={line.id}
             line={{
               id: line.id,
-              role: line.role,
+              role: line.role === "system" ? "system" : line.role,
               text: line.text,
-              agent: line.role === "assistant" ? voice.sessionInfo?.agent : undefined,
+              agent: line.role === "assistant" ? voice.currentAgent : undefined,
             }}
           />
         ))}
