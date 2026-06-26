@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from call_management.admin.auth_permissions import can_access_api
+from call_management.admin.auth_permissions import can_access_api, is_read_only_role
 from call_management.admin.auth_routes import PUBLIC_PATHS
 from call_management.admin.auth_store import SESSION_COOKIE, get_session_user
 
@@ -32,11 +32,11 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         if not user:
             return JSONResponse(status_code=401, content={"detail": "No autenticado"})
 
-        if not can_access_api(user.role, path):
+        if not can_access_api(user.role, path, user.modules):
             return JSONResponse(status_code=403, content={"detail": "Sin permiso para este recurso"})
 
         if (
-            user.role == "viewer"
+            is_read_only_role(user.role)
             and request.method in _MUTATING_METHODS
             and not path.startswith("/api/auth/")
         ):
@@ -48,6 +48,7 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
             "display_name": user.display_name,
             "role": user.role,
             "tenant_id": user.tenant_id,
+            "modules": user.modules,
             "enabled": user.enabled,
         }
         return await call_next(request)

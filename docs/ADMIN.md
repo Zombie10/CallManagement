@@ -71,10 +71,24 @@ uv run python scripts/seed_demo_company.py
 | `/calls` | Historial con transcript/grabación | super_admin, admin, viewer |
 | `/appointments` | Citas programadas | super_admin, admin, viewer |
 | `/settings` | `.env` + webhooks del tenant | super_admin, admin |
-| `/users` | Usuarios y asignación de empresa | super_admin, admin |
+| `/users` | Usuarios, empresa y **permisos por módulo** | super_admin, admin |
 | `/profile` | Contraseña, passkeys | all |
 
 Ver [ANALYTICS.md](ANALYTICS.md) para filtros, pivot y API de reportes.
+
+## Permisos por módulo
+
+Además del **rol**, cada usuario puede tener módulos personalizados (entradas del menú + APIs asociadas).
+
+En **Usuarios** → crear o editar → **Módulos permitidos**:
+
+- **Todos del rol** — acceso por defecto según rol (admin, viewer, playground…)
+- **Personalizado** — elige módulos concretos (Dashboard, Análisis, Llamadas, Playground, etc.)
+
+Los módulos disponibles dependen del rol (techo máximo). Un usuario `viewer` no puede recibir Configuración aunque se intente asignar.
+
+API: `GET /api/auth/modules` — catálogo, defaults y techos por rol.  
+El perfil (`/api/auth/me`) incluye `effective_modules` y `allowed_routes` para la UI.
 
 ## Authentication
 

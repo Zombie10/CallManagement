@@ -71,6 +71,7 @@ export const api = {
       }),
     }),
   authRoles: () => request<{ roles: AdminRoleOption[] }>("/auth/roles"),
+  authModules: () => request<AuthModulesResponse>("/auth/modules"),
   updateProfile: (displayName: string) =>
     request<AuthUserResponse>("/auth/me", {
       method: "PATCH",
@@ -497,6 +498,19 @@ export interface AdminRoleOption {
   description: string;
 }
 
+export interface AdminModule {
+  id: string;
+  label: string;
+  route: string;
+  category: string;
+}
+
+export interface AuthModulesResponse {
+  modules: AdminModule[];
+  role_defaults: Record<string, string[]>;
+  role_ceilings: Record<string, string[]>;
+}
+
 export interface AuthUserResponse {
   id: string;
   username: string;
@@ -504,6 +518,9 @@ export interface AuthUserResponse {
   role: AdminRole;
   tenant_id?: string | null;
   enabled?: boolean;
+  modules?: string[] | null;
+  effective_modules?: string[];
+  allowed_routes?: string[];
   passkeys: Array<{ id: string; device_name: string; created_at: string; last_used_at?: string }>;
   has_passkeys: boolean;
   default_route?: string;
@@ -523,6 +540,9 @@ export interface AdminUserRecord {
   role: AdminRole;
   enabled: boolean;
   tenant_id?: string | null;
+  modules?: string[] | null;
+  effective_modules?: string[];
+  allowed_routes?: string[];
 }
 
 export interface AdminUserCreate {
@@ -531,6 +551,7 @@ export interface AdminUserCreate {
   display_name: string;
   role: AdminRole;
   tenant_id?: string | null;
+  modules?: string[] | null;
 }
 
 export interface AdminUserUpdate {
@@ -539,6 +560,7 @@ export interface AdminUserUpdate {
   enabled?: boolean;
   password?: string;
   tenant_id?: string | null;
+  modules?: string[] | null;
 }
 
 export interface VoiceSessionContext {

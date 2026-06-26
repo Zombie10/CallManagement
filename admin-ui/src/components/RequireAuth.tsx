@@ -1,47 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import type { AdminRole } from "../lib/api";
+import { routeAllowed } from "../lib/permissions";
 import { normalizeAppPath } from "../lib/paths";
-
-const ROLE_ROUTES: Record<AdminRole, string[]> = {
-  super_admin: [
-    "/",
-    "/tenants",
-    "/my-agents",
-    "/setup",
-    "/analytics",
-    "/settings",
-    "/playground",
-    "/agents",
-    "/customers",
-    "/calls",
-    "/appointments",
-    "/profile",
-    "/users",
-  ],
-  admin: [
-    "/",
-    "/my-agents",
-    "/setup",
-    "/analytics",
-    "/settings",
-    "/playground",
-    "/customers",
-    "/calls",
-    "/appointments",
-    "/profile",
-    "/users",
-  ],
-  playground: ["/playground", "/profile"],
-  viewer: ["/", "/analytics", "/customers", "/calls", "/appointments", "/profile"],
-};
-
-function routeAllowed(role: AdminRole, path: string): boolean {
-  const allowed = ROLE_ROUTES[role] || [];
-  if (allowed.includes(path)) return true;
-  if (path === "/" && allowed.includes("/")) return true;
-  return false;
-}
 
 export function RequireAuth() {
   const { user, loading } = useAuth();
@@ -63,7 +23,12 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: path }} />;
   }
 
-  if (!routeAllowed(user.role, path)) {
+  const allowed =
+    user.allowed_routes?.length
+      ? routeAllowed(path, user.allowed_routes)
+      : path === "/profile";
+
+  if (!allowed) {
     const fallback = user.default_route || (user.role === "playground" ? "/playground" : "/");
     return <Navigate to={fallback} replace />;
   }

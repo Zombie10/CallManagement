@@ -22,7 +22,16 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from call_management.admin.auth_permissions import ROLES, default_route_for_role, normalize_role
+from call_management.admin.auth_permissions import (
+    ROLES,
+    ceiling_modules_for_role,
+    default_modules_for_role,
+    default_route_for_role,
+    effective_modules,
+    effective_routes,
+    modules_catalog,
+    normalize_role,
+)
 from call_management.admin.auth_store import (
     SESSION_COOKIE,
     change_own_password,
@@ -96,7 +105,16 @@ def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
 
 
-def get_current_user(request: Request) -> dict[str, str | bool]:
+def _access_fields(user) -> dict[str, Any]:
+    return {
+        "modules": user.modules,
+        "effective_modules": effective_modules(user.role, user.modules),
+        "allowed_routes": effective_routes(user.role, user.modules),
+        "default_route": default_route_for_role(user.role, user.modules),
+    }
+
+
+def get_current_user(request: Request) -> dict[str, Any]:
     session_id = request.cookies.get(SESSION_COOKIE)
     user = get_session_user(session_id)
     if not user:
@@ -108,6 +126,7 @@ def get_current_user(request: Request) -> dict[str, str | bool]:
         "role": user.role,
         "tenant_id": user.tenant_id,
         "enabled": user.enabled,
+        **_access_fields(user),
     }
 
 
@@ -157,6 +176,7 @@ class AdminUserCreatePayload(BaseModel):
     display_name: str = Field(min_length=1, max_length=80)
     role: str = "playground"
     tenant_id: str | None = None
+    modules: list[str] | None = None
 
 
 class AdminUserUpdatePayload(BaseModel):
@@ -165,6 +185,7 @@ class AdminUserUpdatePayload(BaseModel):
     enabled: bool | None = None
     password: str | None = Field(default=None, min_length=8)
     tenant_id: str | None = None
+    modules: list[str] | None = None
 
 
 def _user_payload(user) -> dict[str, Any]:
@@ -175,6 +196,7 @@ def _user_payload(user) -> dict[str, Any]:
         "role": user.role,
         "enabled": user.enabled,
         "tenant_id": user.tenant_id,
+        **_access_fields(user),
     }
 
 
@@ -201,6 +223,15 @@ async def auth_roles():
     return {"roles": ROLES}
 
 
+@router.get("/modules")
+async def auth_modules():
+    return {
+        "modules": modules_catalog(),
+        "role_defaults": {r["id"]: default_modules_for_role(r["id"]) for r in ROLES},
+        "role_ceilings": {r["id"]: sorted(ceiling_modules_for_role(r["id"])) for r in ROLES},
+    }
+
+
 @router.get("/me")
 async def auth_me(user: dict = Depends(get_current_user)):
     creds = list_user_credentials(user["id"])
@@ -208,7 +239,6 @@ async def auth_me(user: dict = Depends(get_current_user)):
         **user,
         "passkeys": creds,
         "has_passkeys": len(creds) > 0,
-        "default_route": default_route_for_role(str(user["role"])),
     }
 
 
@@ -254,6 +284,7 @@ async def create_admin_user(payload: AdminUserCreatePayload, _admin: dict = Depe
             display_name=payload.display_name,
             role=payload.role,
             tenant_id=payload.tenant_id,
+            modules=payload.modules,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -267,13 +298,15 @@ async def patch_admin_user(
     _admin: dict = Depends(require_admin),
 ):
     try:
+        data = payload.model_dump(exclude_unset=True)
         updated = update_user(
             user_id,
-            display_name=payload.display_name,
-            role=payload.role,
-            enabled=payload.enabled,
-            password=payload.password,
-            tenant_id=payload.tenant_id,
+            display_name=data.get("display_name"),
+            role=data.get("role"),
+            enabled=data.get("enabled"),
+            password=data.get("password"),
+            tenant_id=data["tenant_id"] if "tenant_id" in data else ...,
+            modules=data["modules"] if "modules" in data else ...,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -36,6 +36,7 @@ class AdminUser:
     display_name: str
     role: str = "admin"
     tenant_id: str | None = None
+    modules: list[str] | None = None
     enabled: bool = True
 
 
@@ -55,6 +56,8 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
     if "tenant_id" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN tenant_id TEXT")
+    if "modules_json" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN modules_json TEXT")
 
 
 def init_auth_db() -> None:
@@ -113,16 +116,30 @@ def _iso(dt: datetime) -> str:
     return dt.replace(microsecond=0).isoformat()
 
 
+def _parse_modules(row: sqlite3.Row) -> list[str] | None:
+    if "modules_json" not in row.keys() or not row["modules_json"]:
+        return None
+    try:
+        data = json.loads(row["modules_json"])
+        if isinstance(data, list) and data:
+            return [str(x) for x in data]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return None
+
+
 def _row_to_user(row: sqlite3.Row) -> AdminUser:
     enabled = bool(row["enabled"]) if "enabled" in row.keys() else True
     role = normalize_role(row["role"] if "role" in row.keys() else "admin")
     tenant_id = row["tenant_id"] if "tenant_id" in row.keys() else None
+    modules = _parse_modules(row)
     return AdminUser(
         id=row["id"],
         username=row["username"],
         display_name=row["display_name"],
         role=role,
         tenant_id=tenant_id,
+        modules=modules,
         enabled=enabled,
     )
 
@@ -218,7 +235,7 @@ def ensure_bootstrap_user() -> AdminUser | None:
 def get_user_by_username(username: str) -> AdminUser | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, role, enabled, tenant_id FROM users WHERE username = ?",
+            "SELECT id, username, display_name, role, enabled, tenant_id, modules_json FROM users WHERE username = ?",
             (username.strip().lower(),),
         ).fetchone()
         if not row:
@@ -229,7 +246,7 @@ def get_user_by_username(username: str) -> AdminUser | None:
 def get_user_by_id(user_id: str) -> AdminUser | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, role, enabled, tenant_id FROM users WHERE id = ?",
+            "SELECT id, username, display_name, role, enabled, tenant_id, modules_json FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
         if not row:
@@ -240,7 +257,7 @@ def get_user_by_id(user_id: str) -> AdminUser | None:
 def list_users() -> list[AdminUser]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT id, username, display_name, role, enabled, tenant_id FROM users ORDER BY created_at ASC"
+            "SELECT id, username, display_name, role, enabled, tenant_id, modules_json FROM users ORDER BY created_at ASC"
         ).fetchall()
         return [_row_to_user(row) for row in rows]
 
@@ -252,6 +269,7 @@ def create_user(
     display_name: str,
     role: str = "playground",
     tenant_id: str | None = None,
+    modules: list[str] | None = None,
 ) -> AdminUser:
     init_auth_db()
     uname = username.strip().lower()
@@ -260,8 +278,10 @@ def create_user(
     if len(password) < 8:
         raise ValueError("La contraseña debe tener al menos 8 caracteres")
     role = normalize_role(role)
-    if role == "admin" and uname not in PROTECTED_USERNAMES:
-        pass  # allow creating additional admins if needed
+    from call_management.admin.auth_permissions import normalize_module_ids
+
+    modules = normalize_module_ids(modules, role=role)
+    modules_json = json.dumps(modules) if modules else None
 
     with _connect() as conn:
         existing = conn.execute("SELECT id FROM users WHERE username = ?", (uname,)).fetchone()
@@ -270,8 +290,8 @@ def create_user(
         user_id = secrets.token_hex(16)
         conn.execute(
             """
-            INSERT INTO users (id, username, display_name, password_hash, role, enabled, tenant_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, username, display_name, password_hash, role, enabled, tenant_id, modules_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -281,6 +301,7 @@ def create_user(
                 role,
                 1,
                 tenant_id,
+                modules_json,
                 _iso(_utc_now()),
             ),
         )
@@ -291,6 +312,7 @@ def create_user(
         display_name=display_name.strip() or uname,
         role=role,
         tenant_id=tenant_id,
+        modules=modules,
     )
 
 
@@ -302,6 +324,7 @@ def update_user(
     enabled: bool | None = None,
     password: str | None = None,
     tenant_id: str | None = ...,  # type: ignore[assignment]
+    modules: list[str] | None = ...,  # type: ignore[assignment]
 ) -> AdminUser:
     user = get_user_by_id(user_id)
     if not user:
@@ -332,6 +355,13 @@ def update_user(
     if tenant_id is not ...:
         updates.append("tenant_id = ?")
         params.append(tenant_id)
+    if modules is not ...:
+        from call_management.admin.auth_permissions import normalize_module_ids
+
+        effective_role = normalize_role(role) if role is not None else user.role
+        normalized = normalize_module_ids(modules, role=effective_role)
+        updates.append("modules_json = ?")
+        params.append(json.dumps(normalized) if normalized else None)
 
     if not updates:
         return user

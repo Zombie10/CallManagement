@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Shield, Trash2, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { KeyRound, Loader2, Plus, Shield, Trash2, UserPlus } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
+import { ModulePermissionPicker } from "../components/ModulePermissionPicker";
 import { Select } from "../components/Select";
 import { api, type AdminRole, type AdminUserRecord } from "../lib/api";
 import clsx from "clsx";
@@ -24,11 +25,19 @@ export function Users() {
     role: "playground" as AdminRole,
     tenant_id: "" as string,
   });
+  const [formCustomModules, setFormCustomModules] = useState(false);
+  const [formModules, setFormModules] = useState<string[]>([]);
+  const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: rolesData } = useQuery({
     queryKey: ["auth-roles"],
     queryFn: api.authRoles,
+  });
+
+  const { data: modulesData } = useQuery({
+    queryKey: ["auth-modules"],
+    queryFn: api.authModules,
   });
 
   const { data: tenantsData } = useQuery({
@@ -49,15 +58,23 @@ export function Users() {
     enabled: canManageUsers(user?.role),
   });
 
+  useEffect(() => {
+    if (modulesData && !formCustomModules) {
+      setFormModules(modulesData.role_defaults[form.role] || []);
+    }
+  }, [form.role, modulesData, formCustomModules]);
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.createUser({
         ...form,
         tenant_id: form.tenant_id || null,
+        modules: formCustomModules ? formModules : null,
       }),
     onSuccess: async () => {
       setShowForm(false);
       setForm({ username: "", password: "", display_name: "", role: "playground", tenant_id: "" });
+      setFormCustomModules(false);
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -88,8 +105,9 @@ export function Users() {
   }
 
   const roles = rolesData?.roles || [];
-  const tenantName = (id: string | null | undefined) =>
-    tenantOptions.find((t) => t.value === id)?.label || "—";
+  const catalog = modulesData?.modules || [];
+  const roleDefaults = modulesData?.role_defaults || {};
+  const roleCeilings = modulesData?.role_ceilings || {};
 
   return (
     <div className="animate-page-enter space-y-6">
@@ -97,7 +115,7 @@ export function Users() {
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Usuarios</h1>
           <p className="mt-1 text-slate-400">
-            Crea cuentas con acceso limitado o asignadas a una empresa
+            Roles y módulos de acceso por usuario (entradas del menú y APIs)
           </p>
         </div>
         <button type="button" className="btn-primary" onClick={() => setShowForm((v) => !v)}>
@@ -110,7 +128,7 @@ export function Users() {
         <div className="glass-card border-red-500/30 p-4 text-sm text-red-300">{error}</div>
       )}
 
-      {showForm && (
+      {showForm && modulesData && (
         <div className="glass-card space-y-4 p-6">
           <h2 className="flex items-center gap-2 font-medium">
             <Plus className="h-4 w-4 text-cyan-400" />
@@ -132,7 +150,6 @@ export function Users() {
                 className="input-field"
                 value={form.display_name}
                 onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
-                placeholder="Usuario demo"
               />
             </label>
             <label className="space-y-1.5">
@@ -148,7 +165,10 @@ export function Users() {
               <span className="text-sm text-slate-400">Rol</span>
               <Select
                 value={form.role}
-                onChange={(role) => setForm((f) => ({ ...f, role: role as AdminRole }))}
+                onChange={(role) => {
+                  setForm((f) => ({ ...f, role: role as AdminRole }));
+                  setFormCustomModules(false);
+                }}
                 options={roles.map((r) => ({
                   value: r.id,
                   label: r.label,
@@ -163,18 +183,25 @@ export function Users() {
                   value={form.tenant_id}
                   onChange={(v) => setForm((f) => ({ ...f, tenant_id: v }))}
                   options={[
-                    { value: "", label: "Sin empresa (super admin / global)" },
+                    { value: "", label: "Sin empresa (global)" },
                     ...tenantOptions,
                   ]}
                 />
               </label>
             )}
           </div>
-          {form.role === "playground" && (
-            <p className="text-xs text-slate-500">
-              Solo verá Probar agente y su perfil — ideal para probar voz sin acceso al CRM.
-            </p>
-          )}
+
+          <ModulePermissionPicker
+            role={form.role}
+            catalog={catalog}
+            roleDefaults={roleDefaults}
+            roleCeilings={roleCeilings}
+            custom={formCustomModules}
+            selected={formModules}
+            onCustomChange={setFormCustomModules}
+            onSelectedChange={setFormModules}
+          />
+
           <button
             type="button"
             className="btn-primary"
@@ -182,7 +209,8 @@ export function Users() {
               createMutation.isPending ||
               !form.username ||
               !form.display_name ||
-              form.password.length < 8
+              form.password.length < 8 ||
+              (formCustomModules && !formModules.length)
             }
             onClick={() => createMutation.mutate()}
           >
@@ -201,6 +229,7 @@ export function Users() {
               <tr>
                 <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Rol</th>
+                <th className="px-4 py-3">Módulos</th>
                 {isSuperAdmin && <th className="px-4 py-3">Empresa</th>}
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -212,17 +241,27 @@ export function Users() {
                   key={row.id}
                   row={row}
                   roles={roles}
+                  catalog={catalog}
+                  roleDefaults={roleDefaults}
+                  roleCeilings={roleCeilings}
                   isSelf={row.id === user?.id}
                   isSuperAdmin={isSuperAdmin}
                   tenantOptions={tenantOptions}
-                  tenantName={tenantName(row.tenant_id)}
+                  tenantName={tenantOptions.find((t) => t.value === row.tenant_id)?.label || "—"}
                   busy={updateMutation.isPending || deleteMutation.isPending}
+                  showPermissions={permissionsUserId === row.id}
+                  onTogglePermissions={() =>
+                    setPermissionsUserId((id) => (id === row.id ? null : row.id))
+                  }
                   onToggleEnabled={() =>
                     updateMutation.mutate({ id: row.id, patch: { enabled: !row.enabled } })
                   }
                   onRoleChange={(role) => updateMutation.mutate({ id: row.id, patch: { role } })}
                   onTenantChange={(tenant_id) =>
                     updateMutation.mutate({ id: row.id, patch: { tenant_id: tenant_id || null } })
+                  }
+                  onSaveModules={(modules) =>
+                    updateMutation.mutate({ id: row.id, patch: { modules } })
                   }
                   onDelete={() => deleteMutation.mutate(row.id)}
                 />
@@ -238,97 +277,154 @@ export function Users() {
 function UserRow({
   row,
   roles,
+  catalog,
+  roleDefaults,
+  roleCeilings,
   isSelf,
   isSuperAdmin,
   tenantOptions,
   tenantName,
   busy,
+  showPermissions,
+  onTogglePermissions,
   onToggleEnabled,
   onRoleChange,
   onTenantChange,
+  onSaveModules,
   onDelete,
 }: {
   row: AdminUserRecord;
   roles: Array<{ id: string; label: string }>;
+  catalog: import("../lib/api").AdminModule[];
+  roleDefaults: Record<string, string[]>;
+  roleCeilings: Record<string, string[]>;
   isSelf: boolean;
   isSuperAdmin: boolean;
   tenantOptions: Array<{ value: string; label: string }>;
   tenantName: string;
   busy: boolean;
+  showPermissions: boolean;
+  onTogglePermissions: () => void;
   onToggleEnabled: () => void;
   onRoleChange: (role: AdminRole) => void;
   onTenantChange: (tenantId: string) => void;
+  onSaveModules: (modules: string[] | null) => void;
   onDelete: () => void;
 }) {
   const isProtected = row.username === "admin";
+  const [custom, setCustom] = useState(!!row.modules?.length);
+  const [selected, setSelected] = useState(row.modules?.length ? row.modules : row.effective_modules || []);
+
+  useEffect(() => {
+    setCustom(!!row.modules?.length);
+    setSelected(row.modules?.length ? row.modules : roleDefaults[row.role] || []);
+  }, [row.id, row.modules, row.role, roleDefaults]);
+
+  const moduleCount = row.effective_modules?.length ?? 0;
+  const customLabel = row.modules?.length ? "Personalizado" : "Rol completo";
 
   return (
-    <tr className="border-b border-white/5 last:border-0">
-      <td className="px-4 py-3">
-        <p className="font-medium text-slate-200">{row.display_name}</p>
-        <p className="text-xs text-slate-500">@{row.username}</p>
-      </td>
-      <td className="px-4 py-3">
-        {isProtected ? (
-          <span className="inline-flex items-center gap-1 text-cyan-300">
-            <Shield className="h-3 w-3" />
-            Super admin
-          </span>
-        ) : (
-          <Select
-            className="w-44"
-            size="sm"
-            value={row.role}
-            options={roles.map((r) => ({ value: r.id, label: r.label }))}
-            disabled={busy}
-            onChange={(role) => onRoleChange(role as AdminRole)}
-          />
-        )}
-      </td>
-      {isSuperAdmin && (
+    <>
+      <tr className="border-b border-white/5 last:border-0">
+        <td className="px-4 py-3">
+          <p className="font-medium text-slate-200">{row.display_name}</p>
+          <p className="text-xs text-slate-500">@{row.username}</p>
+        </td>
         <td className="px-4 py-3">
           {isProtected ? (
-            <span className="text-xs text-slate-500">{tenantName}</span>
+            <span className="inline-flex items-center gap-1 text-cyan-300">
+              <Shield className="h-3 w-3" />
+              Super admin
+            </span>
           ) : (
             <Select
-              className="w-40"
+              className="w-44"
               size="sm"
-              value={row.tenant_id || ""}
-              options={[
-                { value: "", label: "Global" },
-                ...tenantOptions,
-              ]}
+              value={row.role}
+              options={roles.map((r) => ({ value: r.id, label: r.label }))}
               disabled={busy}
-              onChange={onTenantChange}
+              onChange={(role) => onRoleChange(role as AdminRole)}
             />
           )}
         </td>
-      )}
-      <td className="px-4 py-3">
-        <button
-          type="button"
-          className={clsx(
-            "rounded-full px-2 py-0.5 text-xs",
-            row.enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300",
-          )}
-          disabled={isProtected || busy}
-          onClick={onToggleEnabled}
-        >
-          {row.enabled ? "Activo" : "Desactivado"}
-        </button>
-      </td>
-      <td className="px-4 py-3 text-right">
-        {!isSelf && !isProtected && (
+        <td className="px-4 py-3">
           <button
             type="button"
-            className="btn-ghost px-2 text-red-300"
-            disabled={busy}
-            onClick={onDelete}
+            className="flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200"
+            disabled={isProtected}
+            onClick={onTogglePermissions}
           >
-            <Trash2 className="h-4 w-4" />
+            <KeyRound className="h-3.5 w-3.5" />
+            {moduleCount} · {customLabel}
           </button>
+        </td>
+        {isSuperAdmin && (
+          <td className="px-4 py-3">
+            {isProtected ? (
+              <span className="text-xs text-slate-500">{tenantName}</span>
+            ) : (
+              <Select
+                className="w-40"
+                size="sm"
+                value={row.tenant_id || ""}
+                options={[{ value: "", label: "Global" }, ...tenantOptions]}
+                disabled={busy}
+                onChange={onTenantChange}
+              />
+            )}
+          </td>
         )}
-      </td>
-    </tr>
+        <td className="px-4 py-3">
+          <button
+            type="button"
+            className={clsx(
+              "rounded-full px-2 py-0.5 text-xs",
+              row.enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300",
+            )}
+            disabled={isProtected || busy}
+            onClick={onToggleEnabled}
+          >
+            {row.enabled ? "Activo" : "Desactivado"}
+          </button>
+        </td>
+        <td className="px-4 py-3 text-right">
+          {!isSelf && !isProtected && (
+            <button type="button" className="btn-ghost px-2 text-red-300" disabled={busy} onClick={onDelete}>
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </td>
+      </tr>
+      {showPermissions && !isProtected && catalog.length > 0 && (
+        <tr>
+          <td colSpan={isSuperAdmin ? 6 : 5} className="border-b border-white/5 bg-white/[0.02] px-4 py-4">
+            <ModulePermissionPicker
+              role={row.role}
+              catalog={catalog}
+              roleDefaults={roleDefaults}
+              roleCeilings={roleCeilings}
+              custom={custom}
+              selected={selected}
+              onCustomChange={setCustom}
+              onSelectedChange={setSelected}
+              disabled={busy}
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                className="btn-primary text-sm"
+                disabled={busy || (custom && !selected.length)}
+                onClick={() => onSaveModules(custom ? selected : null)}
+              >
+                Guardar permisos
+              </button>
+              <button type="button" className="btn-ghost text-sm" onClick={onTogglePermissions}>
+                Cerrar
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

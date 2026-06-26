@@ -19,28 +19,30 @@ import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
 import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
 import { Breadcrumbs } from "./Breadcrumbs";
-import type { AdminRole } from "../lib/api";
+import { moduleAllowed } from "../lib/permissions";
 
-const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; roles: AdminRole[] }> = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super_admin", "admin", "viewer"] },
-  { to: "/tenants", label: "Empresas", icon: Building2, roles: ["super_admin"] },
-  { to: "/my-agents", label: "Mis agentes", icon: Network, roles: ["super_admin", "admin"] },
-  { to: "/setup", label: "Guía inicio", icon: Rocket, roles: ["super_admin", "admin"] },
-  { to: "/settings", label: "Configuración", icon: Settings2, roles: ["super_admin", "admin"] },
-  { to: "/playground", label: "Probar agente", icon: MessageSquare, roles: ["super_admin", "admin", "playground"] },
-  { to: "/agents", label: "Plantillas sistema", icon: Bot, roles: ["super_admin"] },
-  { to: "/customers", label: "Clientes", icon: Users, roles: ["super_admin", "admin", "viewer"] },
-  { to: "/calls", label: "Llamadas", icon: Phone, roles: ["super_admin", "admin", "viewer"] },
-  { to: "/analytics", label: "Análisis", icon: BarChart3, roles: ["super_admin", "admin", "viewer"] },
-  { to: "/appointments", label: "Citas", icon: Headphones, roles: ["super_admin", "admin", "viewer"] },
-  { to: "/users", label: "Usuarios", icon: Users, roles: ["super_admin", "admin"] },
+const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; module: string }> = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
+  { to: "/tenants", label: "Empresas", icon: Building2, module: "tenants" },
+  { to: "/my-agents", label: "Mis agentes", icon: Network, module: "my_agents" },
+  { to: "/setup", label: "Guía inicio", icon: Rocket, module: "setup" },
+  { to: "/settings", label: "Configuración", icon: Settings2, module: "settings" },
+  { to: "/playground", label: "Probar agente", icon: MessageSquare, module: "playground" },
+  { to: "/agents", label: "Plantillas sistema", icon: Bot, module: "agents" },
+  { to: "/customers", label: "Clientes", icon: Users, module: "customers" },
+  { to: "/calls", label: "Llamadas", icon: Phone, module: "calls" },
+  { to: "/analytics", label: "Análisis", icon: BarChart3, module: "analytics" },
+  { to: "/appointments", label: "Citas", icon: Headphones, module: "appointments" },
+  { to: "/users", label: "Usuarios", icon: Users, module: "users" },
 ];
 
 export function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const onPlayground = /\/playground\/?$/.test(location.pathname);
-  const nav = ALL_NAV.filter((item) => user && item.roles.includes(user.role));
+  const nav = ALL_NAV.filter(
+    (item) => user && moduleAllowed(item.module, user.effective_modules),
+  );
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 p-4 md:p-6">
