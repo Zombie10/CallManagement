@@ -115,7 +115,11 @@ export function useLiveKitVoice() {
           handleAgentParticipant(participant);
           const el = track.attach();
           el.autoplay = true;
+          el.volume = 1;
           document.body.appendChild(el);
+          void el.play().catch(() => {
+            /* autoplay may need user gesture; connect button satisfies this */
+          });
           audioElementsRef.current.push(el);
         });
 

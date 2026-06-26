@@ -4,6 +4,8 @@ import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/
 import { base64PCM16ToFloat32, float32ToPCM16Base64 } from "../lib/audio";
 
 const CHUNK_MS = 100;
+/** xAI Voice API default; input/output must use the same rate for playback. */
+const XAI_AUDIO_RATE = 24000;
 
 const HANDOFF_TARGETS: Record<string, string> = {
   transfer_to_support: "support",
@@ -50,10 +52,13 @@ export function useXaiVoice() {
   const playbackQueueRef = useRef<Float32Array[]>([]);
   const playingRef = useRef(false);
   const playbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playbackGainRef = useRef<GainNode | null>(null);
   const configuredRef = useRef(false);
+  const assistantSpeakingRef = useRef(false);
+  const lastAudioDeltaAtRef = useRef(0);
   const sessionConfigRef = useRef<SessionLike | null>(null);
   const currentLineRef = useRef<{ role: "user" | "assistant"; content: string } | null>(null);
-  const sampleRateRef = useRef(24000);
+  const sampleRateRef = useRef(XAI_AUDIO_RATE);
   const callContextRef = useRef<{ phone_number: string; customer_name?: string }>({
     phone_number: "+15551234567",
   });
@@ -83,11 +88,12 @@ export function useXaiVoice() {
       return;
     }
     const chunk = playbackQueueRef.current.shift()!;
-    const buffer = ctx.createBuffer(1, chunk.length, ctx.sampleRate);
+    const buffer = ctx.createBuffer(1, chunk.length, sampleRateRef.current);
     buffer.getChannelData(0).set(chunk);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    const dest = playbackGainRef.current ?? ctx.destination;
+    source.connect(dest);
     playbackSourceRef.current = source;
     source.onended = () => {
       if (playbackSourceRef.current === source) playbackSourceRef.current = null;
@@ -100,7 +106,10 @@ export function useXaiVoice() {
   const playAudio = useCallback(
     (base64: string) => {
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
+      if (!ctx || ctx.state === "closed") return;
+      if (ctx.state === "suspended") void ctx.resume();
+      assistantSpeakingRef.current = true;
+      lastAudioDeltaAtRef.current = Date.now();
       playbackQueueRef.current.push(base64PCM16ToFloat32(base64));
       if (!playingRef.current) playNext(ctx);
     },
@@ -273,11 +282,19 @@ export function useXaiVoice() {
       if (message.type === "response.output_audio.delta" && typeof message.delta === "string") {
         playAudio(message.delta);
       }
+      if (message.type === "response.output_audio.done") {
+        window.setTimeout(() => {
+          if (Date.now() - lastAudioDeltaAtRef.current > 400) {
+            assistantSpeakingRef.current = false;
+          }
+        }, 450);
+      }
       if (message.type === "response.output_audio_transcript.delta" && typeof message.delta === "string") {
         appendTranscript("assistant", message.delta);
       }
       if (message.type === "response.done") {
         currentLineRef.current = null;
+        assistantSpeakingRef.current = false;
       }
       if (message.type === "response.function_call_arguments.done") {
         void handleFunctionCall(message);
@@ -310,7 +327,10 @@ export function useXaiVoice() {
         }
       }
       if (message.type === "input_audio_buffer.speech_started") {
-        stopPlayback();
+        const recentlyAssistantAudio = Date.now() - lastAudioDeltaAtRef.current < 700;
+        if (!recentlyAssistantAudio && !assistantSpeakingRef.current) {
+          stopPlayback();
+        }
         currentLineRef.current = { role: "user", content: "" };
         setTranscript((prev) => {
           if (prev.length && prev[prev.length - 1].role === "user") return prev;
@@ -358,6 +378,12 @@ export function useXaiVoice() {
     wsRef.current?.close();
     wsRef.current = null;
     configuredRef.current = false;
+    assistantSpeakingRef.current = false;
+    playbackGainRef.current = null;
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      void audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
     setConnected(false);
     currentLineRef.current = null;
   }, [stopCapture, stopPlayback]);
@@ -385,11 +411,19 @@ export function useXaiVoice() {
       setSessionInfo(voiceSession);
       sessionConfigRef.current = voiceSession;
 
-      const ctx = audioCtxRef.current ?? new AudioContext();
+      if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+        await audioCtxRef.current.close();
+      }
+      const ctx = new AudioContext({ sampleRate: XAI_AUDIO_RATE });
       audioCtxRef.current = ctx;
       if (ctx.state === "suspended") await ctx.resume();
       const sampleRate = ctx.sampleRate;
       sampleRateRef.current = sampleRate;
+
+      const playbackGain = ctx.createGain();
+      playbackGain.gain.value = 1;
+      playbackGain.connect(ctx.destination);
+      playbackGainRef.current = playbackGain;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -425,6 +459,17 @@ export function useXaiVoice() {
           if (message.type === "session.updated" && !configuredRef.current) {
             configuredRef.current = true;
             setConnected(true);
+            ws.send(
+              JSON.stringify({
+                type: "conversation.item.create",
+                item: {
+                  type: "message",
+                  role: "user",
+                  content: [{ type: "input_text", text: "Saluda brevemente al cliente y ofrece ayuda." }],
+                },
+              }),
+            );
+            ws.send(JSON.stringify({ type: "response.create" }));
           }
           handleServerMessage(message);
         } catch {
@@ -456,7 +501,12 @@ export function useXaiVoice() {
         buffers.push(new Float32Array(input));
         total += input.length;
 
-        while (total >= chunkSamples && configuredRef.current && ws.readyState === WebSocket.OPEN) {
+        while (
+          total >= chunkSamples &&
+          configuredRef.current &&
+          ws.readyState === WebSocket.OPEN &&
+          !assistantSpeakingRef.current
+        ) {
           const chunk = new Float32Array(chunkSamples);
           let offset = 0;
           while (offset < chunkSamples && buffers.length) {
@@ -484,7 +534,10 @@ export function useXaiVoice() {
       };
 
       source.connect(processor);
-      processor.connect(ctx.destination);
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      processor.connect(silentGain);
+      silentGain.connect(ctx.destination);
       processorRef.current = processor;
       setCapturing(true);
     },
