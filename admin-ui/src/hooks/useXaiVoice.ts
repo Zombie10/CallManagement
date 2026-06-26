@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ToolCallEntry } from "../components/ToolCallLog";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
 import { base64PCM16ToFloat32, float32ToPCM16Base64 } from "../lib/audio";
 
@@ -11,6 +12,8 @@ const HANDOFF_TARGETS: Record<string, string> = {
   transfer_to_scheduling: "support",
   transfer_to_escalation: "escalation",
   transfer_to_receptionist: "receptionist",
+  transfer_to_banking_support: "banking_support",
+  to_banking_support: "banking_support",
   to_support: "support",
   to_sales: "sales",
   to_technical: "technical",
@@ -37,6 +40,7 @@ export function useXaiVoice() {
   const [error, setError] = useState<string | null>(null);
   const [sessionInfo, setSessionInfo] = useState<VoiceSessionResponse | null>(null);
   const [currentAgent, setCurrentAgent] = useState<string>("receptionist");
+  const [toolCalls, setToolCalls] = useState<ToolCallEntry[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -182,6 +186,19 @@ export function useXaiVoice() {
       }
 
       const ctx = callContextRef.current;
+      const pendingId = `tool-${Date.now()}`;
+      setToolCalls((prev) => [
+        ...prev,
+        {
+          id: pendingId,
+          tool: name,
+          arguments: args,
+          output: "",
+          status: "pending",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
       let output: string;
       let handoffAgent: string | undefined;
 
@@ -194,6 +211,21 @@ export function useXaiVoice() {
         });
         output = result.output;
         handoffAgent = result.handoff_agent;
+        setToolCalls((prev) =>
+          prev.map((entry) =>
+            entry.id === pendingId
+              ? {
+                  ...entry,
+                  tool: result.tool || name,
+                  arguments: result.arguments || args,
+                  output: result.output,
+                  status: result.status === "error" ? "error" : "ok",
+                  durationMs: result.duration_ms,
+                }
+              : entry,
+          ),
+        );
+        appendSystem(`🔧 ${result.tool || name} → ${result.output.slice(0, 120)}${result.output.length > 120 ? "…" : ""}`);
         if (result.event?.type === "handoff" && result.event.detail) {
           appendSystem(`Transferencia de voz → ${result.event.detail}`);
         } else if (result.event) {
@@ -208,6 +240,13 @@ export function useXaiVoice() {
         } else {
           output = err instanceof Error ? err.message : `Function ${name} failed`;
         }
+        setToolCalls((prev) =>
+          prev.map((entry) =>
+            entry.id === pendingId
+              ? { ...entry, output, status: "error" as const }
+              : entry,
+          ),
+        );
       }
 
       if (handoffAgent) {
@@ -330,6 +369,7 @@ export function useXaiVoice() {
     ) => {
       setError(null);
       setTranscript([]);
+      setToolCalls([]);
       setCurrentAgent(agent);
       currentLineRef.current = null;
       callContextRef.current = {
@@ -461,6 +501,7 @@ export function useXaiVoice() {
     error,
     sessionInfo,
     currentAgent,
+    toolCalls,
     start,
     stop: disconnect,
     setError,

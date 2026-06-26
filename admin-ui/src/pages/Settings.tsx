@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Settings2 } from "lucide-react";
 import { useState } from "react";
+import { Select } from "../components/Select";
 import { api, type SettingField } from "../lib/api";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -38,13 +39,11 @@ function FieldInput({
   }
   if (field.type === "select" && field.options) {
     return (
-      <select className="input-field" value={value} onChange={(e) => onChange(e.target.value)}>
-        {field.options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
+      <Select
+        value={value}
+        onChange={onChange}
+        options={field.options.map((opt) => ({ value: opt, label: opt }))}
+      />
     );
   }
   if (field.type === "json") {

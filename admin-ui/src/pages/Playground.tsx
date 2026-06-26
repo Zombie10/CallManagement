@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Bot,
   Cloud,
-  Headphones,
+  CreditCard,
   Loader2,
   MessageSquare,
   Mic,
@@ -17,9 +17,12 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Select } from "../components/Select";
+import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
-import { api } from "../lib/api";
+import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
+import { api, type DemoCustomer } from "../lib/api";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 
@@ -32,23 +35,86 @@ type ChatLine = {
 
 type VoiceBackend = "livekit" | "xai";
 
-const AGENTS = ["receptionist", "support", "sales", "technical", "escalation"];
+function DemoCustomerPicker({
+  onSelect,
+  disabled,
+}: {
+  onSelect: (customer: DemoCustomer) => void;
+  disabled?: boolean;
+}) {
+  const { data } = useQuery({ queryKey: ["demo-customers"], queryFn: api.demoCustomers });
+  const [picked, setPicked] = useState("");
+
+  const options = (data?.customers || []).map((c) => ({
+    value: c.phone_number,
+    label: c.name,
+    description: `${c.phone_number} · ${c.account_masked} · ${c.debit_card_masked}`,
+  }));
+
+  if (!options.length) return null;
+
+  return (
+    <Select
+      className="w-full sm:w-72"
+      value={picked}
+      onChange={(phone) => {
+        setPicked(phone);
+        const customer = data?.customers.find((c) => c.phone_number === phone);
+        if (customer) onSelect(customer);
+      }}
+      options={[{ value: "", label: "Cliente demo BAC…", description: "Reynaldo / Francisco" }, ...options]}
+      disabled={disabled}
+      size="sm"
+    />
+  );
+}
+
+function DemoCustomerCard({ customer }: { customer: DemoCustomer }) {
+  return (
+    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs text-slate-300">
+      <p className="font-medium text-cyan-100">
+        <CreditCard className="mr-1 inline h-3.5 w-3.5" />
+        {customer.name} · {customer.institution}
+      </p>
+      <p className="mt-1 text-slate-400">
+        Cuenta {customer.account_type} {customer.account_masked} · Débito {customer.debit_card_masked} (
+        {customer.debit_card_exp})
+      </p>
+      {customer.credit_card_masked && (
+        <p className="text-slate-500">Crédito {customer.credit_card_masked}</p>
+      )}
+      <p className="mt-1 text-slate-500">{customer.hint}</p>
+    </div>
+  );
+}
 
 function TextPlayground() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [lines, setLines] = useState<ChatLine[]>([]);
+  const [toolLog, setToolLog] = useState<ToolCallEntry[]>([]);
   const [input, setInput] = useState("");
-  const [initialAgent, setInitialAgent] = useState("receptionist");
-  const [phone, setPhone] = useState("+15551234567");
+  const [initialAgent, setInitialAgent] = useState("banking_support");
+  const [phone, setPhone] = useState("+15103750043");
+  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
+  const { data: demos } = useQuery({ queryKey: ["demo-customers"], queryFn: api.demoCustomers });
+
+  useEffect(() => {
+    if (!demoCard && demos?.customers?.length) {
+      const match = demos.customers.find((c) => c.phone_number === phone);
+      if (match) setDemoCard(match);
+    }
+  }, [demos, phone, demoCard]);
 
   const startSession = useMutation({
     mutationFn: () =>
       api.createChatSession({
         initial_agent: initialAgent,
         phone_number: phone,
+        customer_name: customerName || undefined,
       }),
     onSuccess: (data) => {
       setSessionId(data.session_id);
@@ -81,6 +147,26 @@ function TextPlayground() {
             role: "system" as const,
             text: `Transferencia → ${e.detail}`,
           })),
+        ...data.events
+          .filter((e) => e.type === "tool_call")
+          .map((e, i) => ({
+            id: `t-${Date.now()}-${i}`,
+            role: "system" as const,
+            text: `🔧 Tool: ${e.detail}`,
+          })),
+      ]);
+      setToolLog((prev) => [
+        ...prev,
+        ...data.events
+          .filter((e) => e.type === "tool_call")
+          .map((e, i) => ({
+            id: `chat-tool-${Date.now()}-${i}`,
+            tool: e.tool || e.detail.split("(")[0] || "tool",
+            arguments: {},
+            output: e.detail,
+            status: "ok" as const,
+            timestamp: new Date().toISOString(),
+          })),
       ]);
       setInput("");
     },
@@ -101,21 +187,26 @@ function TextPlayground() {
   const busy = startSession.isPending || sendMessage.isPending || resetSession.isPending;
 
   return (
-    <div className="glass-card flex min-h-[520px] flex-col">
+    <div className="glass-card flex min-h-[520px] flex-col lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
         {!sessionId ? (
           <>
-            <select
-              className="input-field w-auto"
+            <Select
+              className="w-52"
               value={initialAgent}
-              onChange={(e) => setInitialAgent(e.target.value)}
-            >
-              {AGENTS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+              onChange={setInitialAgent}
+              options={AGENT_OPTIONS}
+            />
+            <DemoCustomerPicker
+              disabled={!!sessionId}
+              onSelect={(c) => {
+                setPhone(c.phone_number);
+                setCustomerName(c.name);
+                setDemoCard(c);
+                setInitialAgent("banking_support");
+              }}
+            />
             <input
               className="input-field w-44"
               value={phone}
@@ -172,6 +263,13 @@ function TextPlayground() {
       {(startSession.error || sendMessage.error) && (
         <p className="px-4 pb-4 text-sm text-red-400">{(startSession.error || sendMessage.error)?.message}</p>
       )}
+      </div>
+      <aside className="w-full border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
+        {demoCard && <DemoCustomerCard customer={demoCard} />}
+        <div className={demoCard ? "mt-3" : ""}>
+          <ToolCallLog entries={toolLog} title="Tools (texto)" />
+        </div>
+      </aside>
     </div>
   );
 }
@@ -183,6 +281,8 @@ function VoiceControls({
   setPhone,
   customerName,
   setCustomerName,
+  demoCard,
+  onDemoSelect,
   vip,
   setVip,
   connected,
@@ -196,6 +296,8 @@ function VoiceControls({
   setPhone: (v: string) => void;
   customerName: string;
   setCustomerName: (v: string) => void;
+  demoCard?: DemoCustomer | null;
+  onDemoSelect?: (c: DemoCustomer) => void;
   vip: boolean;
   setVip: (v: boolean) => void;
   connected: boolean;
@@ -205,18 +307,16 @@ function VoiceControls({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-      <select
-        className="input-field w-auto"
+      <Select
+        className="w-52"
         value={initialAgent}
-        onChange={(e) => setInitialAgent(e.target.value)}
+        onChange={setInitialAgent}
+        options={AGENT_OPTIONS}
         disabled={connected || busy}
-      >
-        {AGENTS.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-      </select>
+      />
+      {onDemoSelect && (
+        <DemoCustomerPicker disabled={connected || busy} onSelect={onDemoSelect} />
+      )}
       <input
         className="input-field w-36"
         value={phone}
@@ -257,10 +357,11 @@ function VoiceControls({
 }
 
 function LiveKitVoicePanel() {
-  const [initialAgent, setInitialAgent] = useState("receptionist");
-  const [phone, setPhone] = useState("+15551234567");
-  const [customerName, setCustomerName] = useState("");
-  const [vip, setVip] = useState(false);
+  const [initialAgent, setInitialAgent] = useState("banking_support");
+  const [phone, setPhone] = useState("+15103750043");
+  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
+  const [vip, setVip] = useState(true);
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useLiveKitVoice();
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
@@ -274,6 +375,14 @@ function LiveKitVoicePanel() {
         setPhone={setPhone}
         customerName={customerName}
         setCustomerName={setCustomerName}
+        demoCard={demoCard}
+        onDemoSelect={(c) => {
+          setPhone(c.phone_number);
+          setCustomerName(c.name);
+          setDemoCard(c);
+          setVip(c.vip);
+          setInitialAgent("banking_support");
+        }}
         vip={vip}
         setVip={setVip}
         connected={voice.connected}
@@ -329,31 +438,47 @@ function LiveKitVoicePanel() {
 }
 
 function XaiVoicePanel() {
-  const [agent, setAgent] = useState("receptionist");
-  const [phone, setPhone] = useState("+15551234567");
-  const [customerName, setCustomerName] = useState("");
+  const [agent, setAgent] = useState("banking_support");
+  const [phone, setPhone] = useState("+15103750043");
+  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
+  const { data: demos } = useQuery({ queryKey: ["demo-customers"], queryFn: api.demoCustomers });
   const voice = useXaiVoice();
   const bottomRef = useRef<HTMLDivElement>(null);
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
 
   useEffect(() => {
+    if (!demoCard && demos?.customers?.length) {
+      const match = demos.customers.find((c) => c.phone_number === phone);
+      if (match) setDemoCard(match);
+    }
+  }, [demos, phone, demoCard]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [voice.transcript]);
+  }, [voice.transcript, voice.toolCalls]);
 
   return (
-    <div className="animate-fade-in flex min-h-[400px] flex-col">
+    <div className="animate-fade-in flex min-h-[400px] flex-col lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-        <select
-          className="input-field w-auto"
+        <Select
+          className="w-52"
           value={agent}
-          onChange={(e) => setAgent(e.target.value)}
+          onChange={setAgent}
+          options={AGENT_OPTIONS}
           disabled={voice.connected}
-        >
-          {AGENTS.map((a) => (
-            <option key={a} value={a}>{a}</option>
-          ))}
-        </select>
+        />
+        <DemoCustomerPicker
+          disabled={voice.connected}
+          onSelect={(c) => {
+            setPhone(c.phone_number);
+            setCustomerName(c.name);
+            setDemoCard(c);
+            setAgent("banking_support");
+          }}
+        />
         <input
           className="input-field w-auto min-w-[140px]"
           value={phone}
@@ -394,10 +519,15 @@ function XaiVoicePanel() {
         )}
         {voice.sessionInfo && (
           <span className="text-xs text-slate-500">
-            {voice.currentAgent} · {voice.sessionInfo.voice}
+            {agentLabel(voice.currentAgent)} · {voice.sessionInfo.voice}
           </span>
         )}
       </div>
+      {demoCard && (
+        <div className="border-b border-white/5 px-4 py-3">
+          <DemoCustomerCard customer={demoCard} />
+        </div>
+      )}
 
       {!status?.xai_voice_ready && (
         <p className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
@@ -433,6 +563,10 @@ function XaiVoicePanel() {
         <div ref={bottomRef} />
       </div>
       {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
+      </div>
+      <aside className="w-full border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
+        <ToolCallLog entries={voice.toolCalls} title="Tools (voz xAI)" />
+      </aside>
     </div>
   );
 }

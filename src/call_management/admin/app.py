@@ -45,6 +45,9 @@ ADMIN_UI_DIST = PROJECT_ROOT / "admin-ui" / "dist"
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ensure_bootstrap_user()
+    from call_management.crm.demo_seed import seed_demo_customers
+
+    await seed_demo_customers()
     yield
 
 
@@ -69,6 +72,13 @@ app.include_router(auth_router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "service": "call-management-admin"}
+
+
+@app.get("/api/demo/customers")
+async def list_demo_customers():
+    from call_management.crm.banking_data import demo_customers_payload
+
+    return {"customers": demo_customers_payload()}
 
 
 @app.get("/api/dashboard")

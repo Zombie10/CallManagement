@@ -35,7 +35,7 @@ load_dotenv()
 
 logger = configure_logging()
 
-VALID_DEPARTMENTS = {"receptionist", "support", "sales", "technical", "escalation"}
+VALID_DEPARTMENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -234,11 +234,14 @@ async def entrypoint(ctx: JobContext) -> None:
         start_time=utc_now_iso(),
     )
 
+    from call_management.agents import BankingSupportAgent
+
     receptionist = ReceptionistAgent()
     support = SupportAgent()
     sales = SalesAgent()
     technical = TechnicalAgent()
     escalation = EscalationAgent()
+    banking_support = BankingSupportAgent()
 
     agents_registry = {
         "receptionist": receptionist,
@@ -246,6 +249,7 @@ async def entrypoint(ctx: JobContext) -> None:
         "sales": sales,
         "technical": technical,
         "escalation": escalation,
+        "banking_support": banking_support,
     }
     call_ctx.agents = agents_registry
 

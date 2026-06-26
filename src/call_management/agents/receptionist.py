@@ -51,3 +51,8 @@ class ReceptionistAgent(BaseAgent):
     async def to_escalation(self, context: RunContextT) -> tuple[BaseAgent, str]:
         """Escalate directly to human / supervisor queue."""
         return await self._route("escalation", context, "Direct escalation request")
+
+    @function_tool
+    async def to_banking_support(self, context: RunContextT) -> tuple[BaseAgent, str]:
+        """Route to BAC banking support for accounts, cards, and transfers."""
+        return await self._route("banking_support", context, "Banking / BAC account inquiry")

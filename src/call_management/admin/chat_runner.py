@@ -13,6 +13,7 @@ from livekit.agents import AgentSession
 from livekit.agents.voice.run_result import AgentHandoffEvent, ChatMessageEvent, FunctionCallEvent
 
 from call_management.agents import (
+    BankingSupportAgent,
     CallContext,
     EscalationAgent,
     ReceptionistAgent,
@@ -28,7 +29,7 @@ from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_c
 
 logger = logging.getLogger("call-management.admin.chat")
 
-VALID_START_AGENTS = {"receptionist", "support", "sales", "technical", "escalation"}
+VALID_START_AGENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
 
 
 @dataclass
@@ -74,7 +75,12 @@ def _extract_reply(result: Any) -> tuple[str, list[dict[str, str]]]:
     for event in result.events:
         if isinstance(event, FunctionCallEvent):
             call = event.item
-            events_out.append({"type": "tool_call", "detail": getattr(call, "name", "tool")})
+            tool_name = getattr(call, "name", "tool")
+            raw_args = getattr(call, "arguments", None) or getattr(call, "args", None)
+            detail = tool_name
+            if raw_args:
+                detail = f"{tool_name}({raw_args})"
+            events_out.append({"type": "tool_call", "detail": detail, "tool": tool_name})
         elif isinstance(event, AgentHandoffEvent):
             new_agent = getattr(event, "new_agent", None)
             name = getattr(new_agent, "agent_name", None) or getattr(
@@ -169,6 +175,7 @@ class ChatSessionManager:
             "sales": SalesAgent(),
             "technical": TechnicalAgent(),
             "escalation": EscalationAgent(),
+            "banking_support": BankingSupportAgent(),
         }
         call_ctx.agents = agents_registry
 

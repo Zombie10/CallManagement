@@ -176,7 +176,14 @@ def test_structured_summary():
 
 
 def test_valid_departments_match_registry():
-    assert {"receptionist", "support", "sales", "technical", "escalation"} == VALID_DEPARTMENTS
+    assert {
+        "receptionist",
+        "banking_support",
+        "support",
+        "sales",
+        "technical",
+        "escalation",
+    } == VALID_DEPARTMENTS
 
 
 @pytest.mark.asyncio

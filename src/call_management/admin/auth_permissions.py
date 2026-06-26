@@ -17,6 +17,7 @@ _ROLE_API_PREFIXES: dict[str, tuple[str, ...]] = {
     "playground": (
         "/api/auth/",
         "/api/health",
+        "/api/demo/",
         "/api/chat/",
         "/api/voice/",
         "/api/livekit/",

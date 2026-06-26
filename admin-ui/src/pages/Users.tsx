@@ -3,6 +3,7 @@ import { Loader2, Plus, Shield, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { Select } from "../components/Select";
 import { api, type AdminRole, type AdminUserRecord } from "../lib/api";
 import clsx from "clsx";
 
@@ -120,17 +121,15 @@ export function Users() {
             </label>
             <label className="space-y-1.5">
               <span className="text-sm text-slate-400">Rol</span>
-              <select
-                className="input-field"
+              <Select
                 value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as AdminRole }))}
-              >
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(role) => setForm((f) => ({ ...f, role: role as AdminRole }))}
+                options={roles.map((r) => ({
+                  value: r.id,
+                  label: r.label,
+                  description: r.description,
+                }))}
+              />
             </label>
           </div>
           {form.role === "playground" && (
@@ -223,18 +222,14 @@ function UserRow({
             Administrador
           </span>
         ) : (
-          <select
-            className="input-field w-auto py-1 text-xs"
+          <Select
+            className="w-44"
+            size="sm"
             value={row.role}
+            options={roles.map((r) => ({ value: r.id, label: r.label }))}
             disabled={busy}
-            onChange={(e) => onRoleChange(e.target.value as AdminRole)}
-          >
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
+            onChange={(role) => onRoleChange(role as AdminRole)}
+          />
         )}
       </td>
       <td className="px-4 py-3">

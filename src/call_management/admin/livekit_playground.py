@@ -11,7 +11,9 @@ from livekit import api
 
 from call_management.dev_check import check_livekit_env
 
-VALID_PLAYGROUND_AGENTS = frozenset({"receptionist", "support", "sales", "technical", "escalation"})
+VALID_PLAYGROUND_AGENTS = frozenset(
+    {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
+)
 AGENT_DISPATCH_NAME = "call-management"
 
 

@@ -77,7 +77,7 @@ Call Management — console options (in addition to LiveKit flags)
   call-management console [options]
 
   Custom flags:
-    -a, --agent NAME     Start with agent: receptionist|support|sales|technical|escalation
+    -a, --agent NAME     Start with agent: receptionist|banking_support|support|sales|technical|escalation
     --phone NUMBER       Simulate caller phone for CRM lookup (e.g. +15551234567)
     --customer NAME      Caller display name
     --vip                Route VIP callers per VIP_SKIP_RECEPTIONIST

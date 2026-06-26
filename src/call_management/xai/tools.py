@@ -23,6 +23,7 @@ AGENT_TOOL_PROFILES: dict[str, list[ToolName]] = {
     "sales": ["web_search", "x_search"],
     "technical": ["web_search", "code_interpreter", "file_search"],
     "escalation": ["web_search"],
+    "banking_support": ["web_search", "file_search"],
 }
 
 

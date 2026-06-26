@@ -99,6 +99,7 @@ XAI_VOICES = {
     "sales": "rex",
     "technical": "leo",
     "escalation": "ara",
+    "banking_support": "sal",
 }
 
 VOICE_PRESETS = {
@@ -107,6 +108,7 @@ VOICE_PRESETS = {
     "sales": "5ee9feff-1265-424a-9d7f-8e4d431a12c7",
     "technical": "a167e0f3-df7e-4d52-a9c3-f949145efdab",
     "escalation": "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+    "banking_support": "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
 }
 
 LANGUAGE_INSTRUCTIONS = {

@@ -112,6 +112,51 @@
     @apply w-full rounded-xl border border-white/10 bg-surface-800/80 px-3 py-2.5 text-sm text-slate-100 outline-none transition-all duration-300 placeholder:text-slate-500 focus:border-cyan-400/50 focus:bg-surface-800 focus:ring-2 focus:ring-cyan-400/20;
   }
 
+  select.input-field {
+    @apply cursor-pointer appearance-none bg-[length:1rem] bg-[right_0.65rem_center] bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  select.input-field option {
+    @apply bg-surface-900 text-slate-100;
+  }
+
+  .select-trigger {
+    @apply inline-flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-3 py-2.5 text-sm text-slate-100 shadow-inner outline-none transition-all duration-300 hover:border-white/20 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20;
+  }
+
+  .select-trigger-sm {
+    @apply py-2 text-xs;
+  }
+
+  .select-menu {
+    @apply absolute z-50 mt-1.5 max-h-64 w-full min-w-[12rem] overflow-auto rounded-xl border border-white/10 bg-surface-900/95 p-1 shadow-glow-lg backdrop-blur-xl;
+  }
+
+  .select-option {
+    @apply flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-200 transition-colors hover:bg-white/5;
+  }
+
+  .select-option-active {
+    @apply bg-cyan-500/10 text-cyan-100;
+  }
+
+  .tool-log {
+    @apply rounded-xl border border-white/5 bg-white/[0.02] p-3;
+  }
+
+  .tool-log-title {
+    @apply mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .tool-log-empty {
+    @apply rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-center;
+  }
+
+  .tool-log-item {
+    @apply rounded-lg border border-white/5 bg-surface-900/60 p-2.5;
+  }
+
   .nav-item {
     @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-all duration-300 hover:bg-white/5 hover:text-white;
   }

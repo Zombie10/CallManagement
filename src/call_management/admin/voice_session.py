@@ -6,7 +6,7 @@ from typing import Any
 
 from call_management.xai.voice import build_voice_session_payload, create_ephemeral_voice_token
 
-VALID_VOICE_AGENTS = {"receptionist", "support", "sales", "technical", "escalation"}
+VALID_VOICE_AGENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
 
 
 async def create_browser_voice_session(*, agent_name: str = "receptionist") -> dict[str, Any]:

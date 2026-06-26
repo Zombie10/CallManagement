@@ -90,6 +90,7 @@ export const api = {
     request<{ deleted: string }>(`/auth/users/${encodeURIComponent(userId)}`, {
       method: "DELETE",
     }),
+  demoCustomers: () => request<{ customers: DemoCustomer[] }>("/demo/customers"),
   health: () => request<{ status: string }>("/health"),
   dashboard: () => request<DashboardResponse>("/dashboard"),
   settings: () => request<SettingsResponse>("/settings"),
@@ -360,8 +361,27 @@ export interface VoiceToolExecuteInput {
 
 export interface VoiceToolExecuteResponse {
   output: string;
+  tool?: string;
+  arguments?: Record<string, unknown>;
+  status?: "ok" | "error";
+  duration_ms?: number;
   handoff_agent?: string;
   event?: { type: string; detail: string };
+}
+
+export interface DemoCustomer {
+  phone_number: string;
+  name: string;
+  email: string;
+  vip: boolean;
+  institution: string;
+  account_masked: string;
+  account_type: string;
+  debit_card_masked: string;
+  debit_card_exp: string;
+  credit_card_masked?: string | null;
+  products: string[];
+  hint: string;
 }
 
 export interface PasskeyOptionsResponse {
@@ -448,5 +468,5 @@ export interface ChatSessionResponse {
 export interface ChatMessageResponse {
   reply: string;
   agent: string;
-  events: { type: string; detail: string }[];
+  events: { type: string; detail: string; tool?: string }[];
 }
