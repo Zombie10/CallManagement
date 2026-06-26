@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, type TenantRecord } from "../lib/api";
 import { useAuth } from "./AuthContext";
 
@@ -12,11 +12,21 @@ type TenantContextValue = {
 };
 
 const Ctx = createContext<TenantContextValue | null>(null);
+const TENANT_STORAGE_KEY = "callmgmt-selected-tenant";
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === "super_admin";
-  const [tenantId, setTenantId] = useState<string | null>(user?.tenant_id ?? null);
+  const [tenantId, setTenantIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(TENANT_STORAGE_KEY);
+  });
+
+  const setTenantId = useCallback((id: string | null) => {
+    setTenantIdState(id);
+    if (id) localStorage.setItem(TENANT_STORAGE_KEY, id);
+    else localStorage.removeItem(TENANT_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     if (user?.tenant_id) setTenantId(user.tenant_id);

@@ -583,6 +583,8 @@ export interface LiveKitPlaygroundInput {
   initial_agent?: string;
   phone_number?: string;
   customer_name?: string;
+  tenant_id?: string;
+  agent_instance_id?: string;
   vip?: boolean;
 }
 

@@ -20,7 +20,8 @@ import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
 import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
-import { useTenant } from "../contexts/TenantContext";
+import { TenantContextBar } from "../components/TenantContextBar";
+import { useTenantAgentPicker } from "../hooks/useTenantAgentPicker";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import { api } from "../lib/api";
 import clsx from "clsx";
@@ -38,12 +39,47 @@ type VoiceBackend = "livekit" | "xai";
 /** Internal placeholder — agent must collect the real number from the caller. */
 const PLAYGROUND_PHONE = "+15551234567";
 
-function TextPlayground() {
+type AgentPicker = ReturnType<typeof useTenantAgentPicker>;
+
+function AgentPickerSelect({
+  picker,
+  disabled,
+  className = "w-56",
+}: {
+  picker: AgentPicker;
+  disabled?: boolean;
+  className?: string;
+}) {
+  if (picker.hasInstances) {
+    return (
+      <Select
+        className={className}
+        value={picker.agentInstanceId}
+        onChange={picker.setAgentInstanceId}
+        options={[
+          { value: "", label: "Agente de empresa…", description: "Instancia configurada" },
+          ...picker.instanceOptions,
+        ]}
+        disabled={disabled}
+      />
+    );
+  }
+  return (
+    <Select
+      className={className}
+      value={picker.templateId}
+      onChange={picker.setTemplateId}
+      options={AGENT_OPTIONS}
+      disabled={disabled}
+    />
+  );
+}
+
+function TextPlayground({ picker }: { picker: AgentPicker }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [toolLog, setToolLog] = useState<ToolCallEntry[]>([]);
   const [input, setInput] = useState("");
-  const [initialAgent, setInitialAgent] = useState("banking_support");
   const chatScrollRef = useChatAutoScroll(lines);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
@@ -51,8 +87,10 @@ function TextPlayground() {
   const startSession = useMutation({
     mutationFn: () =>
       api.createChatSession({
-        initial_agent: initialAgent,
+        initial_agent: picker.templateId,
         phone_number: PLAYGROUND_PHONE,
+        tenant_id: picker.sessionContext.tenant_id,
+        agent_instance_id: picker.sessionContext.agent_instance_id,
       }),
     onSuccess: (data) => {
       setSessionId(data.session_id);
@@ -126,12 +164,7 @@ function TextPlayground() {
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
           {!sessionId ? (
             <>
-              <Select
-                className="w-52"
-                value={initialAgent}
-                onChange={setInitialAgent}
-                options={AGENT_OPTIONS}
-              />
+              <AgentPickerSelect picker={picker} className="w-56" />
               <button
                 type="button"
                 className="btn-primary"
@@ -199,15 +232,13 @@ function TextPlayground() {
 }
 
 function VoiceControls({
-  initialAgent,
-  setInitialAgent,
+  picker,
   connected,
   busy,
   onConnect,
   onDisconnect,
 }: {
-  initialAgent: string;
-  setInitialAgent: (v: string) => void;
+  picker: AgentPicker;
   connected: boolean;
   busy: boolean;
   onConnect: () => void;
@@ -215,13 +246,7 @@ function VoiceControls({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-      <Select
-        className="w-52"
-        value={initialAgent}
-        onChange={setInitialAgent}
-        options={AGENT_OPTIONS}
-        disabled={connected || busy}
-      />
+      <AgentPickerSelect picker={picker} disabled={connected || busy} />
       {!connected ? (
         <button type="button" className="btn-primary" disabled={busy} onClick={onConnect}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
@@ -237,8 +262,7 @@ function VoiceControls({
   );
 }
 
-function LiveKitVoicePanel() {
-  const [initialAgent, setInitialAgent] = useState("banking_support");
+function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useLiveKitVoice();
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
@@ -246,16 +270,17 @@ function LiveKitVoicePanel() {
   return (
     <div className="animate-fade-in">
       <VoiceControls
-        initialAgent={initialAgent}
-        setInitialAgent={setInitialAgent}
+        picker={picker}
         connected={voice.connected}
         busy={voice.connecting || !status?.livekit_ready}
         onConnect={() => {
           voice.setError(null);
           voice
             .start({
-              initial_agent: initialAgent,
+              initial_agent: picker.templateId,
               phone_number: PLAYGROUND_PHONE,
+              tenant_id: picker.sessionContext.tenant_id,
+              agent_instance_id: picker.sessionContext.agent_instance_id,
             })
             .catch((err) => voice.setError(String(err)));
         }}
@@ -316,20 +341,7 @@ function LiveKitVoicePanel() {
   );
 }
 
-function XaiVoicePanel() {
-  const { tenantId } = useTenant();
-  const [agent, setAgent] = useState("banking_support");
-  const [agentInstanceId, setAgentInstanceId] = useState("");
-  const { data: tenantAgents } = useQuery({
-    queryKey: ["tenant-agents", tenantId],
-    queryFn: api.listTenantAgents,
-    enabled: !!tenantId,
-  });
-  const instanceOptions = (tenantAgents?.agents || []).map((a) => ({
-    value: a.id,
-    label: a.display_name,
-    description: `${a.template_id} · ${a.status}${a.phone_number ? ` · ${a.phone_number}` : ""}`,
-  }));
+function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useXaiVoice();
   const chatScrollRef = useChatAutoScroll(voice.transcript);
@@ -339,27 +351,7 @@ function XaiVoicePanel() {
     <div className="animate-fade-in flex h-[min(640px,calc(100vh-11rem))] min-h-[400px] flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-          {instanceOptions.length > 0 ? (
-            <Select
-              className="w-56"
-              value={agentInstanceId}
-              onChange={(id) => {
-                setAgentInstanceId(id);
-                const inst = tenantAgents?.agents.find((a) => a.id === id);
-                if (inst) setAgent(inst.template_id);
-              }}
-              options={[{ value: "", label: "Agente de empresa…", description: "Instancia configurada" }, ...instanceOptions]}
-              disabled={voice.connected}
-            />
-          ) : (
-            <Select
-              className="w-52"
-              value={agent}
-              onChange={setAgent}
-              options={AGENT_OPTIONS}
-              disabled={voice.connected}
-            />
-          )}
+          <AgentPickerSelect picker={picker} disabled={voice.connected} />
           {!voice.connected ? (
             <button
               type="button"
@@ -368,10 +360,10 @@ function XaiVoicePanel() {
               onClick={() => {
                 voice.setError(null);
                 voice
-                  .start(agent, {
+                  .start(picker.templateId, {
                     phone_number: PLAYGROUND_PHONE,
-                    tenant_id: tenantId || undefined,
-                    agent_instance_id: agentInstanceId || undefined,
+                    tenant_id: picker.sessionContext.tenant_id,
+                    agent_instance_id: picker.sessionContext.agent_instance_id,
                   })
                   .catch((err) => voice.setError(String(err)));
               }}
@@ -437,7 +429,7 @@ function XaiVoicePanel() {
   );
 }
 
-function VoicePlayground() {
+function VoicePlayground({ picker }: { picker: AgentPicker }) {
   const [backend, setBackend] = useState<VoiceBackend>("xai");
 
   return (
@@ -466,7 +458,7 @@ function VoicePlayground() {
           <p className="mt-1 text-xs text-slate-500">Igual que consola/SIP · CRM completo</p>
         </button>
       </div>
-      {backend === "livekit" ? <LiveKitVoicePanel /> : <XaiVoicePanel />}
+      {backend === "livekit" ? <LiveKitVoicePanel picker={picker} /> : <XaiVoicePanel picker={picker} />}
     </div>
   );
 }
@@ -534,10 +526,13 @@ function ChatBubble({ line }: { line: ChatLine }) {
 
 export function Playground() {
   const [mode, setMode] = useState<"text" | "voice">("voice");
+  const picker = useTenantAgentPicker("banking_support");
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
 
   return (
     <div className="animate-page-enter space-y-6">
+      <TenantContextBar emphasis agentLabel={picker.activeLabel} />
+
       <header className="stagger-1">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Probar agente</h1>
         <p className="mt-1 text-slate-400">Voz xAI directa o LiveKit producción · Texto multi-agente</p>
@@ -566,7 +561,7 @@ export function Playground() {
         </button>
       </div>
 
-      {mode === "voice" ? <VoicePlayground /> : <TextPlayground />}
+      {mode === "voice" ? <VoicePlayground picker={picker} /> : <TextPlayground picker={picker} />}
     </div>
   );
 }

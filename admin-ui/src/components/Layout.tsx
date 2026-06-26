@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Bot,
   Building2,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
+import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
 import type { AdminRole } from "../lib/api";
 
 const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; roles: AdminRole[] }> = [
@@ -32,6 +33,8 @@ const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; 
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const onPlayground = /\/playground\/?$/.test(location.pathname);
   const nav = ALL_NAV.filter((item) => user && item.roles.includes(user.role));
 
   return (
@@ -99,6 +102,11 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        {shouldShowTenantBar(user?.role) && !onPlayground && (
+          <div className="shrink-0">
+            <TenantContextBar />
+          </div>
+        )}
         <main className="min-w-0 flex-1 animate-page-enter">
           <Outlet />
         </main>
