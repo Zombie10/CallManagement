@@ -13,6 +13,13 @@ def anyio_backend():
     return "asyncio"
 
 
+def test_webauthn_origin_strips_path(monkeypatch):
+    monkeypatch.setenv("ADMIN_ORIGIN", "https://paymercadogo.com/callmgmt")
+    from call_management.admin.auth_routes import _origin
+
+    assert _origin() == "https://paymercadogo.com"
+
+
 @pytest.mark.asyncio
 async def test_auth_status():
     transport = ASGITransport(app=app)

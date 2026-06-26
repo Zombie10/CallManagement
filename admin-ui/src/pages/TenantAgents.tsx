@@ -10,11 +10,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import { api, type AgentInstanceInput, type AgentInstanceRecord } from "../lib/api";
+import { voiceSelectOptions } from "../lib/voices";
 import clsx from "clsx";
 
 const STATUS_OPTIONS = [
@@ -104,6 +105,11 @@ function AgentCard({
 export function TenantAgents() {
   const queryClient = useQueryClient();
   const { tenant, tenantId, isSuperAdmin, setTenantId } = useTenant();
+  const { data: agentsCatalog } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
+  const voiceOptions = useMemo(
+    () => voiceSelectOptions(agentsCatalog?.catalog.voice_library || []),
+    [agentsCatalog?.catalog.voice_library],
+  );
   const { data, isLoading } = useQuery({
     queryKey: ["tenant-agents", tenantId],
     queryFn: api.listTenantAgents,
@@ -259,20 +265,25 @@ export function TenantAgents() {
               onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
               options={STATUS_OPTIONS}
             />
-            <div className="flex gap-2">
-              <input
-                className="input-field flex-1"
-                placeholder="Teléfono E.164"
-                value={draft.phone_number || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
+            <input
+              className="input-field w-full"
+              placeholder="Teléfono E.164"
+              value={draft.phone_number || ""}
+              onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
+            />
+            <label className="block space-y-1.5">
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                <Mic className="h-3 w-3" />
+                Voz
+              </span>
+              <Select
+                className="w-full"
+                value={draft.voice || "ara"}
+                onChange={(v) => setDraft((d) => ({ ...d, voice: v }))}
+                options={voiceOptions}
+                placeholder="Seleccionar voz…"
               />
-              <input
-                className="input-field w-24"
-                placeholder="Voz"
-                value={draft.voice}
-                onChange={(e) => setDraft((d) => ({ ...d, voice: e.target.value }))}
-              />
-            </div>
+            </label>
             <textarea
               className="input-field min-h-[100px] w-full font-mono text-xs"
               placeholder="Instrucciones personalizadas (opcional)"

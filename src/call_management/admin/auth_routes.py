@@ -66,7 +66,14 @@ def _rp_id() -> str:
 
 
 def _origin() -> str:
-    return os.getenv("ADMIN_ORIGIN", "http://127.0.0.1:8080").strip()
+    """WebAuthn origin is scheme + host + port only (no URL path)."""
+    from urllib.parse import urlsplit
+
+    raw = os.getenv("ADMIN_ORIGIN", "http://127.0.0.1:8080").strip()
+    parts = urlsplit(raw)
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    return raw
 
 
 def _cookie_secure() -> bool:

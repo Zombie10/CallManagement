@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type TenantCreateInput } from "../lib/api";
 import clsx from "clsx";
 
 export function Tenants() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { setTenantId } = useTenant();
   const { data, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: api.listTenants });
@@ -97,7 +99,14 @@ export function Tenants() {
               <p>Límite/día: {t.max_calls_per_day}</p>
             </div>
             <div className="mt-4 flex gap-2">
-              <button type="button" className="btn-primary flex-1 text-sm" onClick={() => setTenantId(t.id)}>
+              <button
+                type="button"
+                className="btn-primary flex-1 text-sm"
+                onClick={() => {
+                  setTenantId(t.id);
+                  navigate("/my-agents");
+                }}
+              >
                 Gestionar
               </button>
               {t.slug !== "default" && (
