@@ -1,6 +1,8 @@
 # Admin console
 
-The admin console is a **React** SPA (`admin-ui/`) backed by a **FastAPI** app (`call-management-admin`). It manages agents, CRM, settings, users, and provides voice/text playgrounds for testing.
+The admin console is a **React** SPA (`admin-ui/`) backed by a **FastAPI** app (`call-management-admin`). It manages multi-tenant companies, agent instances, CRM, analytics, settings, users, and provides voice/text playgrounds.
+
+**Production:** https://paymercadogo.com/callmgmt/
 
 ## Running locally
 
@@ -19,45 +21,71 @@ cd admin-ui && npm run build
 uv run call-management-admin
 ```
 
+Subpath (e.g. `/callmgmt/` on VPS):
+
+```bash
+cd admin-ui && VITE_BASE=/callmgmt/ npm run build
+```
+
 Default URL: **http://127.0.0.1:8080**
 
 ## Multi-tenant (orquestador)
 
 | Route | Description | Roles |
 |-------|-------------|-------|
-| `/tenants` | Crear y gestionar empresas, métricas plataforma | `super_admin` |
-| `/my-agents` | Grid visual de agentes por empresa (voz, teléfono, estado) | `super_admin`, `admin` |
+| `/tenants` | Crear y gestionar empresas, logo/color, métricas | `super_admin` |
+| `/my-agents` | Agentes por empresa: voz, teléfonos, horarios, estado | `super_admin`, `admin` |
+| `/setup` | Guía para primera llamada real (worker + DID) | `super_admin`, `admin` |
 
-Cada empresa tiene CRM SQLite aislado en `data/tenants/{tenant_id}/crm.db`. Los agentes son **instancias** (plantilla + config + teléfono), no solo plantillas del sistema (`/agents`).
+Cada empresa tiene:
 
-Header API: `X-Tenant-Id` (super admin puede cambiar de empresa).
+- CRM SQLite aislado: `data/tenants/{tenant_id}/crm.db`
+- Límites: `max_agents`, `max_calls_per_day`
+- Branding: `logo_url`, `brand_color` (visible en Playground)
+- Webhooks por tenant (`call.ended`)
+
+Los agentes son **instancias** (plantilla + config + teléfono(s)), no solo plantillas del sistema (`/agents`).
+
+**Header API:** `X-Tenant-Id` (super admin cambia empresa en la barra de contexto).  
+**Header opcional:** `X-Agent-Instance-Id` (playground con instancia concreta).
+
+### Demo: Café Central
+
+```bash
+uv run python scripts/seed_demo_company.py
+# Variables opcionales: DEMO_TENANT_SLUG, DEMO_PHONE_RECEPCION, etc.
+```
 
 ## Pages
 
 | Route | Description | Roles |
 |-------|-------------|-------|
-| `/` | Dashboard — call stats, system status | admin, viewer |
-| `/playground` | Voice (xAI / LiveKit) + text chat | admin, playground |
-| `/agents` | Per-agent voice, locale, tools, instructions | admin |
-| `/customers` | CRM customers and notes | admin, viewer |
-| `/calls` | Call history | admin, viewer |
-| `/appointments` | Scheduled callbacks | admin, viewer |
-| `/settings` | `.env` editor (masked secrets) | admin |
-| `/users` | User management | admin |
-| `/profile` | Password change, passkey registration | all |
+| `/` | Dashboard — stats, worker LiveKit, gráfico llamadas | super_admin, admin, viewer |
+| `/analytics` | Reportes interactivos, filtros, pivot, CSV | super_admin, admin, viewer |
+| `/tenants` | Orquestador de empresas | super_admin |
+| `/my-agents` | Agentes de la empresa activa | super_admin, admin |
+| `/setup` | Wizard primera llamada SIP | super_admin, admin |
+| `/playground` | Voz (xAI / LiveKit) + chat texto | super_admin, admin, playground |
+| `/agents` | Plantillas de sistema (globales) | super_admin |
+| `/customers` | CRM clientes | super_admin, admin, viewer |
+| `/calls` | Historial con transcript/grabación | super_admin, admin, viewer |
+| `/appointments` | Citas programadas | super_admin, admin, viewer |
+| `/settings` | `.env` + webhooks del tenant | super_admin, admin |
+| `/users` | Usuarios y asignación de empresa | super_admin, admin |
+| `/profile` | Contraseña, passkeys | all |
+
+Ver [ANALYTICS.md](ANALYTICS.md) para filtros, pivot y API de reportes.
 
 ## Authentication
 
 ### Password login
-
-Set in `.env`:
 
 ```bash
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=your-secure-password
 ```
 
-On startup, the bootstrap admin password is synced from `ADMIN_PASSWORD`. Reset via CLI:
+Reset via CLI:
 
 ```bash
 uv run python -m call_management.admin.reset_password
@@ -65,22 +93,23 @@ uv run python -m call_management.admin.reset_password
 
 ### Passkeys (WebAuthn)
 
-Requires HTTPS in production (or localhost for dev):
-
 ```bash
 ADMIN_RP_ID=paymercadogo.com
 ADMIN_ORIGIN=https://paymercadogo.com/callmgmt
 ```
 
-`ADMIN_RP_ID` must match the site hostname (no path). `ADMIN_ORIGIN` must match the exact origin users open in the browser.
+`ADMIN_RP_ID` = hostname (sin path). `ADMIN_ORIGIN` = URL exacta que abre el usuario (incluye `/callmgmt` si aplica).
 
 ### Roles
 
 | Role | Access |
 |------|--------|
-| `admin` | Full panel: settings, agents, users, playground |
-| `playground` | Only `/playground` and profile — for testers |
-| `viewer` | Read-only dashboard, customers, calls, appointments |
+| `super_admin` | Todo: empresas, plantillas sistema, usuarios globales |
+| `admin` | Su empresa: agentes, settings, playground, usuarios |
+| `playground` | Solo `/playground` y perfil |
+| `viewer` | Lectura: dashboard, CRM, llamadas, análisis |
+
+Usuarios pueden tener `tenant_id` asignado (visible en `/users` para super_admin).
 
 Disable auth for local dev only:
 
@@ -90,69 +119,64 @@ ADMIN_AUTH_DISABLED=true
 
 ## Playground
 
-### Voice — xAI direct (default)
+### Voice — xAI direct
 
-- Connects browser WebSocket to xAI Voice API via ephemeral token from `/api/voice/session`.
-- CRM function tools run **server-side** (`/api/voice/tools/execute`).
-- Live transcript + tool-call log panel.
-- **No LiveKit required** — only `XAI_API_KEY`.
-
-Select an agent, click **Conectar**. The agent greets like a real phone call. Say why you're calling; provide your phone number in voice when asked for banking/CRM lookup.
+- WebSocket vía token efímero (`/api/voice/session`).
+- Herramientas CRM en servidor (`/api/voice/tools/execute`).
+- Solo requiere `XAI_API_KEY`.
 
 ### Voice — LiveKit production
 
-- Creates a LiveKit room and dispatches the real agent worker.
-- Same pipeline as SIP production calls.
-- Requires `LIVEKIT_*` credentials **and** a running worker:
+- Misma pipeline que llamadas SIP reales.
+- Requiere `LIVEKIT_*` y worker activo (`callmanagement-worker`).
 
-```bash
-uv run -m call_management.server dev
-```
+### White-label
+
+Si la empresa tiene `logo_url` y `brand_color`, el playground muestra branding de la empresa activa.
 
 ### Text chat
 
-- Multi-agent session with handoffs and tool events in the transcript.
-- Useful for debugging routing without a microphone.
-
-### Internal caller ID
-
-The playground uses a placeholder phone (`+15551234567`) until the agent collects a real number via `lookup_customer`. Demo banking customers (Reynaldo, Francisco) are in CRM — say their phone number in voice to test BAC flows.
+Sesión multi-agente con handoffs y log de herramientas.
 
 ## API overview
 
-All routes are under `/api/` unless noted.
+All routes under `/api/` unless noted. Tenant-scoped routes require session + `X-Tenant-Id` (o tenant del usuario).
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/health` | GET | Health check |
 | `/api/auth/*` | * | Login, logout, passkeys, users |
-| `/api/dashboard` | GET | Stats |
-| `/api/agents` | GET/POST/DELETE | Agent profiles |
+| `/api/dashboard` | GET | Stats + analytics + worker status |
+| `/api/reports/options` | GET | Filtros disponibles para reportes |
+| `/api/reports/calls` | GET/POST | Reporte con filtros y pivot |
+| `/api/analytics` | GET | Analytics resumido del tenant |
+| `/api/tenants` | * | CRUD empresas (super_admin) |
+| `/api/tenant-agents` | * | Instancias de agente |
+| `/api/webhooks` | * | Webhooks del tenant |
+| `/api/agents` | GET/POST/DELETE | Plantillas globales |
 | `/api/customers` | GET/POST/PATCH | CRM |
-| `/api/calls` | GET | Call log |
+| `/api/calls` | GET | Call log (con transcript) |
 | `/api/appointments` | GET | Appointments |
-| `/api/chat/*` | * | Text playground sessions |
-| `/api/voice/session` | POST | xAI ephemeral voice session |
-| `/api/voice/tools/execute` | POST | Server-side tool execution |
-| `/api/voice/config/{agent}` | GET | Agent voice config (handoffs) |
-| `/api/livekit/*` | * | LiveKit playground tokens |
-| `/api/demo/customers` | GET | Demo BAC customer list (API only) |
-| `/api/settings` | GET/PATCH | Environment settings |
+| `/api/chat/*` | * | Text playground |
+| `/api/voice/*` | * | xAI voice session + tools |
+| `/api/livekit/*` | * | LiveKit playground |
+| `/api/settings` | GET/PUT | Environment settings |
+| `/api/demo/customers` | GET | Demo BAC customers |
 
 Session cookie: `cm_admin_session` (httpOnly, path `/`).
 
 ## Data storage
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `data/crm.db` | Customers, calls, appointments (`CRM_DB_PATH`) |
-| `data/admin_auth.db` | Users, sessions, passkeys (`ADMIN_AUTH_DB_PATH`) |
+| `data/platform.db` | Empresas, agentes, rutas teléfono, horarios, webhooks |
+| `data/tenants/{id}/crm.db` | CRM por empresa |
+| `data/admin_auth.db` | Usuarios, sesiones, passkeys |
+| `data/crm.db` | Legacy / tenant default (migración automática) |
 
-Both are SQLite. Use absolute paths in production (see [DEPLOYMENT.md](DEPLOYMENT.md)).
+Use absolute paths in production. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## CORS
-
-For dev with Vite on port 5173, defaults allow `localhost:8080`. Production:
 
 ```bash
 ADMIN_CORS_ORIGINS=https://paymercadogo.com,https://www.paymercadogo.com
@@ -160,10 +184,8 @@ ADMIN_CORS_ORIGINS=https://paymercadogo.com,https://www.paymercadogo.com
 
 ## Subpath deployment
 
-When served under a URL prefix (e.g. `/callmgmt/`), build the UI with:
-
 ```bash
 cd admin-ui && VITE_BASE=/callmgmt/ npm run build
 ```
 
-nginx must proxy both `/callmgmt/` (static) and `/callmgmt/api/` (API). See [DEPLOYMENT.md](DEPLOYMENT.md).
+nginx must proxy `/callmgmt/` and `/callmgmt/api/`. See [DEPLOYMENT.md](DEPLOYMENT.md).

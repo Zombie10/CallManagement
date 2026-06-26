@@ -2,21 +2,25 @@
 
 This project has two deployable components:
 
-1. **Admin web** — FastAPI + React (`call-management-admin`) — CRM UI and playground
+1. **Admin web** — FastAPI + React (`call-management-admin`) — CRM UI, analytics, playground
 2. **LiveKit agent worker** — `call-management start` — real SIP/room voice agents
 
 They can run on the same or different hosts.
 
 ## Admin web — VPS (nginx + systemd)
 
-Current production example: **https://paymercadogo.com/callmgmt/** on Ubuntu VPS with existing nginx + Let's Encrypt.
+**Production:** https://paymercadogo.com/callmgmt/  
+**Server:** Ubuntu VPS (`mercadogo-vps` / `51.81.84.230`)  
+**Install path:** `/opt/callmanagement`  
+**Services:** `callmanagement`, `callmanagement-worker`
 
 ### Prerequisites
 
 - Ubuntu 22.04+ (or similar)
-- nginx with SSL already configured for your domain
-- Git, curl
-- Port `8080` free on `127.0.0.1`
+- nginx with SSL (Let's Encrypt)
+- Git, curl, [uv](https://docs.astral.sh/uv/)
+- Port `8080` on `127.0.0.1`
+- Node.js **only on build machine** — the VPS may not have `npm`; upload `admin-ui/dist/` via rsync
 
 ### First-time install
 
@@ -25,18 +29,23 @@ Current production example: **https://paymercadogo.com/callmgmt/** on Ubuntu VPS
 sudo mkdir -p /opt/callmanagement/data
 sudo chown ubuntu:ubuntu /opt/callmanagement
 
-# Clone
 git clone https://github.com/Zombie10/CallManagement.git /opt/callmanagement
 cd /opt/callmanagement
 
-# Create production .env (see below)
-nano .env
+nano .env   # see Production .env example below
 
-# Build admin UI with subpath (if using /callmgmt/)
+# Build UI locally OR on server if npm is available:
 cd admin-ui && npm ci && VITE_BASE=/callmgmt/ npm run build
 
-# Run installer (uv, systemd, nginx snippet)
 sudo bash scripts/deploy/install.sh
+```
+
+Install worker service (if not done by install.sh):
+
+```bash
+sudo cp scripts/deploy/callmanagement-worker.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now callmanagement-worker
 ```
 
 ### Production `.env` example
@@ -66,17 +75,21 @@ ADMIN_AUTH_DB_PATH=/opt/callmanagement/data/admin_auth.db
 LOG_LEVEL=INFO
 DEFAULT_LOCALE=es
 
-# LiveKit (optional — only for LiveKit voice mode in playground + worker)
+# Multi-tenant limits
+MAX_CONCURRENT_CALLS_PER_TENANT=5
+
+# LiveKit (worker + LiveKit voice mode)
 LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
+
+# Optional: Postgres CRM (stub — falls back to SQLite per tenant)
+# CRM_DATABASE_URL=postgresql://user:pass@host/db
 ```
 
 ### nginx
 
-The installer inserts a snippet into your existing HTTPS `server` block **before** `location /`, so other apps on the same vhost are untouched.
-
-Manual reference: `scripts/deploy/nginx-callmgmt.conf`
+Reference: `scripts/deploy/nginx-callmgmt.conf`
 
 ```nginx
 location = /callmgmt {
@@ -85,49 +98,64 @@ location = /callmgmt {
 
 location ^~ /callmgmt/api/ {
     proxy_pass http://127.0.0.1:8080/api/;
-    # ... standard proxy headers ...
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 
 location ^~ /callmgmt/ {
     proxy_pass http://127.0.0.1:8080/;
-    # ... standard proxy headers, WebSocket upgrade ...
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
 ### systemd
 
-Service file: `scripts/deploy/callmanagement.service`
+| Service | Unit file | Purpose |
+|---------|-----------|---------|
+| Admin API + UI | `scripts/deploy/callmanagement.service` | `uv run call-management-admin` |
+| LiveKit worker | `scripts/deploy/callmanagement-worker.service` | `uv run -m call_management.server start` |
 
 ```bash
-sudo systemctl status callmanagement
-sudo systemctl restart callmanagement
+sudo systemctl status callmanagement callmanagement-worker
+sudo systemctl restart callmanagement callmanagement-worker
 sudo journalctl -u callmanagement -f
+sudo journalctl -u callmanagement-worker -f
 ```
 
-### Subdomain alternative
+### Updates (recommended workflow)
 
-If you prefer `call.example.com` instead of a path:
-
-1. Add DNS **A** record → server IP
-2. Create a dedicated nginx `server` block
-3. Build UI with `npm run build` (no `VITE_BASE`)
-4. Set `ADMIN_ORIGIN=https://call.example.com` and `ADMIN_RP_ID=call.example.com`
-5. Run `sudo certbot --nginx -d call.example.com`
-
-### Updates
+**From your dev machine** (has Node.js):
 
 ```bash
-ssh ubuntu@<server>
-cd /opt/callmanagement
-git pull
+# 1. Push to GitHub
+git push origin main
 
-# Rebuild UI if frontend changed
+# 2. Pull on VPS
+ssh mercadogo-vps 'cd /opt/callmanagement && git pull origin main'
+
+# 3. Build UI locally and upload dist (VPS often has no npm)
 cd admin-ui && VITE_BASE=/callmgmt/ npm run build
+rsync -avz admin-ui/dist/ mercadogo-vps:/opt/callmanagement/admin-ui/dist/
 
-# Or upload dist from your machine:
-# rsync -avz admin-ui/dist/ ubuntu@<server>:/opt/callmanagement/admin-ui/dist/
+# 4. Restart services
+ssh mercadogo-vps 'sudo systemctl restart callmanagement callmanagement-worker'
+```
 
-sudo systemctl restart callmanagement
+**On VPS only** (if npm installed):
+
+```bash
+cd /opt/callmanagement
+git pull origin main
+cd admin-ui && VITE_BASE=/callmgmt/ npm run build
+sudo systemctl restart callmanagement callmanagement-worker
 ```
 
 ### Health check
@@ -137,16 +165,24 @@ curl -s http://127.0.0.1:8080/api/health
 curl -s https://paymercadogo.com/callmgmt/api/health
 ```
 
-## Admin web — root path (localhost / dedicated host)
+### Demo tenant after deploy
 
-For `http://127.0.0.1:8080` or a dedicated subdomain at `/`:
+```bash
+cd /opt/callmanagement
+uv run python scripts/seed_demo_company.py
+sudo systemctl restart callmanagement
+```
+
+Creates **Café Central** (`cafe-central`) with 3 agentes de demo.
+
+## Admin web — root path (localhost)
 
 ```bash
 cd admin-ui && npm run build
 uv run call-management-admin
 ```
 
-No `VITE_BASE` needed.
+No `VITE_BASE` needed. Open http://127.0.0.1:8080
 
 ## LiveKit agent worker
 
@@ -160,11 +196,10 @@ uv run -m call_management.server dev
 
 ```bash
 uv run -m call_management.server start
-# or
-call-management start
+# or: call-management start
 ```
 
-Requires valid `LIVEKIT_*` credentials. Deploy alongside admin or on a separate VM.
+Requires valid `LIVEKIT_*`. On VPS, use `callmanagement-worker.service`.
 
 ### Docker (agent worker)
 
@@ -177,40 +212,39 @@ docker run -d --name call-management \
   call-management
 ```
 
-Healthcheck uses `scripts/healthcheck.py`.
-
-### LiveKit Cloud
-
-See [LiveKit Agents deployment](https://docs.livekit.io/agents/ops/deployment/).
+Healthcheck: `scripts/healthcheck.py`
 
 ## Database
 
-The admin app and agent worker use **SQLite** by default:
+| File | Variable / path | Contents |
+|------|-----------------|----------|
+| Platform | `data/platform.db` | Tenants, agents, phone routes, schedules, webhooks |
+| CRM per tenant | `data/tenants/{id}/crm.db` | Customers, calls, appointments |
+| Admin auth | `ADMIN_AUTH_DB_PATH` | Users, sessions, passkeys |
+| Legacy CRM | `CRM_DB_PATH` | Migrated to default tenant on startup |
 
-| File | Variable |
-|------|----------|
-| CRM | `CRM_DB_PATH` |
-| Admin users | `ADMIN_AUTH_DB_PATH` |
-
-Initialize CRM:
+Initialize legacy CRM:
 
 ```bash
 uv run python scripts/init_crm.py
 ```
 
-Demo banking customers are seeded on admin startup (`demo_seed.py`).
+Demo banking customers seed on admin startup (`demo_seed.py`).
 
-**PostgreSQL:** The CRM layer is SQLite-only today. To use Postgres, extend `crm/database.py` or sync SQLite → Postgres externally.
+**PostgreSQL:** Set `CRM_DATABASE_URL` — current implementation uses SQLite per tenant until asyncpg adapter is completed (`crm/postgres_backend.py` stub).
 
-## Coexistence with other services
+## Coexistence with other services (paymercadogo VPS)
 
-The paymercadogo VPS runs mercadogo (5000), loan (5001), jukebox (5055), and PostgreSQL for those apps. Call Management:
+| App | Port | Notes |
+|-----|------|-------|
+| mercadogo | 5000 | Existing app |
+| loan | 5001 | Existing app |
+| jukebox | 5055 | Existing app |
+| **Call Management** | **8080** (localhost) | `/callmgmt/*` only |
 
-- Listens on **8080** (localhost only)
-- Uses **SQLite** in `/opt/callmanagement/data/` — does not share Postgres
-- nginx routes only `/callmgmt/*` — does not alter `/` or `/jukebox/`
+Call Management uses **SQLite** in `/opt/callmanagement/data/` — does not share Postgres with other apps.
 
-Always backup nginx before changes:
+Backup nginx before changes:
 
 ```bash
 sudo cp /etc/nginx/sites-available/paymercadogo /etc/nginx/sites-available/paymercadogo.bak.$(date +%s)
@@ -220,19 +254,27 @@ sudo nginx -t && sudo systemctl reload nginx
 ## Security checklist
 
 - [ ] Change `ADMIN_PASSWORD` from default
-- [ ] Keep `.env` mode `600`, owned by service user
-- [ ] Use HTTPS for passkeys (`ADMIN_RP_ID` / `ADMIN_ORIGIN`)
+- [ ] `.env` mode `600`, owned by `ubuntu`
+- [ ] HTTPS for passkeys (`ADMIN_RP_ID` / `ADMIN_ORIGIN` with correct path)
 - [ ] Do not commit `.env` or `data/*.db`
-- [ ] Restrict playground role for external testers (`playground` RBAC)
+- [ ] Use `playground` role for external testers
 - [ ] Rotate `XAI_API_KEY` if exposed
+- [ ] Webhook secrets optional but recommended for `call.ended`
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| 502 on `/callmgmt/` | `systemctl status callmanagement`, port 8080 listening |
-| Voice won't connect | `XAI_API_KEY` in `.env`, `/api/chat/status` → `xai_voice_ready` |
-| LiveKit mode fails | Worker running, `LIVEKIT_*` set, `/api/livekit/status` |
-| Login works but UI blank | Rebuild `admin-ui/dist` with correct `VITE_BASE` |
-| Agent identifies caller immediately | Expected fixed — agent must ask for phone; check latest deploy |
-| Assets 404 | `VITE_BASE` must match nginx path prefix |
+| 502 on `/callmgmt/` | `systemctl status callmanagement`, port 8080 |
+| UI blank / assets 404 | Rebuild with `VITE_BASE=/callmgmt/`, rsync `dist/` |
+| Voice won't connect | `XAI_API_KEY`, `/api/chat/status` → `xai_voice_ready` |
+| LiveKit / SIP fails | `systemctl status callmanagement-worker`, `LIVEKIT_*` |
+| No calls in analytics | Tenant context (`X-Tenant-Id`), data in `data/tenants/*/crm.db` |
+| Passkey fails | `ADMIN_ORIGIN` must be `https://paymercadogo.com/callmgmt` (no trailing issues) |
+| git pull conflicts on VPS | `git stash -u` then `git pull`, or reset to `origin/main` |
+
+## Repository
+
+- **GitHub:** https://github.com/Zombie10/CallManagement.git
+- **Branch:** `main`
+- **CI:** ruff + pytest on push

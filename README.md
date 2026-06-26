@@ -8,32 +8,37 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 
 | Guide | Contents |
 |-------|----------|
-| [Admin console](docs/ADMIN.md) | Web UI, auth, roles, playground (xAI direct + LiveKit) |
+| [Admin console](docs/ADMIN.md) | Web UI, auth, roles, multi-tenant, playground |
+| [Análisis y reportes](docs/ANALYTICS.md) | Filtros, pivot, export CSV, API `/api/reports/*` |
 | [Agents & tools](docs/AGENTS.md) | All agents, phone-call behavior, banking tools, handoffs |
-| [Deployment](docs/DEPLOYMENT.md) | VPS (nginx + systemd), Docker, LiveKit worker, updates |
+| [Deployment](docs/DEPLOYMENT.md) | VPS (nginx + systemd), worker, updates, demo seed |
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
+| **Multi-tenant** | Orquestador de empresas, agentes por tenant, CRM aislado, límites por plan |
 | Multi-agent handoff | Receptionist → support, sales, technical, banking, escalation |
 | Natural phone style | Agents listen first, one question at a time — no robotic intake forms |
 | BAC banking support | Account/card verification, temporary blocks, CRM lookup by phone |
-| Admin web console | React + FastAPI: dashboard, CRM, agents, settings, users |
-| Voice playground | **xAI direct** (WebSocket, no LiveKit) or **LiveKit production** pipeline |
+| Admin web console | Dashboard, CRM, agentes, análisis, webhooks, guía de inicio |
+| **Análisis / reportes** | Filtros interactivos, pivot, presets, export CSV — [docs/ANALYTICS.md](docs/ANALYTICS.md) |
+| Voice playground | **xAI direct** (WebSocket) or **LiveKit production** (white-label por empresa) |
 | Text playground | Multi-agent chat with tool-call log and handoff events |
 | xAI tools | Built-in web search, MCP, code interpreter + custom CRM/SIP function tools |
-| Auth & RBAC | Password + WebAuthn passkeys; roles: admin, playground, viewer |
-| Telephony | LiveKit SIP inbound/outbound, warm/cold transfer, conferencing |
-| CRM | SQLite: customers, calls, appointments, notes, demo banking profiles |
-| Observability | Post-call summaries, escalation webhooks, LiveKit Cloud integration |
+| Auth & RBAC | Password + WebAuthn; roles: `super_admin`, `admin`, `playground`, `viewer` |
+| Telephony | SIP inbound por DID, varios números por agente, horarios de atención |
+| CRM | SQLite por tenant: customers, calls (transcript/grabación), appointments |
+| Cola y límites | Llamadas concurrentes y máximo por día por empresa |
+| Webhooks | `call.ended` por tenant (configurables en Settings) |
+| Observability | Post-call summaries, dashboard worker LiveKit, analytics |
 
 ## Architecture
 
 ```
                     ┌─────────────────────────────────────┐
                     │     Admin UI (React + Vite)         │
-                    │  /playground  /agents  /customers   │
+                    │  /analytics  /my-agents  /calls    │
                     └──────────────┬──────────────────────┘
                                    │ REST + cookies
                     ┌──────────────▼──────────────────────┐
@@ -140,9 +145,12 @@ CallManagement/
 │   └── xai/                  # Voice API helpers, built-in tools, MCP
 ├── scripts/
 │   ├── init_crm.py
+│   ├── seed_demo_company.py  # Demo tenant (Café Central)
 │   ├── healthcheck.py
-│   └── deploy/               # systemd, nginx, install.sh
-├── data/                     # crm.db, admin_auth.db (gitignored)
+│   └── deploy/               # systemd, nginx, worker service
+├── data/
+│   ├── crm.db, admin_auth.db, platform.db (gitignored)
+│   └── tenants/{id}/crm.db # CRM aislado por empresa
 ├── tests/
 └── docs/
 ```
@@ -165,6 +173,13 @@ Voice agents **do not identify callers automatically** — they greet naturally 
 - **Admin web (VPS):** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — nginx reverse proxy, systemd, SQLite data dir.
 - **LiveKit agent worker:** `uv run -m call_management.server start` or Docker.
 - **Live URL (current):** https://paymercadogo.com/callmgmt/
+- **Análisis:** https://paymercadogo.com/callmgmt/analytics
+
+Demo empresa **Café Central** (`cafe-central`):
+
+```bash
+uv run python scripts/seed_demo_company.py
+```
 
 ```bash
 docker build -t call-management .
