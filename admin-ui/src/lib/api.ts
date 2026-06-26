@@ -28,6 +28,21 @@ export const api = {
     request<AgentProfile>("/agents", { method: "POST", body: JSON.stringify(data) }),
   deleteAgent: (name: string) =>
     request<{ deleted: string }>(`/agents/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  chatStatus: () => request<ChatStatusResponse>("/chat/status"),
+  createChatSession: (data?: ChatSessionCreate) =>
+    request<ChatSessionResponse>("/chat/sessions", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    }),
+  sendChatMessage: (sessionId: string, message: string) =>
+    request<ChatMessageResponse>(`/chat/sessions/${sessionId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+  resetChatSession: (sessionId: string) =>
+    request<ChatSessionResponse>(`/chat/sessions/${sessionId}/reset`, { method: "POST" }),
+  deleteChatSession: (sessionId: string) =>
+    request<{ deleted: string }>(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
   customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
   calls: (limit = 50) => request<ListResponse<CallRecord>>(`/calls?limit=${limit}`),
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
@@ -133,4 +148,35 @@ export interface Appointment {
 export interface ListResponse<T> {
   items: T[];
   total: number;
+}
+
+export interface ChatStatusResponse {
+  ready: boolean;
+  provider: string;
+  model: string;
+  active_sessions: number;
+  requires_xai_key: boolean;
+}
+
+export interface ChatSessionCreate {
+  phone_number?: string;
+  customer_name?: string;
+  department?: string;
+  initial_agent?: string;
+  vip?: boolean;
+}
+
+export interface ChatSessionResponse {
+  session_id: string;
+  initial_agent: string;
+  phone_number: string;
+  provider: string;
+  model: string;
+  voice: string;
+}
+
+export interface ChatMessageResponse {
+  reply: string;
+  agent: string;
+  events: { type: string; detail: string }[];
 }

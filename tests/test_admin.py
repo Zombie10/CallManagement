@@ -95,3 +95,25 @@ async def test_admin_agents_crud(agent_profiles_file):
 
         protected = await client.delete("/api/agents/receptionist")
         assert protected.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_chat_status():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/chat/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "ready" in body
+    assert "provider" in body
+
+
+@pytest.mark.asyncio
+async def test_chat_session_requires_key(monkeypatch):
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.setenv("MODEL_PROVIDER", "xai")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/chat/sessions", json={"initial_agent": "receptionist"})
+    assert resp.status_code == 400

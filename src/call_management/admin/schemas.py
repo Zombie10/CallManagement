@@ -24,6 +24,18 @@ class CustomerCreate(BaseModel):
     vip: bool = False
 
 
+class ChatSessionCreate(BaseModel):
+    phone_number: str = "+15551234567"
+    customer_name: str | None = None
+    department: str | None = None
+    initial_agent: str = "receptionist"
+    vip: bool = False
+
+
+class ChatMessagePayload(BaseModel):
+    message: str
+
+
 class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None

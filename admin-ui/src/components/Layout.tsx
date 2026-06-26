@@ -6,6 +6,7 @@ import {
   Phone,
   Settings2,
   Users,
+  MessageSquare,
   Wrench,
 } from "lucide-react";
 import clsx from "clsx";
@@ -13,6 +14,7 @@ import clsx from "clsx";
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/settings", label: "Configuración", icon: Settings2 },
+  { to: "/playground", label: "Probar agente", icon: MessageSquare },
   { to: "/agents", label: "Agentes & Tools", icon: Bot },
   { to: "/customers", label: "Clientes", icon: Users },
   { to: "/calls", label: "Llamadas", icon: Phone },

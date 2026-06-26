@@ -9,8 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from call_management.admin.chat_runner import get_chat_manager
 from call_management.admin.env_store import PROJECT_ROOT, load_settings, save_settings
-from call_management.admin.schemas import AgentProfilePayload, CustomerCreate, CustomerUpdate, SettingsUpdate
+from call_management.admin.schemas import (
+    AgentProfilePayload,
+    ChatMessagePayload,
+    ChatSessionCreate,
+    CustomerCreate,
+    CustomerUpdate,
+    SettingsUpdate,
+)
 from call_management.agent_store import (
     delete_profile,
     get_catalog,
@@ -163,6 +171,51 @@ async def list_calls(limit: int = 50, offset: int = 0):
 async def list_appointments(limit: int = 50, offset: int = 0):
     crm = await get_crm()
     return await crm.list_appointments(limit=limit, offset=offset)
+
+
+@app.get("/api/chat/status")
+async def chat_status():
+    return get_chat_manager().status()
+
+
+@app.post("/api/chat/sessions")
+async def create_chat_session(payload: ChatSessionCreate):
+    try:
+        return await get_chat_manager().create(
+            phone_number=payload.phone_number,
+            customer_name=payload.customer_name,
+            department=payload.department,
+            initial_agent=payload.initial_agent,
+            vip=payload.vip,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/chat/sessions/{session_id}/messages")
+async def send_chat_message(session_id: str, payload: ChatMessagePayload):
+    try:
+        return await get_chat_manager().send_message(session_id, payload.message)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/chat/sessions/{session_id}/reset")
+async def reset_chat_session(session_id: str):
+    try:
+        return await get_chat_manager().reset(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_chat_session(session_id: str):
+    await get_chat_manager().close(session_id)
+    return {"deleted": session_id}
 
 
 def _mount_static() -> None:

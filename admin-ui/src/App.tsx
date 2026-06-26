@@ -6,6 +6,7 @@ import { Agents } from "./pages/Agents";
 import { Customers } from "./pages/Customers";
 import { Calls } from "./pages/Calls";
 import { Appointments } from "./pages/Appointments";
+import { Playground } from "./pages/Playground";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="customers" element={<Customers />} />
         <Route path="calls" element={<Calls />} />
         <Route path="appointments" element={<Appointments />} />
+        <Route path="playground" element={<Playground />} />
       </Route>
     </Routes>
   );

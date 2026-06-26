@@ -334,6 +334,13 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
 
 def main() -> None:
     """Entry point for the `call-management` console script."""
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "dev":
+        from call_management.dev_check import print_dev_preflight
+
+        print_dev_preflight()
+
     cli.run_app(server)
 
 
