@@ -234,6 +234,15 @@ export function useXaiVoice() {
               : entry,
           ),
         );
+        const confirmedPhone = (args.phone_number ?? args.phone) as string | undefined;
+        if (
+          result.status !== "error" &&
+          (name === "lookup_customer" || result.tool === "lookup_customer") &&
+          typeof confirmedPhone === "string" &&
+          confirmedPhone.trim()
+        ) {
+          callContextRef.current.phone_number = confirmedPhone.trim();
+        }
         appendSystem(`🔧 ${result.tool || name} → ${result.output.slice(0, 120)}${result.output.length > 120 ? "…" : ""}`);
         if (result.event?.type === "handoff" && result.event.detail) {
           appendSystem(`Transferencia de voz → ${result.event.detail}`);
@@ -459,17 +468,6 @@ export function useXaiVoice() {
           if (message.type === "session.updated" && !configuredRef.current) {
             configuredRef.current = true;
             setConnected(true);
-            ws.send(
-              JSON.stringify({
-                type: "conversation.item.create",
-                item: {
-                  type: "message",
-                  role: "user",
-                  content: [{ type: "input_text", text: "Saluda brevemente al cliente y ofrece ayuda." }],
-                },
-              }),
-            );
-            ws.send(JSON.stringify({ type: "response.create" }));
           }
           handleServerMessage(message);
         } catch {

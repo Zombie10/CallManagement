@@ -192,8 +192,20 @@ _VOICE_FUNCTION_SCHEMAS: dict[str, dict[str, Any]] = {
     "lookup_customer": {
         "type": "function",
         "name": "lookup_customer",
-        "description": "Look up the current caller in the CRM by phone number.",
-        "parameters": {"type": "object", "properties": {}},
+        "description": (
+            "Look up the caller in CRM. Call ONLY after the caller has provided their phone number. "
+            "Do not call at the start of the conversation."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "Phone number the caller provided (e.g. +15103750043)",
+                },
+            },
+            "required": ["phone_number"],
+        },
     },
     "update_customer_name": {
         "type": "function",

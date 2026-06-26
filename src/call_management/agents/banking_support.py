@@ -20,19 +20,46 @@ class BankingSupportAgent(BaseAgent):
             preferred_voice=get_voice_for_agent("banking_support", cfg.provider),
             instructions=(
                 "Eres un especialista de soporte bancario de BAC Credomatic. "
-                "Ayudas a clientes con consultas de cuentas, tarjetas débito/crédito, "
-                "bloqueos, transferencias y verificación de identidad.\n\n"
-                "SIEMPRE inicia buscando al cliente con lookup_customer. "
-                "Para operaciones sensibles verifica la cuenta BAC o los últimos 4 dígitos "
-                "de la tarjeta con las herramientas de verificación antes de dar información. "
-                "Nunca reveles el número completo de tarjeta; solo confirma coincidencias parciales. "
-                "Sé claro, empático y cumple normas de seguridad bancaria."
+                "Ayudas con cuentas, tarjetas, bloqueos y transferencias.\n\n"
+                "Flujo de conversación (obligatorio):\n"
+                "1. Saluda y pregunta en qué puedes ayudar — NO asumas quién es el cliente.\n"
+                "2. Pregunta su nombre y número de teléfono si aún no los tienes.\n"
+                "3. Solo entonces usa lookup_customer (con el teléfono que te dio el cliente).\n"
+                "4. Para datos sensibles, verifica cuenta BAC o últimos 4 dígitos de tarjeta "
+                "con las herramientas de verificación.\n\n"
+                "Nunca reveles números completos de tarjeta. Sé empático y profesional."
             ),
         )
 
     def _profile(self, context: RunContextT):
         phone = normalize_phone(context.userdata.from_number or "")
         return get_demo_customer(phone)
+
+    @function_tool
+    async def lookup_customer(
+        self,
+        phone_number: Annotated[str, Field(description="Teléfono que el cliente acaba de proporcionar")],
+        context: RunContextT,
+    ) -> str:
+        """Buscar al cliente en CRM solo después de que indique su teléfono."""
+        ctx = context.userdata
+        if not ctx.crm:
+            return "No tengo acceso al CRM en este momento."
+        phone = normalize_phone(phone_number)
+        ctx.from_number = phone
+        demo = get_demo_customer(phone)
+        customer = await ctx.crm.get_or_create_customer(phone)
+        ctx.customer_name = customer.name or (demo.name if demo else None)
+        ctx.customer_email = customer.email
+        ctx.customer_notes = customer.notes
+        ctx.is_vip = customer.vip or (demo.vip if demo else False)
+        if demo:
+            from call_management.crm.banking_data import format_customer_lookup
+
+            return format_customer_lookup(demo)
+        if customer.name:
+            return f"Encontré a {customer.name} con el teléfono {phone}."
+        return f"Teléfono {phone} registrado sin nombre aún."
 
     @function_tool
     async def verify_bac_account(

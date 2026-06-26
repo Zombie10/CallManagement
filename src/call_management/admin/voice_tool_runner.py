@@ -9,6 +9,9 @@ from call_management.agents.registry import resolve_handoff_target
 from call_management.crm.banking_data import format_customer_lookup, get_demo_customer, normalize_phone
 from call_management.crm.database import get_crm
 
+# Generic playground defaults — not real callers until the agent collects a number.
+_PLACEHOLDER_PHONES = frozenset({"", "+15551234567", "+10000000000"})
+
 
 def _tool_result(
     *,
@@ -61,24 +64,45 @@ async def execute_voice_function(
         )
 
     crm = await get_crm()
-    customer = await crm.get_or_create_customer(phone)
+    active_phone = phone
+
+    if name == "lookup_customer":
+        arg_phone = str(args.get("phone_number") or "").strip()
+        lookup_phone = normalize_phone(arg_phone) if arg_phone else ""
+        if not lookup_phone or lookup_phone in _PLACEHOLDER_PHONES:
+            if phone not in _PLACEHOLDER_PHONES:
+                lookup_phone = phone
+            else:
+                return _tool_result(
+                    function_name=name,
+                    output=(
+                        "Aún no tengo teléfono confirmado. "
+                        "Pregunta al cliente su número y vuelve a buscar con ese dato."
+                    ),
+                    arguments=args,
+                    started=started,
+                    status="error",
+                )
+        active_phone = lookup_phone
+
+    customer = await crm.get_or_create_customer(active_phone)
     if customer_name and not customer.name:
         customer.name = customer_name
         await crm.update_customer(customer)
 
-    demo = get_demo_customer(phone)
+    demo = get_demo_customer(active_phone)
 
     if name == "lookup_customer":
         if demo:
             output = format_customer_lookup(demo)
         elif customer.name:
             output = (
-                f"Customer found: {customer.name}, phone {phone}. "
+                f"Customer found: {customer.name}, phone {active_phone}. "
                 f"VIP: {'yes' if customer.vip else 'no'}. "
                 f"Notes: {customer.notes or 'none'}."
             )
         else:
-            output = f"Phone {phone} on file. No name registered yet."
+            output = f"Phone {active_phone} on file. No name registered yet."
         return _tool_result(function_name=name, output=output, arguments=args, started=started)
 
     if name == "verify_bac_account":

@@ -83,7 +83,9 @@ function DemoCustomerCard({ customer }: { customer: DemoCustomer }) {
       {customer.credit_card_masked && (
         <p className="text-slate-500">Crédito {customer.credit_card_masked}</p>
       )}
-      <p className="mt-1 text-slate-500">{customer.hint}</p>
+      <p className="mt-1 text-slate-500">
+        Simula caller ID. El agente debe preguntarte antes de usar tools — di tu teléfono en voz.
+      </p>
     </div>
   );
 }
@@ -94,20 +96,12 @@ function TextPlayground() {
   const [toolLog, setToolLog] = useState<ToolCallEntry[]>([]);
   const [input, setInput] = useState("");
   const [initialAgent, setInitialAgent] = useState("banking_support");
-  const [phone, setPhone] = useState("+15103750043");
-  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [phone, setPhone] = useState("+15551234567");
+  const [customerName, setCustomerName] = useState("");
   const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
-  const { data: demos } = useQuery({ queryKey: ["demo-customers"], queryFn: api.demoCustomers });
-
-  useEffect(() => {
-    if (!demoCard && demos?.customers?.length) {
-      const match = demos.customers.find((c) => c.phone_number === phone);
-      if (match) setDemoCard(match);
-    }
-  }, [demos, phone, demoCard]);
 
   const startSession = useMutation({
     mutationFn: () =>
@@ -358,10 +352,10 @@ function VoiceControls({
 
 function LiveKitVoicePanel() {
   const [initialAgent, setInitialAgent] = useState("banking_support");
-  const [phone, setPhone] = useState("+15103750043");
-  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [phone, setPhone] = useState("+15551234567");
+  const [customerName, setCustomerName] = useState("");
   const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
-  const [vip, setVip] = useState(true);
+  const [vip, setVip] = useState(false);
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useLiveKitVoice();
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
@@ -439,21 +433,13 @@ function LiveKitVoicePanel() {
 
 function XaiVoicePanel() {
   const [agent, setAgent] = useState("banking_support");
-  const [phone, setPhone] = useState("+15103750043");
-  const [customerName, setCustomerName] = useState("Reynaldo Garcia");
+  const [phone, setPhone] = useState("+15551234567");
+  const [customerName, setCustomerName] = useState("");
   const [demoCard, setDemoCard] = useState<DemoCustomer | null>(null);
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
-  const { data: demos } = useQuery({ queryKey: ["demo-customers"], queryFn: api.demoCustomers });
   const voice = useXaiVoice();
   const bottomRef = useRef<HTMLDivElement>(null);
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
-
-  useEffect(() => {
-    if (!demoCard && demos?.customers?.length) {
-      const match = demos.customers.find((c) => c.phone_number === phone);
-      if (match) setDemoCard(match);
-    }
-  }, [demos, phone, demoCard]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

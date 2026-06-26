@@ -8,14 +8,25 @@ from call_management.admin.voice_tool_runner import execute_voice_function
 
 
 @pytest.mark.asyncio
-async def test_lookup_customer():
+async def test_lookup_customer_requires_phone():
     result = await execute_voice_function(
         function_name="lookup_customer",
-        phone_number="+15103750043",
+        phone_number="+15551234567",
+    )
+    assert result["status"] == "error"
+    assert "teléfono" in result["output"].lower()
+
+
+@pytest.mark.asyncio
+async def test_lookup_customer_with_provided_phone():
+    result = await execute_voice_function(
+        function_name="lookup_customer",
+        arguments={"phone_number": "+15103750043"},
+        phone_number="+15551234567",
     )
     assert result["tool"] == "lookup_customer"
     assert result["status"] == "ok"
-    assert "Reynaldo" in result["output"] or "Phone" in result["output"]
+    assert "Reynaldo" in result["output"]
 
 
 @pytest.mark.asyncio
