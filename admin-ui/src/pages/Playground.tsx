@@ -20,6 +20,7 @@ import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
 import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
+import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import { api } from "../lib/api";
 import clsx from "clsx";
@@ -316,7 +317,19 @@ function LiveKitVoicePanel() {
 }
 
 function XaiVoicePanel() {
+  const { tenantId } = useTenant();
   const [agent, setAgent] = useState("banking_support");
+  const [agentInstanceId, setAgentInstanceId] = useState("");
+  const { data: tenantAgents } = useQuery({
+    queryKey: ["tenant-agents", tenantId],
+    queryFn: api.listTenantAgents,
+    enabled: !!tenantId,
+  });
+  const instanceOptions = (tenantAgents?.agents || []).map((a) => ({
+    value: a.id,
+    label: a.display_name,
+    description: `${a.template_id} · ${a.status}${a.phone_number ? ` · ${a.phone_number}` : ""}`,
+  }));
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useXaiVoice();
   const chatScrollRef = useChatAutoScroll(voice.transcript);
@@ -326,13 +339,27 @@ function XaiVoicePanel() {
     <div className="animate-fade-in flex h-[min(640px,calc(100vh-11rem))] min-h-[400px] flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-          <Select
-            className="w-52"
-            value={agent}
-            onChange={setAgent}
-            options={AGENT_OPTIONS}
-            disabled={voice.connected}
-          />
+          {instanceOptions.length > 0 ? (
+            <Select
+              className="w-56"
+              value={agentInstanceId}
+              onChange={(id) => {
+                setAgentInstanceId(id);
+                const inst = tenantAgents?.agents.find((a) => a.id === id);
+                if (inst) setAgent(inst.template_id);
+              }}
+              options={[{ value: "", label: "Agente de empresa…", description: "Instancia configurada" }, ...instanceOptions]}
+              disabled={voice.connected}
+            />
+          ) : (
+            <Select
+              className="w-52"
+              value={agent}
+              onChange={setAgent}
+              options={AGENT_OPTIONS}
+              disabled={voice.connected}
+            />
+          )}
           {!voice.connected ? (
             <button
               type="button"
@@ -340,7 +367,13 @@ function XaiVoicePanel() {
               disabled={!status?.xai_voice_ready}
               onClick={() => {
                 voice.setError(null);
-                voice.start(agent, { phone_number: PLAYGROUND_PHONE }).catch((err) => voice.setError(String(err)));
+                voice
+                  .start(agent, {
+                    phone_number: PLAYGROUND_PHONE,
+                    tenant_id: tenantId || undefined,
+                    agent_instance_id: agentInstanceId || undefined,
+                  })
+                  .catch((err) => voice.setError(String(err)));
               }}
             >
               <Zap className="h-4 w-4" />

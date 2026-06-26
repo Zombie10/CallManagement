@@ -44,6 +44,7 @@ async def execute_voice_function(
     arguments: dict[str, Any] | None = None,
     phone_number: str,
     customer_name: str | None = None,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """Run a voice function tool server-side and return output for function_call_output."""
     started = time.perf_counter()
@@ -63,7 +64,12 @@ async def execute_voice_function(
             event={"type": "handoff", "detail": handoff},
         )
 
-    crm = await get_crm()
+    if tenant_id:
+        from call_management.tenancy.context import resolve_crm_for_tenant
+
+        crm = await resolve_crm_for_tenant(tenant_id)
+    else:
+        crm = await get_crm()
     active_phone = phone
 
     if name == "lookup_customer":

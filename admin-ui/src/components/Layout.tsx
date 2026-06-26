@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
   Bot,
+  Building2,
   Headphones,
   LayoutDashboard,
   LogOut,
@@ -10,20 +11,23 @@ import {
   MessageSquare,
   UserCircle,
   Wrench,
+  Network,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
 import type { AdminRole } from "../lib/api";
 
 const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; roles: AdminRole[] }> = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "viewer"] },
-  { to: "/settings", label: "Configuración", icon: Settings2, roles: ["admin"] },
-  { to: "/playground", label: "Probar agente", icon: MessageSquare, roles: ["admin", "playground"] },
-  { to: "/agents", label: "Agentes & Tools", icon: Bot, roles: ["admin"] },
-  { to: "/customers", label: "Clientes", icon: Users, roles: ["admin", "viewer"] },
-  { to: "/calls", label: "Llamadas", icon: Phone, roles: ["admin", "viewer"] },
-  { to: "/appointments", label: "Citas", icon: Headphones, roles: ["admin", "viewer"] },
-  { to: "/users", label: "Usuarios", icon: Users, roles: ["admin"] },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super_admin", "admin", "viewer"] },
+  { to: "/tenants", label: "Empresas", icon: Building2, roles: ["super_admin"] },
+  { to: "/my-agents", label: "Mis agentes", icon: Network, roles: ["super_admin", "admin"] },
+  { to: "/settings", label: "Configuración", icon: Settings2, roles: ["super_admin", "admin"] },
+  { to: "/playground", label: "Probar agente", icon: MessageSquare, roles: ["super_admin", "admin", "playground"] },
+  { to: "/agents", label: "Plantillas sistema", icon: Bot, roles: ["super_admin"] },
+  { to: "/customers", label: "Clientes", icon: Users, roles: ["super_admin", "admin", "viewer"] },
+  { to: "/calls", label: "Llamadas", icon: Phone, roles: ["super_admin", "admin", "viewer"] },
+  { to: "/appointments", label: "Citas", icon: Headphones, roles: ["super_admin", "admin", "viewer"] },
+  { to: "/users", label: "Usuarios", icon: Users, roles: ["super_admin", "admin"] },
 ];
 
 export function Layout() {

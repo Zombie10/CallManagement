@@ -53,7 +53,7 @@ async def test_password_login_and_me(monkeypatch, tmp_path):
         assert profile.status_code == 200
         body = profile.json()
         assert body["username"] == "admin"
-        assert body["role"] == "admin"
+        assert body["role"] in ("admin", "super_admin")
 
 
 @pytest.mark.asyncio

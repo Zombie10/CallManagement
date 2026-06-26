@@ -136,8 +136,19 @@ class ChatSessionManager:
         customer_name: str | None = None,
         department: str | None = None,
         initial_agent: str = "receptionist",
+        tenant_id: str | None = None,
+        agent_instance_id: str | None = None,
         vip: bool = False,
     ) -> dict[str, Any]:
+        from call_management.tenancy.context import resolve_crm_for_tenant
+        from call_management.tenancy.platform_store import get_platform_store
+
+        if agent_instance_id:
+            instance = get_platform_store().get_agent(agent_instance_id)
+            if instance:
+                initial_agent = instance.template_id
+                tenant_id = instance.tenant_id
+
         if initial_agent not in VALID_START_AGENTS:
             raise ValueError(f"Invalid initial agent '{initial_agent}'")
 
@@ -150,7 +161,10 @@ class ChatSessionManager:
             preemptive_generation=cfg.preemptive_generation,
         )
 
-        crm = await get_crm()
+        if tenant_id:
+            crm = await resolve_crm_for_tenant(tenant_id)
+        else:
+            crm = await get_crm()
         customer = await crm.get_or_create_customer(phone_number)
         if customer_name:
             customer.name = customer_name
@@ -200,6 +214,8 @@ class ChatSessionManager:
             "session_id": session_id,
             "initial_agent": initial_agent,
             "phone_number": phone_number,
+            "tenant_id": tenant_id,
+            "agent_instance_id": agent_instance_id,
             "provider": cfg.provider,
             "model": cfg.xai_llm_model if cfg.provider == "xai" else cfg.llm_model,
             "voice": get_voice_for_agent(initial_agent, cfg.provider),

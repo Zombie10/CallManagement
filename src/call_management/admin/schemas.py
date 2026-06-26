@@ -29,6 +29,8 @@ class ChatSessionCreate(BaseModel):
     customer_name: str | None = None
     department: str | None = None
     initial_agent: str = "receptionist"
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
     vip: bool = False
 
 
@@ -40,6 +42,8 @@ class VoiceSessionCreate(BaseModel):
     agent: str = "receptionist"
     phone_number: str = "+15551234567"
     customer_name: str | None = None
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
 
 
 class VoiceToolExecute(BaseModel):
@@ -47,12 +51,15 @@ class VoiceToolExecute(BaseModel):
     arguments: dict = Field(default_factory=dict)
     phone_number: str = "+15551234567"
     customer_name: str | None = None
+    tenant_id: str | None = None
 
 
 class LiveKitPlaygroundCreate(BaseModel):
     initial_agent: str = "receptionist"
     phone_number: str = "+15551234567"
     customer_name: str | None = None
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
     vip: bool = False
 
 

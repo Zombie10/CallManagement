@@ -42,4 +42,12 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         ):
             return JSONResponse(status_code=403, content={"detail": "Solo lectura: no puedes modificar datos"})
 
+        request.state.user = {
+            "id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role": user.role,
+            "tenant_id": user.tenant_id,
+            "enabled": user.enabled,
+        }
         return await call_next(request)

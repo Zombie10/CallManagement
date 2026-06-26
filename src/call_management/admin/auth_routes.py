@@ -99,12 +99,14 @@ def get_current_user(request: Request) -> dict[str, str | bool]:
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "tenant_id": user.tenant_id,
         "enabled": user.enabled,
     }
 
 
 def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if normalize_role(str(user.get("role"))) != "admin":
+    role = normalize_role(str(user.get("role")))
+    if role not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Solo administradores")
     return user
 

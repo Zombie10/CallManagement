@@ -59,7 +59,7 @@ export function useXaiVoice() {
   const sessionConfigRef = useRef<SessionLike | null>(null);
   const currentLineRef = useRef<{ role: "user" | "assistant"; content: string } | null>(null);
   const sampleRateRef = useRef(XAI_AUDIO_RATE);
-  const callContextRef = useRef<{ phone_number: string; customer_name?: string }>({
+  const callContextRef = useRef<{ phone_number: string; customer_name?: string; tenant_id?: string }>({
     phone_number: "+15551234567",
   });
 
@@ -217,6 +217,7 @@ export function useXaiVoice() {
           arguments: args,
           phone_number: ctx.phone_number,
           customer_name: ctx.customer_name,
+          tenant_id: ctx.tenant_id,
         });
         output = result.output;
         handoffAgent = result.handoff_agent;
@@ -400,7 +401,7 @@ export function useXaiVoice() {
   const start = useCallback(
     async (
       agent: string,
-      context?: { phone_number?: string; customer_name?: string },
+      context?: { phone_number?: string; customer_name?: string; tenant_id?: string; agent_instance_id?: string },
     ) => {
       setError(null);
       setTranscript([]);
@@ -410,12 +411,15 @@ export function useXaiVoice() {
       callContextRef.current = {
         phone_number: context?.phone_number || "+15551234567",
         customer_name: context?.customer_name,
+        tenant_id: context?.tenant_id,
       };
       disconnect();
 
       const voiceSession = await api.createVoiceSession(agent, {
         phone_number: callContextRef.current.phone_number,
         customer_name: callContextRef.current.customer_name,
+        tenant_id: context?.tenant_id,
+        agent_instance_id: context?.agent_instance_id,
       });
       setSessionInfo(voiceSession);
       sessionConfigRef.current = voiceSession;

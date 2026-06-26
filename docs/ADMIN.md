@@ -21,6 +21,17 @@ uv run call-management-admin
 
 Default URL: **http://127.0.0.1:8080**
 
+## Multi-tenant (orquestador)
+
+| Route | Description | Roles |
+|-------|-------------|-------|
+| `/tenants` | Crear y gestionar empresas, métricas plataforma | `super_admin` |
+| `/my-agents` | Grid visual de agentes por empresa (voz, teléfono, estado) | `super_admin`, `admin` |
+
+Cada empresa tiene CRM SQLite aislado en `data/tenants/{tenant_id}/crm.db`. Los agentes son **instancias** (plantilla + config + teléfono), no solo plantillas del sistema (`/agents`).
+
+Header API: `X-Tenant-Id` (super admin puede cambiar de empresa).
+
 ## Pages
 
 | Route | Description | Roles |

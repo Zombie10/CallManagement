@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-AdminRole = Literal["admin", "playground", "viewer"]
+AdminRole = Literal["super_admin", "admin", "playground", "viewer"]
 
 ROLES: list[dict[str, str]] = [
-    {"id": "admin", "label": "Administrador", "description": "Acceso completo al panel"},
+    {"id": "super_admin", "label": "Orquestador", "description": "Gestiona todas las empresas"},
+    {"id": "admin", "label": "Administrador", "description": "Acceso completo a su empresa"},
     {"id": "playground", "label": "Probar agente", "description": "Solo playground de voz/texto"},
     {"id": "viewer", "label": "Solo lectura", "description": "Dashboard, clientes y llamadas (sin editar)"},
 ]
@@ -21,6 +22,8 @@ _ROLE_API_PREFIXES: dict[str, tuple[str, ...]] = {
         "/api/chat/",
         "/api/voice/",
         "/api/livekit/",
+        "/api/tenant-agents",
+        "/api/tenants/mine",
     ),
     "viewer": (
         "/api/auth/",
@@ -34,7 +37,30 @@ _ROLE_API_PREFIXES: dict[str, tuple[str, ...]] = {
 
 # Frontend routes allowed per role
 _ROLE_ROUTES: dict[str, tuple[str, ...]] = {
-    "admin": ("/", "/settings", "/playground", "/agents", "/customers", "/calls", "/appointments", "/profile", "/users"),
+    "super_admin": (
+        "/",
+        "/tenants",
+        "/my-agents",
+        "/settings",
+        "/playground",
+        "/agents",
+        "/customers",
+        "/calls",
+        "/appointments",
+        "/profile",
+        "/users",
+    ),
+    "admin": (
+        "/",
+        "/my-agents",
+        "/settings",
+        "/playground",
+        "/customers",
+        "/calls",
+        "/appointments",
+        "/profile",
+        "/users",
+    ),
     "playground": ("/playground", "/profile"),
     "viewer": ("/", "/customers", "/calls", "/appointments", "/profile"),
 }
@@ -42,14 +68,14 @@ _ROLE_ROUTES: dict[str, tuple[str, ...]] = {
 
 def normalize_role(role: str | None) -> AdminRole:
     value = (role or "admin").strip().lower()
-    if value in ("admin", "playground", "viewer"):
+    if value in ("super_admin", "admin", "playground", "viewer"):
         return value  # type: ignore[return-value]
     return "viewer"
 
 
 def can_access_api(role: str, path: str) -> bool:
     role = normalize_role(role)
-    if role == "admin":
+    if role in ("super_admin", "admin"):
         return True
     for prefix in _ROLE_API_PREFIXES.get(role, ()):
         if path.startswith(prefix):

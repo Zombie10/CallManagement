@@ -4,6 +4,8 @@ import { RequireAuth } from "./components/RequireAuth";
 import { Dashboard } from "./pages/Dashboard";
 import { Settings } from "./pages/Settings";
 import { Agents } from "./pages/Agents";
+import { TenantAgents } from "./pages/TenantAgents";
+import { Tenants } from "./pages/Tenants";
 import { Customers } from "./pages/Customers";
 import { Calls } from "./pages/Calls";
 import { Appointments } from "./pages/Appointments";
@@ -20,6 +22,8 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="tenants" element={<Tenants />} />
+          <Route path="my-agents" element={<TenantAgents />} />
           <Route path="agents" element={<Agents />} />
           <Route path="customers" element={<Customers />} />
           <Route path="calls" element={<Calls />} />

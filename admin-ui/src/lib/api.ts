@@ -1,9 +1,22 @@
 const API = `${import.meta.env.BASE_URL.replace(/\/?$/, "")}/api`;
 
+let _tenantId: string | null = null;
+let _agentInstanceId: string | null = null;
+
+function buildHeaders(init?: RequestInit): Record<string, string> {
+  const base: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((init?.headers as Record<string, string>) || {}),
+  };
+  if (_tenantId) base["X-Tenant-Id"] = _tenantId;
+  if (_agentInstanceId) base["X-Agent-Instance-Id"] = _agentInstanceId;
+  return base;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: buildHeaders(init),
     ...init,
   });
   if (!res.ok) {
@@ -146,6 +159,44 @@ export const api = {
     request(`/customers/${encodeURIComponent(phone)}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    }),
+  setTenantHeaders: (tenantId: string | null, agentInstanceId?: string | null) => {
+    _tenantId = tenantId;
+    _agentInstanceId = agentInstanceId ?? null;
+  },
+  platformMetrics: () => request<PlatformMetricsResponse>("/platform/metrics"),
+  listTenants: () => request<{ tenants: TenantRecord[] }>("/tenants"),
+  tenantMine: () => request<TenantRecord>("/tenants/mine"),
+  createTenant: (data: TenantCreateInput) =>
+    request<TenantRecord>("/tenants", { method: "POST", body: JSON.stringify(data) }),
+  updateTenant: (id: string, data: TenantUpdateInput) =>
+    request<TenantRecord>(`/tenants/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteTenant: (id: string) =>
+    request<{ deleted: string }>(`/tenants/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listTenantAgents: () => request<TenantAgentsResponse>("/tenant-agents"),
+  createTenantAgent: (data: AgentInstanceInput) =>
+    request<AgentInstanceRecord>("/tenant-agents", { method: "POST", body: JSON.stringify(data) }),
+  updateTenantAgent: (id: string, data: AgentInstanceInput) =>
+    request<AgentInstanceRecord>(`/tenant-agents/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  duplicateTenantAgent: (id: string, data: { slug: string; display_name: string }) =>
+    request<AgentInstanceRecord>(`/tenant-agents/${encodeURIComponent(id)}/duplicate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteTenantAgent: (id: string) =>
+    request<{ deleted: string }>(`/tenant-agents/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getAgentSchedules: (id: string) =>
+    request<{ schedules: AgentScheduleRecord[] }>(`/tenant-agents/${encodeURIComponent(id)}/schedules`),
+  saveAgentSchedules: (id: string, schedules: AgentScheduleInput[]) =>
+    request<{ schedules: AgentScheduleRecord[] }>(`/tenant-agents/${encodeURIComponent(id)}/schedules`, {
+      method: "PUT",
+      body: JSON.stringify({ schedules }),
     }),
 };
 
@@ -299,7 +350,7 @@ export interface AuthStatusResponse {
   hint?: string;
 }
 
-export type AdminRole = "admin" | "playground" | "viewer";
+export type AdminRole = "super_admin" | "admin" | "playground" | "viewer";
 
 export interface AdminRoleOption {
   id: AdminRole;
@@ -312,6 +363,7 @@ export interface AuthUserResponse {
   username: string;
   display_name: string;
   role: AdminRole;
+  tenant_id?: string | null;
   enabled?: boolean;
   passkeys: Array<{ id: string; device_name: string; created_at: string; last_used_at?: string }>;
   has_passkeys: boolean;
@@ -350,6 +402,117 @@ export interface AdminUserUpdate {
 export interface VoiceSessionContext {
   phone_number?: string;
   customer_name?: string;
+  tenant_id?: string;
+  agent_instance_id?: string;
+}
+
+export interface TenantMetrics {
+  tenant_id: string;
+  agent_count: number;
+  active_agents: number;
+  paused_agents: number;
+  draft_agents: number;
+  calls_today: number;
+  max_agents: number;
+  max_calls_per_day: number;
+}
+
+export interface TenantRecord {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  logo_url?: string | null;
+  brand_color?: string | null;
+  max_agents: number;
+  max_calls_per_day: number;
+  timezone: string;
+  metrics?: TenantMetrics;
+}
+
+export interface TenantCreateInput {
+  slug: string;
+  name: string;
+  status?: string;
+  brand_color?: string;
+  max_agents?: number;
+  max_calls_per_day?: number;
+}
+
+export interface TenantUpdateInput {
+  name?: string;
+  status?: string;
+  brand_color?: string;
+  max_agents?: number;
+  max_calls_per_day?: number;
+}
+
+export interface AgentInstanceRecord {
+  id: string;
+  tenant_id: string;
+  slug: string;
+  display_name: string;
+  template_id: string;
+  status: "draft" | "active" | "paused";
+  phone_number?: string | null;
+  sip_trunk_id?: string | null;
+  provider: string;
+  voice: string;
+  locale: string;
+  voice_language?: string;
+  custom_instructions?: string;
+  tools: string[];
+  function_tools: string[];
+  mcp_servers: string[];
+  brand_name?: string | null;
+  call_count_today?: number;
+  default_instructions?: string;
+}
+
+export interface AgentInstanceInput {
+  slug: string;
+  display_name: string;
+  template_id: string;
+  status?: string;
+  phone_number?: string | null;
+  sip_trunk_id?: string | null;
+  provider?: string;
+  voice?: string;
+  locale?: string;
+  voice_language?: string;
+  custom_instructions?: string;
+  tools?: string[];
+  function_tools?: string[];
+  mcp_servers?: string[];
+  brand_name?: string | null;
+}
+
+export interface TenantAgentsResponse {
+  tenant: TenantRecord;
+  agents: AgentInstanceRecord[];
+  catalog: AgentsResponse["catalog"];
+}
+
+export interface PlatformMetricsResponse {
+  tenant_count: number;
+  active_tenants: number;
+  total_agents: number;
+  tenants: TenantMetrics[];
+}
+
+export interface AgentScheduleRecord {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  timezone: string;
+}
+
+export interface AgentScheduleInput {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  timezone?: string;
 }
 
 export interface VoiceToolExecuteInput {
@@ -357,6 +520,7 @@ export interface VoiceToolExecuteInput {
   arguments?: Record<string, unknown>;
   phone_number: string;
   customer_name?: string;
+  tenant_id?: string;
 }
 
 export interface VoiceToolExecuteResponse {
@@ -453,6 +617,8 @@ export interface ChatSessionCreate {
   customer_name?: string;
   department?: string;
   initial_agent?: string;
+  tenant_id?: string;
+  agent_instance_id?: string;
   vip?: boolean;
 }
 

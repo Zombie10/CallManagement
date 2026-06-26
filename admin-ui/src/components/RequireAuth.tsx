@@ -3,7 +3,20 @@ import { useAuth } from "../contexts/AuthContext";
 import type { AdminRole } from "../lib/api";
 
 const ROLE_ROUTES: Record<AdminRole, string[]> = {
-  admin: ["/", "/settings", "/playground", "/agents", "/customers", "/calls", "/appointments", "/profile", "/users"],
+  super_admin: [
+    "/",
+    "/tenants",
+    "/my-agents",
+    "/settings",
+    "/playground",
+    "/agents",
+    "/customers",
+    "/calls",
+    "/appointments",
+    "/profile",
+    "/users",
+  ],
+  admin: ["/", "/my-agents", "/settings", "/playground", "/customers", "/calls", "/appointments", "/profile", "/users"],
   playground: ["/playground", "/profile"],
   viewer: ["/", "/customers", "/calls", "/appointments", "/profile"],
 };

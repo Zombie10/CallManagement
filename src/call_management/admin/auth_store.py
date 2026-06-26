@@ -17,7 +17,7 @@ from call_management.admin.auth_permissions import normalize_role
 from call_management.admin.env_store import PROJECT_ROOT
 
 SESSION_COOKIE = "cm_admin_session"
-VALID_ROLES = frozenset({"admin", "playground", "viewer"})
+VALID_ROLES = frozenset({"super_admin", "admin", "playground", "viewer"})
 PROTECTED_USERNAMES = frozenset({"admin"})
 
 
@@ -35,6 +35,7 @@ class AdminUser:
     username: str
     display_name: str
     role: str = "admin"
+    tenant_id: str | None = None
     enabled: bool = True
 
 
@@ -52,6 +53,8 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
     if "enabled" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
+    if "tenant_id" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN tenant_id TEXT")
 
 
 def init_auth_db() -> None:
@@ -113,11 +116,13 @@ def _iso(dt: datetime) -> str:
 def _row_to_user(row: sqlite3.Row) -> AdminUser:
     enabled = bool(row["enabled"]) if "enabled" in row.keys() else True
     role = normalize_role(row["role"] if "role" in row.keys() else "admin")
+    tenant_id = row["tenant_id"] if "tenant_id" in row.keys() else None
     return AdminUser(
         id=row["id"],
         username=row["username"],
         display_name=row["display_name"],
         role=role,
+        tenant_id=tenant_id,
         enabled=enabled,
     )
 
@@ -187,19 +192,33 @@ def ensure_bootstrap_user() -> AdminUser | None:
         user_id = secrets.token_hex(16)
         conn.execute(
             """
-            INSERT INTO users (id, username, display_name, password_hash, role, enabled, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, username, display_name, password_hash, role, enabled, tenant_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, username, "Administrador", hash_password(password), "admin", 1, _iso(_utc_now())),
+            (
+                user_id,
+                username,
+                "Administrador",
+                hash_password(password),
+                "super_admin",
+                1,
+                None,
+                _iso(_utc_now()),
+            ),
         )
         conn.commit()
-        return AdminUser(id=user_id, username=username, display_name="Administrador", role="admin")
+        return AdminUser(
+            id=user_id,
+            username=username,
+            display_name="Administrador",
+            role="super_admin",
+        )
 
 
 def get_user_by_username(username: str) -> AdminUser | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, role, enabled FROM users WHERE username = ?",
+            "SELECT id, username, display_name, role, enabled, tenant_id FROM users WHERE username = ?",
             (username.strip().lower(),),
         ).fetchone()
         if not row:
@@ -210,7 +229,7 @@ def get_user_by_username(username: str) -> AdminUser | None:
 def get_user_by_id(user_id: str) -> AdminUser | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, role, enabled FROM users WHERE id = ?",
+            "SELECT id, username, display_name, role, enabled, tenant_id FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
         if not row:
@@ -221,7 +240,7 @@ def get_user_by_id(user_id: str) -> AdminUser | None:
 def list_users() -> list[AdminUser]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT id, username, display_name, role, enabled FROM users ORDER BY created_at ASC"
+            "SELECT id, username, display_name, role, enabled, tenant_id FROM users ORDER BY created_at ASC"
         ).fetchall()
         return [_row_to_user(row) for row in rows]
 
@@ -232,6 +251,7 @@ def create_user(
     password: str,
     display_name: str,
     role: str = "playground",
+    tenant_id: str | None = None,
 ) -> AdminUser:
     init_auth_db()
     uname = username.strip().lower()
@@ -250,13 +270,28 @@ def create_user(
         user_id = secrets.token_hex(16)
         conn.execute(
             """
-            INSERT INTO users (id, username, display_name, password_hash, role, enabled, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, username, display_name, password_hash, role, enabled, tenant_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, uname, display_name.strip() or uname, hash_password(password), role, 1, _iso(_utc_now())),
+            (
+                user_id,
+                uname,
+                display_name.strip() or uname,
+                hash_password(password),
+                role,
+                1,
+                tenant_id,
+                _iso(_utc_now()),
+            ),
         )
         conn.commit()
-    return AdminUser(id=user_id, username=uname, display_name=display_name.strip() or uname, role=role)
+    return AdminUser(
+        id=user_id,
+        username=uname,
+        display_name=display_name.strip() or uname,
+        role=role,
+        tenant_id=tenant_id,
+    )
 
 
 def update_user(

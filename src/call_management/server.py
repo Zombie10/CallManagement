@@ -15,6 +15,7 @@ from livekit.agents import inference as lk_inference
 from livekit.plugins import cartesia, deepgram, openai, silero, xai
 
 from call_management.agents import (
+    BankingSupportAgent,
     CallContext,
     EscalationAgent,
     ReceptionistAgent,
@@ -80,10 +81,16 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
     from_number: str | None = None
     customer_name: str | None = None
     vip: bool | None = None
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
 
     if metadata_raw:
         try:
             meta = json.loads(metadata_raw)
+            if meta.get("tenant_id"):
+                tenant_id = str(meta["tenant_id"])
+            if meta.get("agent_instance_id"):
+                agent_instance_id = str(meta["agent_instance_id"])
             raw_department = meta.get("department") or meta.get("team") or meta.get("initial_agent")
             if raw_department:
                 hint = str(raw_department).lower()
@@ -121,6 +128,8 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
         "from_number": from_number,
         "customer_name": customer_name,
         "vip": vip,
+        "tenant_id": tenant_id,
+        "agent_instance_id": agent_instance_id,
     }
 
 
@@ -203,8 +212,22 @@ async def entrypoint(ctx: JobContext) -> None:
     if overrides["from_number"]:
         from_number = str(overrides["from_number"])
 
+    from call_management.tenancy.context import resolve_crm_for_tenant, resolve_dispatch
+
+    tenant, agent_instance, routed_template = resolve_dispatch(
+        phone_number=from_number if from_number != "unknown" else None,
+        tenant_id=overrides.get("tenant_id"),  # type: ignore[arg-type]
+        agent_instance_id=overrides.get("agent_instance_id"),  # type: ignore[arg-type]
+    )
+    if not department_hint:
+        department_hint = routed_template
+    if agent_instance:
+        from call_management.tenancy.platform_store import get_platform_store
+
+        get_platform_store().increment_agent_calls(agent_instance.id)
+
     cfg = get_model_config()
-    crm = await get_crm()
+    crm = await resolve_crm_for_tenant(tenant.id)
     sip = SIPManager(ctx)
 
     customer = await crm.get_or_create_customer(from_number)
