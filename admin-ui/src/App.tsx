@@ -12,6 +12,7 @@ import { Appointments } from "./pages/Appointments";
 import { Playground } from "./pages/Playground";
 import { Profile } from "./pages/Profile";
 import { Users } from "./pages/Users";
+import { SetupWizard } from "./pages/SetupWizard";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="tenants" element={<Tenants />} />
           <Route path="my-agents" element={<TenantAgents />} />
+          <Route path="setup" element={<SetupWizard />} />
           <Route path="agents" element={<Agents />} />
           <Route path="customers" element={<Customers />} />
           <Route path="calls" element={<Calls />} />

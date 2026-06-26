@@ -12,6 +12,7 @@ from call_management.agent_store import get_catalog
 from call_management.agents.registry import get_default_instructions
 from call_management.tenancy.context import TenantContext, resolve_crm_for_tenant
 from call_management.tenancy.platform_store import get_platform_store
+from call_management.tenancy.scheduling import agent_schedule_status
 
 router = APIRouter(prefix="/api", tags=["tenants"])
 
@@ -43,6 +44,7 @@ class AgentInstancePayload(BaseModel):
     template_id: str
     status: str = "draft"
     phone_number: str | None = None
+    phone_numbers: list[str] = Field(default_factory=list)
     sip_trunk_id: str | None = None
     provider: str = "xai"
     voice: str = "ara"
@@ -81,6 +83,7 @@ def _agent_dict(agent) -> dict[str, Any]:
         "template_id": agent.template_id,
         "status": agent.status,
         "phone_number": agent.phone_number,
+        "phone_numbers": agent.phone_numbers,
         "sip_trunk_id": agent.sip_trunk_id,
         "provider": agent.provider,
         "voice": agent.voice,
@@ -93,6 +96,7 @@ def _agent_dict(agent) -> dict[str, Any]:
         "brand_name": agent.brand_name,
         "schedule_json": agent.schedule_json,
         "call_count_today": agent.call_count_today,
+        "schedule_status": agent_schedule_status(agent.id),
         "default_instructions": get_default_instructions(agent.template_id),
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
@@ -293,6 +297,50 @@ async def put_agent_schedules(
             for s in schedules
         ]
     }
+
+
+class WebhookCreatePayload(BaseModel):
+    url: str
+    events: list[str] = Field(default_factory=lambda: ["call.ended"])
+    secret: str | None = None
+
+
+@router.get("/analytics")
+async def tenant_analytics(ctx: TenantContext = Depends(require_tenant_context)):
+    crm = await resolve_crm_for_tenant(ctx.tenant.id)
+    analytics = await crm.get_call_analytics()
+    metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
+    from call_management.tenancy.queue import active_count
+
+    return {
+        **analytics,
+        "metrics": metrics,
+        "active_calls": active_count(ctx.tenant.id),
+    }
+
+
+@router.get("/webhooks")
+async def list_webhooks(ctx: TenantContext = Depends(require_tenant_context)):
+    return {"webhooks": get_platform_store().list_webhooks(ctx.tenant.id)}
+
+
+@router.post("/webhooks")
+async def create_webhook(payload: WebhookCreatePayload, ctx: TenantContext = Depends(require_tenant_context)):
+    store = get_platform_store()
+    hooks_before = len(store.list_webhooks(ctx.tenant.id))
+    store.create_webhook(ctx.tenant.id, url=payload.url, events=payload.events, secret=payload.secret)
+    hooks = store.list_webhooks(ctx.tenant.id)
+    created = hooks[0] if len(hooks) > hooks_before else hooks[-1] if hooks else {}
+    return created
+
+
+@router.delete("/webhooks/{webhook_id}")
+async def delete_webhook(webhook_id: str, ctx: TenantContext = Depends(require_tenant_context)):
+    hooks = get_platform_store().list_webhooks(ctx.tenant.id)
+    if not any(h["id"] == webhook_id for h in hooks):
+        raise HTTPException(status_code=404, detail="Webhook no encontrado")
+    get_platform_store().delete_webhook(webhook_id)
+    return {"deleted": webhook_id}
 
 
 @router.get("/phone-routes/resolve")

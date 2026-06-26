@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
+  Clock,
   Copy,
   Loader2,
   Mic,
@@ -14,7 +15,7 @@ import { useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
-import { api, type AgentInstanceInput, type AgentInstanceRecord } from "../lib/api";
+import { api, type AgentInstanceInput, type AgentInstanceRecord, type ScheduleStatus } from "../lib/api";
 import { voiceSelectOptions } from "../lib/voices";
 import clsx from "clsx";
 
@@ -26,6 +27,12 @@ const STATUS_OPTIONS = [
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
+const SCHEDULE_BADGE: Record<ScheduleStatus, { label: string; className: string }> = {
+  open: { label: "Abierto", className: "bg-emerald-500/15 text-emerald-300" },
+  closed: { label: "Cerrado", className: "bg-red-500/15 text-red-300" },
+  always: { label: "24/7", className: "bg-slate-500/15 text-slate-400" },
+};
+
 function emptyAgent(): AgentInstanceInput {
   return {
     slug: "",
@@ -36,6 +43,7 @@ function emptyAgent(): AgentInstanceInput {
     voice: "ara",
     locale: "es",
     phone_number: "",
+    phone_numbers: [],
     custom_instructions: "",
     tools: [],
     function_tools: [],
@@ -59,6 +67,12 @@ function AgentCard({
       : agent.status === "paused"
         ? "border-amber-500/30 bg-amber-500/5"
         : "border-white/10 bg-white/[0.02]";
+  const phones = agent.phone_numbers?.length
+    ? agent.phone_numbers
+    : agent.phone_number
+      ? [agent.phone_number]
+      : [];
+  const sched = agent.schedule_status ? SCHEDULE_BADGE[agent.schedule_status] : null;
 
   return (
     <button
@@ -79,13 +93,25 @@ function AgentCard({
             <p className="text-xs text-slate-500">{agentLabel(agent.template_id)} · {agent.voice}</p>
           </div>
         </div>
-        <span className="text-xs uppercase tracking-wide text-slate-500">{agent.status}</span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs uppercase tracking-wide text-slate-500">{agent.status}</span>
+          {sched && agent.status === "active" && (
+            <span className={clsx("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]", sched.className)}>
+              <Clock className="h-3 w-3" />
+              {sched.label}
+            </span>
+          )}
+        </div>
       </div>
-      {agent.phone_number && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm text-cyan-200/90">
-          <Phone className="h-3.5 w-3.5" />
-          {agent.phone_number}
-        </p>
+      {phones.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {phones.map((num) => (
+            <p key={num} className="flex items-center gap-1.5 text-sm text-cyan-200/90">
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              {num}
+            </p>
+          ))}
+        </div>
       )}
       <p className="mt-2 text-xs text-slate-500">
         {agent.call_count_today ?? 0} llamadas hoy · {agent.locale.toUpperCase()}
@@ -119,13 +145,26 @@ export function TenantAgents() {
   const [draft, setDraft] = useState<AgentInstanceInput>(emptyAgent());
   const [isNew, setIsNew] = useState(false);
   const [schedules, setSchedules] = useState<Array<{ day_of_week: number; start_time: string; end_time: string }>>([]);
+  const [extraPhones, setExtraPhones] = useState<string[]>([]);
+
+  const buildPayload = (): AgentInstanceInput => {
+    const primary = (draft.phone_number || "").trim();
+    const extras = extraPhones.map((p) => p.trim()).filter(Boolean);
+    const all = [...new Set([primary, ...extras].filter(Boolean))];
+    return {
+      ...draft,
+      phone_number: all[0] || null,
+      phone_numbers: all,
+    };
+  };
 
   const save = useMutation({
     mutationFn: async () => {
-      if (isNew) return api.createTenantAgent(draft);
+      const payload = buildPayload();
+      if (isNew) return api.createTenantAgent(payload);
       if (!editing) throw new Error("Sin agente");
-      const saved = await api.updateTenantAgent(editing.id, draft);
-      if (schedules.length) await api.saveAgentSchedules(editing.id, schedules);
+      const saved = await api.updateTenantAgent(editing.id, payload);
+      await api.saveAgentSchedules(editing.id, schedules);
       return saved;
     },
     onSuccess: () => {
@@ -154,6 +193,7 @@ export function TenantAgents() {
     setEditing(null);
     setDraft(emptyAgent());
     setSchedules([]);
+    setExtraPhones([]);
   };
 
   const openEdit = async (agent: AgentInstanceRecord) => {
@@ -164,7 +204,8 @@ export function TenantAgents() {
       display_name: agent.display_name,
       template_id: agent.template_id,
       status: agent.status,
-      phone_number: agent.phone_number || "",
+      phone_number: agent.phone_number || agent.phone_numbers?.[0] || "",
+      phone_numbers: agent.phone_numbers || [],
       sip_trunk_id: agent.sip_trunk_id || "",
       provider: agent.provider,
       voice: agent.voice,
@@ -175,6 +216,12 @@ export function TenantAgents() {
       function_tools: agent.function_tools || [],
       brand_name: agent.brand_name,
     });
+    const phones = agent.phone_numbers?.length
+      ? agent.phone_numbers
+      : agent.phone_number
+        ? [agent.phone_number]
+        : [];
+    setExtraPhones(phones.slice(1));
     const sched = await api.getAgentSchedules(agent.id);
     setSchedules(sched.schedules.map((s) => ({ day_of_week: s.day_of_week, start_time: s.start_time, end_time: s.end_time })));
   };
@@ -265,12 +312,51 @@ export function TenantAgents() {
               onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
               options={STATUS_OPTIONS}
             />
-            <input
-              className="input-field w-full"
-              placeholder="Teléfono E.164"
-              value={draft.phone_number || ""}
-              onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
-            />
+            <label className="block space-y-1.5">
+              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                <Phone className="h-3 w-3" />
+                Teléfono principal (E.164)
+              </span>
+              <input
+                className="input-field w-full"
+                placeholder="+50255551234"
+                value={draft.phone_number || ""}
+                onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
+              />
+            </label>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                Números adicionales (DID)
+              </p>
+              {extraPhones.map((num, i) => (
+                <div key={i} className="mb-2 flex gap-2">
+                  <input
+                    className="input-field flex-1"
+                    placeholder="+50255559999"
+                    value={num}
+                    onChange={(e) => {
+                      const next = [...extraPhones];
+                      next[i] = e.target.value;
+                      setExtraPhones(next);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost px-2 text-red-300"
+                    onClick={() => setExtraPhones(extraPhones.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => setExtraPhones([...extraPhones, ""])}
+              >
+                + Otro número
+              </button>
+            </div>
             <label className="block space-y-1.5">
               <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
                 <Mic className="h-3 w-3" />

@@ -14,7 +14,7 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Select } from "../components/Select";
 import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
@@ -22,6 +22,7 @@ import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
 import { TenantContextBar } from "../components/TenantContextBar";
 import { useTenantAgentPicker } from "../hooks/useTenantAgentPicker";
+import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import { api } from "../lib/api";
 import clsx from "clsx";
@@ -527,15 +528,31 @@ function ChatBubble({ line }: { line: ChatLine }) {
 export function Playground() {
   const [mode, setMode] = useState<"text" | "voice">("voice");
   const picker = useTenantAgentPicker("banking_support");
+  const { tenant } = useTenant();
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
+  const brandColor = tenant?.brand_color || "#06b6d4";
 
   return (
-    <div className="animate-page-enter space-y-6">
+    <div
+      className="animate-page-enter space-y-6"
+      style={{ "--brand": brandColor } as CSSProperties}
+    >
       <TenantContextBar emphasis agentLabel={picker.activeLabel} />
 
-      <header className="stagger-1">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Probar agente</h1>
-        <p className="mt-1 text-slate-400">Voz xAI directa o LiveKit producción · Texto multi-agente</p>
+      <header className="stagger-1 flex flex-wrap items-start gap-4">
+        {tenant?.logo_url ? (
+          <img
+            src={tenant.logo_url}
+            alt={tenant.name}
+            className="h-12 rounded-xl object-contain ring-1 ring-white/10"
+          />
+        ) : null}
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">
+            {tenant?.name ? `${tenant.name} — Probar agente` : "Probar agente"}
+          </h1>
+          <p className="mt-1 text-slate-400">Voz xAI directa o LiveKit producción · Texto multi-agente</p>
+        </div>
       </header>
 
       {status?.requires_xai_key && (

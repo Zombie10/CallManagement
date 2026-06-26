@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Loader2, Plus, Trash2 } from "lucide-react";
+import { Building2, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTenant } from "../contexts/TenantContext";
-import { api, type TenantCreateInput } from "../lib/api";
+import { api, type TenantCreateInput, type TenantRecord, type TenantUpdateInput } from "../lib/api";
 import clsx from "clsx";
 
 export function Tenants() {
@@ -13,6 +13,8 @@ export function Tenants() {
   const { data, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: api.listTenants });
   const { data: platform } = useQuery({ queryKey: ["platform-metrics"], queryFn: api.platformMetrics });
   const [form, setForm] = useState<TenantCreateInput>({ slug: "", name: "" });
+  const [editing, setEditing] = useState<TenantRecord | null>(null);
+  const [editDraft, setEditDraft] = useState<TenantUpdateInput>({});
 
   const create = useMutation({
     mutationFn: () => api.createTenant(form),
@@ -26,6 +28,28 @@ export function Tenants() {
     mutationFn: (id: string) => api.deleteTenant(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tenants"] }),
   });
+
+  const update = useMutation({
+    mutationFn: () => {
+      if (!editing) throw new Error("Sin empresa");
+      return api.updateTenant(editing.id, editDraft);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      setEditing(null);
+    },
+  });
+
+  const openEdit = (t: TenantRecord) => {
+    setEditing(t);
+    setEditDraft({
+      name: t.name,
+      brand_color: t.brand_color || "#06b6d4",
+      logo_url: t.logo_url || "",
+      max_agents: t.max_agents,
+      max_calls_per_day: t.max_calls_per_day,
+    });
+  };
 
   if (isLoading) {
     return <div className="glass-card p-8 text-slate-400">Cargando empresas…</div>;
@@ -109,6 +133,9 @@ export function Tenants() {
               >
                 Gestionar
               </button>
+              <button type="button" className="btn-ghost px-2" onClick={() => openEdit(t)}>
+                <Pencil className="h-4 w-4" />
+              </button>
               {t.slug !== "default" && (
                 <button
                   type="button"
@@ -123,6 +150,61 @@ export function Tenants() {
           </div>
         ))}
       </div>
+
+      {editing && (
+        <div className="glass-card fixed inset-x-4 bottom-4 z-40 max-h-[80vh] overflow-y-auto p-6 shadow-2xl md:inset-x-auto md:left-1/2 md:top-1/2 md:w-[420px] md:-translate-x-1/2 md:-translate-y-1/2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold">Editar {editing.name}</h2>
+            <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            <label className="block space-y-1">
+              <span className="text-xs text-slate-500">Nombre</span>
+              <input
+                className="input-field w-full"
+                value={editDraft.name || ""}
+                onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-slate-500">Logo URL</span>
+              <input
+                className="input-field w-full"
+                placeholder="https://..."
+                value={editDraft.logo_url || ""}
+                onChange={(e) => setEditDraft((d) => ({ ...d, logo_url: e.target.value || null }))}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-slate-500">Color de marca</span>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  className="h-10 w-12 cursor-pointer rounded border border-white/10 bg-transparent"
+                  value={editDraft.brand_color || "#06b6d4"}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, brand_color: e.target.value }))}
+                />
+                <input
+                  className="input-field flex-1 font-mono text-sm"
+                  value={editDraft.brand_color || ""}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, brand_color: e.target.value }))}
+                />
+              </div>
+            </label>
+            <button
+              type="button"
+              className="btn-primary w-full"
+              disabled={update.isPending}
+              onClick={() => update.mutate()}
+            >
+              {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

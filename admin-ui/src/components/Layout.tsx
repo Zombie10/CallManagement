@@ -12,16 +12,19 @@ import {
   UserCircle,
   Wrench,
   Network,
+  Rocket,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
 import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
+import { Breadcrumbs } from "./Breadcrumbs";
 import type { AdminRole } from "../lib/api";
 
 const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; roles: AdminRole[] }> = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super_admin", "admin", "viewer"] },
   { to: "/tenants", label: "Empresas", icon: Building2, roles: ["super_admin"] },
   { to: "/my-agents", label: "Mis agentes", icon: Network, roles: ["super_admin", "admin"] },
+  { to: "/setup", label: "Guía inicio", icon: Rocket, roles: ["super_admin", "admin"] },
   { to: "/settings", label: "Configuración", icon: Settings2, roles: ["super_admin", "admin"] },
   { to: "/playground", label: "Probar agente", icon: MessageSquare, roles: ["super_admin", "admin", "playground"] },
   { to: "/agents", label: "Plantillas sistema", icon: Bot, roles: ["super_admin"] },
@@ -107,7 +110,8 @@ export function Layout() {
             <TenantContextBar />
           </div>
         )}
-        <main className="min-w-0 flex-1 animate-page-enter">
+        <main className="min-w-0 flex-1 animate-page-enter space-y-3">
+          {!onPlayground && <Breadcrumbs />}
           <Outlet />
         </main>
       </div>

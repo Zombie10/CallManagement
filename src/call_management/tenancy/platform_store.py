@@ -64,6 +64,7 @@ class AgentInstance:
     mcp_servers: list[str] = field(default_factory=list)
     brand_name: str | None = None
     schedule_json: str | None = None
+    phone_numbers: list[str] = field(default_factory=list)
     call_count_today: int = 0
     created_at: str = ""
     updated_at: str = ""
@@ -170,8 +171,24 @@ class PlatformStore:
 
                 CREATE INDEX IF NOT EXISTS idx_agents_tenant ON agent_instances(tenant_id);
                 CREATE INDEX IF NOT EXISTS idx_phone_routes_number ON phone_routes(phone_number);
+
+                CREATE TABLE IF NOT EXISTS tenant_webhooks (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    events_json TEXT NOT NULL DEFAULT '["call.ended"]',
+                    secret TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                );
                 """
             )
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_instances)").fetchall()}
+            if "phone_numbers_json" not in cols:
+                conn.execute(
+                    "ALTER TABLE agent_instances ADD COLUMN phone_numbers_json TEXT NOT NULL DEFAULT '[]'"
+                )
             conn.commit()
         self.ensure_default_tenant()
 
@@ -202,6 +219,10 @@ class PlatformStore:
         )
 
     def _row_agent(self, row: sqlite3.Row) -> AgentInstance:
+        keys = row.keys()
+        extra = json.loads(row["phone_numbers_json"]) if "phone_numbers_json" in keys else []
+        primary = row["phone_number"]
+        numbers = list(dict.fromkeys([n for n in ([primary] if primary else []) + extra if n and str(n).strip()]))
         return AgentInstance(
             id=row["id"],
             tenant_id=row["tenant_id"],
@@ -209,7 +230,8 @@ class PlatformStore:
             display_name=row["display_name"],
             template_id=row["template_id"],
             status=row["status"],
-            phone_number=row["phone_number"],
+            phone_number=primary,
+            phone_numbers=numbers,
             sip_trunk_id=row["sip_trunk_id"],
             provider=row["provider"],
             voice=row["voice"],
@@ -358,6 +380,11 @@ class PlatformStore:
             raise ValueError("Estado inválido: draft, active, paused")
 
         fn_tools = kwargs.get("function_tools") or list(get_default_function_tools(template_id))
+        raw_nums = kwargs.get("phone_numbers") or []
+        if kwargs.get("phone_number"):
+            raw_nums = [kwargs["phone_number"], *raw_nums]
+        phone_list = list(dict.fromkeys(str(n).strip() for n in raw_nums if str(n).strip()))
+        primary_phone = phone_list[0] if phone_list else kwargs.get("phone_number")
         now = _utc_iso()
         agent_id = _new_id("agt")
         with self._connect() as conn:
@@ -365,10 +392,10 @@ class PlatformStore:
                 """
                 INSERT INTO agent_instances (
                     id, tenant_id, slug, display_name, template_id, status,
-                    phone_number, sip_trunk_id, provider, voice, locale, voice_language,
+                    phone_number, phone_numbers_json, sip_trunk_id, provider, voice, locale, voice_language,
                     custom_instructions, tools_json, function_tools_json, mcp_servers_json,
                     brand_name, schedule_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     agent_id,
@@ -377,7 +404,8 @@ class PlatformStore:
                     display_name.strip(),
                     template_id,
                     status,
-                    kwargs.get("phone_number"),
+                    primary_phone,
+                    json.dumps(phone_list),
                     kwargs.get("sip_trunk_id"),
                     kwargs.get("provider", "xai"),
                     kwargs.get("voice", "ara"),
@@ -395,8 +423,8 @@ class PlatformStore:
             )
             conn.commit()
         agent = self.get_agent(agent_id)
-        if agent and agent.phone_number:
-            self._sync_phone_route(agent)
+        if agent:
+            self._sync_phone_routes(agent)
         return agent  # type: ignore[return-value]
 
     def update_agent(self, agent_id: str, **fields: Any) -> AgentInstance:
@@ -407,6 +435,7 @@ class PlatformStore:
             "display_name",
             "status",
             "phone_number",
+            "phone_numbers",
             "sip_trunk_id",
             "provider",
             "voice",
@@ -425,6 +454,11 @@ class PlatformStore:
                 continue
             if k == "status" and v not in AGENT_STATUSES:
                 raise ValueError("Estado inválido")
+            if k == "phone_numbers":
+                nums = [str(n).strip() for n in (v or []) if str(n).strip()]
+                updates["phone_numbers_json"] = json.dumps(nums)
+                updates["phone_number"] = nums[0] if nums else None
+                continue
             updates[k] = v
         if not updates:
             return agent
@@ -447,8 +481,8 @@ class PlatformStore:
         updated = self.get_agent(agent_id)
         if not updated:
             raise ValueError("Agente no encontrado")
-        if "phone_number" in updates or "sip_trunk_id" in updates:
-            self._sync_phone_route(updated)
+        if any(k in updates for k in ("phone_number", "phone_numbers_json", "sip_trunk_id")):
+            self._sync_phone_routes(updated)
         return updated
 
     def duplicate_agent(self, agent_id: str, *, slug: str, display_name: str) -> AgentInstance:
@@ -480,18 +514,50 @@ class PlatformStore:
             conn.execute("DELETE FROM agent_instances WHERE id = ?", (agent_id,))
             conn.commit()
 
-    def _sync_phone_route(self, agent: AgentInstance) -> None:
+    def _agent_phone_list(self, agent: AgentInstance) -> list[str]:
+        nums = list(agent.phone_numbers or [])
+        if agent.phone_number and agent.phone_number.strip() not in nums:
+            nums.insert(0, agent.phone_number.strip())
+        return list(dict.fromkeys(n for n in nums if n))
+
+    def _sync_phone_routes(self, agent: AgentInstance) -> None:
+        numbers = self._agent_phone_list(agent)
         with self._connect() as conn:
             conn.execute("DELETE FROM phone_routes WHERE agent_instance_id = ?", (agent.id,))
-            if agent.phone_number and agent.phone_number.strip():
+            for num in numbers:
                 conn.execute(
                     """
                     INSERT INTO phone_routes (id, tenant_id, agent_instance_id, phone_number, sip_trunk_id, enabled)
                     VALUES (?, ?, ?, ?, ?, 1)
                     """,
-                    (_new_id("phn"), agent.tenant_id, agent.id, agent.phone_number.strip(), agent.sip_trunk_id),
+                    (_new_id("phn"), agent.tenant_id, agent.id, num, agent.sip_trunk_id),
                 )
             conn.commit()
+
+    def list_phone_routes(self, agent_instance_id: str) -> list[PhoneRoute]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM phone_routes WHERE agent_instance_id = ? ORDER BY phone_number",
+                (agent_instance_id,),
+            ).fetchall()
+        return [
+            PhoneRoute(
+                id=r["id"],
+                tenant_id=r["tenant_id"],
+                agent_instance_id=r["agent_instance_id"],
+                phone_number=r["phone_number"],
+                sip_trunk_id=r["sip_trunk_id"],
+                enabled=bool(r["enabled"]),
+            )
+            for r in rows
+        ]
+
+    def tenant_within_call_limit(self, tenant_id: str) -> bool:
+        tenant = self.get_tenant(tenant_id)
+        if not tenant:
+            return True
+        metrics = self.tenant_metrics(tenant_id)
+        return metrics["calls_today"] < tenant.max_calls_per_day
 
     def resolve_phone(self, phone_number: str) -> PhoneRoute | None:
         from call_management.crm.banking_data import normalize_phone
@@ -586,6 +652,52 @@ class PlatformStore:
                 "UPDATE agent_instances SET call_count_today = call_count_today + 1 WHERE id = ?",
                 (agent_id,),
             )
+            conn.commit()
+
+    def list_webhooks(self, tenant_id: str, *, event: str | None = None) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tenant_webhooks WHERE tenant_id = ? ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+        out = []
+        for r in rows:
+            events = json.loads(r["events_json"] or "[]")
+            if event and event not in events:
+                continue
+            out.append(
+                {
+                    "id": r["id"],
+                    "tenant_id": r["tenant_id"],
+                    "url": r["url"],
+                    "events": events,
+                    "secret": r["secret"],
+                    "enabled": bool(r["enabled"]),
+                    "created_at": r["created_at"],
+                }
+            )
+        return out
+
+    def create_webhook(self, tenant_id: str, *, url: str, events: list[str], secret: str | None = None) -> dict[str, Any]:
+        wid = _new_id("whk")
+        now = _utc_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_webhooks (id, tenant_id, url, events_json, secret, enabled, created_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?)
+                """,
+                (wid, tenant_id, url.strip(), json.dumps(events or ["call.ended"]), secret, now),
+            )
+            conn.commit()
+        for hook in self.list_webhooks(tenant_id):
+            if hook["id"] == wid:
+                return hook
+        return {"id": wid, "tenant_id": tenant_id, "url": url.strip(), "events": events or ["call.ended"], "secret": secret, "enabled": True, "created_at": now}
+
+    def delete_webhook(self, webhook_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM tenant_webhooks WHERE id = ?", (webhook_id,))
             conn.commit()
 
 

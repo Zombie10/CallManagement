@@ -3,6 +3,8 @@ import { Save, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { Select } from "../components/Select";
 import { api, type SettingField } from "../lib/api";
+import { WebhooksPanel } from "../components/WebhooksPanel";
+import { useAuth } from "../contexts/AuthContext";
 
 const SECTION_LABELS: Record<string, string> = {
   livekit: "LiveKit",
@@ -68,6 +70,7 @@ function FieldInput({
 }
 
 export function Settings() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -106,6 +109,8 @@ export function Settings() {
           {save.isPending ? "Guardando..." : saved ? "Guardado ✓" : "Guardar cambios"}
         </button>
       </header>
+
+      {(user?.role === "super_admin" || user?.role === "admin") && <WebhooksPanel />}
 
       {Object.entries(data.sections).map(([sectionId, fields]) => (
         <section key={sectionId} className="glass-card p-6">

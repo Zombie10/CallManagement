@@ -44,6 +44,31 @@ def is_within_schedule(
     return False
 
 
+def schedule_status(
+    schedules: list[AgentSchedule],
+    *,
+    now: datetime | None = None,
+    fallback_timezone: str = "America/Guatemala",
+) -> str:
+    """Return 'open', 'closed', or 'always'."""
+    if not schedules:
+        return "always"
+    return "open" if is_within_schedule(schedules, now=now, fallback_timezone=fallback_timezone) else "closed"
+
+
+def agent_schedule_status(agent_id: str) -> str:
+    from call_management.tenancy.platform_store import get_platform_store
+
+    store = get_platform_store()
+    agent = store.get_agent(agent_id)
+    if not agent:
+        return "always"
+    schedules = store.list_schedules(agent_id)
+    tenant = store.get_tenant(agent.tenant_id)
+    tz = tenant.timezone if tenant else "America/Guatemala"
+    return schedule_status(schedules, fallback_timezone=tz)
+
+
 def is_agent_available(agent_id: str) -> bool:
     from call_management.tenancy.platform_store import get_platform_store
 

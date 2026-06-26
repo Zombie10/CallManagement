@@ -83,6 +83,11 @@ class CallContext:
     outcome: str | None = None
     post_call_summary: str | None = None
     call_persisted: bool = False
+    transcript_lines: list[str] = field(default_factory=list)
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
+    recording_url: str | None = None
+    queued: bool = False
 
     crm: CRMDatabase | None = None
     sip: SIPManager | None = None

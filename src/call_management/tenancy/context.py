@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from call_management.crm.database import CRMDatabase, get_crm
+from call_management.crm.database import CRMDatabase
+from call_management.crm.factory import get_crm_backend
 from call_management.tenancy.paths import tenant_crm_path
 from call_management.tenancy.platform_store import AgentInstance, Tenant, get_platform_store
 
@@ -20,7 +21,7 @@ class TenantContext:
 async def resolve_crm_for_tenant(tenant_id: str) -> CRMDatabase:
     if tenant_id in _crm_cache:
         return _crm_cache[tenant_id]
-    db = await get_crm(tenant_crm_path(tenant_id))
+    db = await get_crm_backend(str(tenant_crm_path(tenant_id)))
     _crm_cache[tenant_id] = db
     return db
 

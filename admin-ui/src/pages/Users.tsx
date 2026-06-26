@@ -3,12 +3,18 @@ import { Loader2, Plus, Shield, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useTenant } from "../contexts/TenantContext";
 import { Select } from "../components/Select";
 import { api, type AdminRole, type AdminUserRecord } from "../lib/api";
 import clsx from "clsx";
 
+function canManageUsers(role?: AdminRole) {
+  return role === "admin" || role === "super_admin";
+}
+
 export function Users() {
   const { user } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -16,6 +22,7 @@ export function Users() {
     password: "",
     display_name: "",
     role: "playground" as AdminRole,
+    tenant_id: "" as string,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -24,17 +31,33 @@ export function Users() {
     queryFn: api.authRoles,
   });
 
+  const { data: tenantsData } = useQuery({
+    queryKey: ["tenants"],
+    queryFn: api.listTenants,
+    enabled: isSuperAdmin,
+  });
+
+  const tenantOptions = (tenantsData?.tenants || []).map((t) => ({
+    value: t.id,
+    label: t.name,
+    description: t.slug,
+  }));
+
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: api.listUsers,
-    enabled: user?.role === "admin",
+    enabled: canManageUsers(user?.role),
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.createUser(form),
+    mutationFn: () =>
+      api.createUser({
+        ...form,
+        tenant_id: form.tenant_id || null,
+      }),
     onSuccess: async () => {
       setShowForm(false);
-      setForm({ username: "", password: "", display_name: "", role: "playground" });
+      setForm({ username: "", password: "", display_name: "", role: "playground", tenant_id: "" });
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -60,11 +83,13 @@ export function Users() {
     onError: (err: Error) => setError(err.message),
   });
 
-  if (user?.role !== "admin") {
+  if (!canManageUsers(user?.role)) {
     return <Navigate to="/" replace />;
   }
 
   const roles = rolesData?.roles || [];
+  const tenantName = (id: string | null | undefined) =>
+    tenantOptions.find((t) => t.value === id)?.label || "—";
 
   return (
     <div className="animate-page-enter space-y-6">
@@ -72,7 +97,7 @@ export function Users() {
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Usuarios</h1>
           <p className="mt-1 text-slate-400">
-            Crea cuentas con acceso limitado, por ejemplo solo al playground de voz
+            Crea cuentas con acceso limitado o asignadas a una empresa
           </p>
         </div>
         <button type="button" className="btn-primary" onClick={() => setShowForm((v) => !v)}>
@@ -131,6 +156,19 @@ export function Users() {
                 }))}
               />
             </label>
+            {isSuperAdmin && (
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-sm text-slate-400">Empresa (opcional)</span>
+                <Select
+                  value={form.tenant_id}
+                  onChange={(v) => setForm((f) => ({ ...f, tenant_id: v }))}
+                  options={[
+                    { value: "", label: "Sin empresa (super admin / global)" },
+                    ...tenantOptions,
+                  ]}
+                />
+              </label>
+            )}
           </div>
           {form.role === "playground" && (
             <p className="text-xs text-slate-500">
@@ -163,6 +201,7 @@ export function Users() {
               <tr>
                 <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Rol</th>
+                {isSuperAdmin && <th className="px-4 py-3">Empresa</th>}
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -173,12 +212,18 @@ export function Users() {
                   key={row.id}
                   row={row}
                   roles={roles}
-                  isSelf={row.id === user.id}
+                  isSelf={row.id === user?.id}
+                  isSuperAdmin={isSuperAdmin}
+                  tenantOptions={tenantOptions}
+                  tenantName={tenantName(row.tenant_id)}
                   busy={updateMutation.isPending || deleteMutation.isPending}
                   onToggleEnabled={() =>
                     updateMutation.mutate({ id: row.id, patch: { enabled: !row.enabled } })
                   }
                   onRoleChange={(role) => updateMutation.mutate({ id: row.id, patch: { role } })}
+                  onTenantChange={(tenant_id) =>
+                    updateMutation.mutate({ id: row.id, patch: { tenant_id: tenant_id || null } })
+                  }
                   onDelete={() => deleteMutation.mutate(row.id)}
                 />
               ))}
@@ -194,17 +239,25 @@ function UserRow({
   row,
   roles,
   isSelf,
+  isSuperAdmin,
+  tenantOptions,
+  tenantName,
   busy,
   onToggleEnabled,
   onRoleChange,
+  onTenantChange,
   onDelete,
 }: {
   row: AdminUserRecord;
   roles: Array<{ id: string; label: string }>;
   isSelf: boolean;
+  isSuperAdmin: boolean;
+  tenantOptions: Array<{ value: string; label: string }>;
+  tenantName: string;
   busy: boolean;
   onToggleEnabled: () => void;
   onRoleChange: (role: AdminRole) => void;
+  onTenantChange: (tenantId: string) => void;
   onDelete: () => void;
 }) {
   const isProtected = row.username === "admin";
@@ -219,7 +272,7 @@ function UserRow({
         {isProtected ? (
           <span className="inline-flex items-center gap-1 text-cyan-300">
             <Shield className="h-3 w-3" />
-            Administrador
+            Super admin
           </span>
         ) : (
           <Select
@@ -232,6 +285,25 @@ function UserRow({
           />
         )}
       </td>
+      {isSuperAdmin && (
+        <td className="px-4 py-3">
+          {isProtected ? (
+            <span className="text-xs text-slate-500">{tenantName}</span>
+          ) : (
+            <Select
+              className="w-40"
+              size="sm"
+              value={row.tenant_id || ""}
+              options={[
+                { value: "", label: "Global" },
+                ...tenantOptions,
+              ]}
+              disabled={busy}
+              onChange={onTenantChange}
+            />
+          )}
+        </td>
+      )}
       <td className="px-4 py-3">
         <button
           type="button"

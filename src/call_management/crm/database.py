@@ -15,7 +15,7 @@ from call_management.utils.time import utc_now_iso
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -42,6 +42,9 @@ class CallRecord:
     agent_notes: str | None = None
     transferred_to: str | None = None
     duration_seconds: int | None = None
+    transcript: str | None = None
+    recording_url: str | None = None
+    agent_instance_id: str | None = None
 
 
 @dataclass
@@ -115,9 +118,30 @@ class CRMDatabase:
             )
             await db.execute(
                 "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                (SCHEMA_VERSION, utc_now_iso()),
+                (1, utc_now_iso()),
             )
+            await self._migrate_v2(db)
             await db.commit()
+
+    async def _migrate_v2(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT MAX(version) AS v FROM schema_migrations") as cur:
+            row = await cur.fetchone()
+            current = row["v"] if row and row["v"] else 1
+        if current >= 2:
+            return
+        for col, typ in (
+            ("transcript", "TEXT"),
+            ("recording_url", "TEXT"),
+            ("agent_instance_id", "TEXT"),
+        ):
+            try:
+                await db.execute(f"ALTER TABLE call_records ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (2, utc_now_iso()),
+        )
 
     @asynccontextmanager
     async def _connect(self):
@@ -195,8 +219,9 @@ class CRMDatabase:
                 """
                 INSERT OR REPLACE INTO call_records
                 (call_id, room_name, from_number, to_number, start_time, end_time,
-                 outcome, summary, agent_notes, transferred_to, duration_seconds)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 outcome, summary, agent_notes, transferred_to, duration_seconds,
+                 transcript, recording_url, agent_instance_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.call_id,
@@ -210,6 +235,9 @@ class CRMDatabase:
                     record.agent_notes,
                     record.transferred_to,
                     record.duration_seconds,
+                    record.transcript,
+                    record.recording_url,
+                    record.agent_instance_id,
                 ),
             )
             await db.commit()
@@ -322,10 +350,40 @@ class CRMDatabase:
                 "summary": r["summary"],
                 "duration_seconds": r["duration_seconds"],
                 "transferred_to": r["transferred_to"],
+                "agent_notes": r["agent_notes"] if "agent_notes" in r.keys() else None,
+                "transcript": r["transcript"] if "transcript" in r.keys() else None,
+                "recording_url": r["recording_url"] if "recording_url" in r.keys() else None,
+                "agent_instance_id": r["agent_instance_id"] if "agent_instance_id" in r.keys() else None,
             }
             for r in rows
         ]
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    async def get_call_analytics(self, *, days: int = 14) -> dict:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT date(start_time) AS day, COUNT(*) AS c
+                FROM call_records
+                WHERE start_time >= datetime('now', ?)
+                GROUP BY day ORDER BY day
+                """,
+                (f"-{days} days",),
+            ) as cursor:
+                by_day = [{"day": r["day"], "count": r["c"]} for r in await cursor.fetchall()]
+            async with db.execute(
+                """
+                SELECT outcome, COUNT(*) AS c FROM call_records
+                WHERE outcome IS NOT NULL GROUP BY outcome
+                """
+            ) as cursor:
+                outcomes = {r["outcome"]: r["c"] for r in await cursor.fetchall()}
+            async with db.execute(
+                "SELECT AVG(duration_seconds) AS avg_dur FROM call_records WHERE duration_seconds IS NOT NULL"
+            ) as cursor:
+                row = await cursor.fetchone()
+                avg_duration = int(row["avg_dur"] or 0) if row else 0
+        return {"calls_by_day": by_day, "outcomes": outcomes, "avg_duration_seconds": avg_duration}
 
     async def list_appointments(self, limit: int = 50, offset: int = 0) -> dict:
         async with self._connect() as db:

@@ -156,6 +156,7 @@ class AdminUserCreatePayload(BaseModel):
     password: str = Field(min_length=8)
     display_name: str = Field(min_length=1, max_length=80)
     role: str = "playground"
+    tenant_id: str | None = None
 
 
 class AdminUserUpdatePayload(BaseModel):
@@ -163,6 +164,7 @@ class AdminUserUpdatePayload(BaseModel):
     role: str | None = None
     enabled: bool | None = None
     password: str | None = Field(default=None, min_length=8)
+    tenant_id: str | None = None
 
 
 def _user_payload(user) -> dict[str, Any]:
@@ -172,6 +174,7 @@ def _user_payload(user) -> dict[str, Any]:
         "display_name": user.display_name,
         "role": user.role,
         "enabled": user.enabled,
+        "tenant_id": user.tenant_id,
     }
 
 
@@ -250,6 +253,7 @@ async def create_admin_user(payload: AdminUserCreatePayload, _admin: dict = Depe
             password=payload.password,
             display_name=payload.display_name,
             role=payload.role,
+            tenant_id=payload.tenant_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -269,6 +273,7 @@ async def patch_admin_user(
             role=payload.role,
             enabled=payload.enabled,
             password=payload.password,
+            tenant_id=payload.tenant_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

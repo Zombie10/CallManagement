@@ -301,6 +301,7 @@ def update_user(
     role: str | None = None,
     enabled: bool | None = None,
     password: str | None = None,
+    tenant_id: str | None = ...,  # type: ignore[assignment]
 ) -> AdminUser:
     user = get_user_by_id(user_id)
     if not user:
@@ -328,6 +329,9 @@ def update_user(
             raise ValueError("La contraseña debe tener al menos 8 caracteres")
         updates.append("password_hash = ?")
         params.append(hash_password(password))
+    if tenant_id is not ...:
+        updates.append("tenant_id = ?")
+        params.append(tenant_id)
 
     if not updates:
         return user

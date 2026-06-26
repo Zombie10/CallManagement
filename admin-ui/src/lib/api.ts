@@ -198,6 +198,12 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ schedules }),
     }),
+  analytics: () => request<AnalyticsResponse>("/analytics"),
+  listWebhooks: () => request<{ webhooks: WebhookRecord[] }>("/webhooks"),
+  createWebhook: (data: WebhookCreateInput) =>
+    request<WebhookRecord>("/webhooks", { method: "POST", body: JSON.stringify(data) }),
+  deleteWebhook: (id: string) =>
+    request<{ deleted: string }>(`/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };
 
 export interface DashboardResponse {
@@ -208,12 +214,55 @@ export interface DashboardResponse {
     vip_customers: number;
     outcomes: Record<string, number>;
   };
+  analytics: CallAnalytics;
+  tenant: {
+    id: string;
+    name: string;
+    brand_color?: string | null;
+    logo_url?: string | null;
+    metrics?: TenantMetrics;
+  };
   runtime: {
     provider: string;
     grok_realtime: boolean;
     remote_mcp: boolean;
     mcp_servers: number;
   };
+  worker: {
+    livekit_ready: boolean;
+    livekit_issues: string[];
+    xai_voice_ready: boolean;
+    requires_worker: boolean;
+    active_calls_tenant: number;
+    active_calls_global: number;
+  };
+}
+
+export interface CallAnalytics {
+  calls_by_day: Array<{ day: string; count: number }>;
+  outcomes: Record<string, number>;
+  avg_duration_seconds: number;
+}
+
+export interface AnalyticsResponse extends CallAnalytics {
+  metrics: TenantMetrics;
+  active_calls: number;
+}
+
+export interface WebhookRecord {
+  id: string;
+  tenant_id: string;
+  url: string;
+  events: string[];
+  secret?: string | null;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface WebhookCreateInput {
+  url: string;
+  events?: string[];
+  secret?: string | null;
 }
 
 export interface SettingField {
@@ -323,10 +372,16 @@ export interface Customer {
 export interface CallRecord {
   call_id: string;
   from_number: string;
+  to_number?: string;
   outcome?: string;
   start_time?: string;
+  end_time?: string;
   duration_seconds?: number;
   summary?: string;
+  transcript?: string | null;
+  recording_url?: string | null;
+  agent_instance_id?: string | null;
+  agent_notes?: string | null;
 }
 
 export interface Appointment {
@@ -383,6 +438,7 @@ export interface AdminUserRecord {
   display_name: string;
   role: AdminRole;
   enabled: boolean;
+  tenant_id?: string | null;
 }
 
 export interface AdminUserCreate {
@@ -390,6 +446,7 @@ export interface AdminUserCreate {
   password: string;
   display_name: string;
   role: AdminRole;
+  tenant_id?: string | null;
 }
 
 export interface AdminUserUpdate {
@@ -397,6 +454,7 @@ export interface AdminUserUpdate {
   role?: AdminRole;
   enabled?: boolean;
   password?: string;
+  tenant_id?: string | null;
 }
 
 export interface VoiceSessionContext {
@@ -434,6 +492,7 @@ export interface TenantCreateInput {
   slug: string;
   name: string;
   status?: string;
+  logo_url?: string | null;
   brand_color?: string;
   max_agents?: number;
   max_calls_per_day?: number;
@@ -442,10 +501,13 @@ export interface TenantCreateInput {
 export interface TenantUpdateInput {
   name?: string;
   status?: string;
+  logo_url?: string | null;
   brand_color?: string;
   max_agents?: number;
   max_calls_per_day?: number;
 }
+
+export type ScheduleStatus = "open" | "closed" | "always";
 
 export interface AgentInstanceRecord {
   id: string;
@@ -455,6 +517,7 @@ export interface AgentInstanceRecord {
   template_id: string;
   status: "draft" | "active" | "paused";
   phone_number?: string | null;
+  phone_numbers?: string[];
   sip_trunk_id?: string | null;
   provider: string;
   voice: string;
@@ -466,6 +529,7 @@ export interface AgentInstanceRecord {
   mcp_servers: string[];
   brand_name?: string | null;
   call_count_today?: number;
+  schedule_status?: ScheduleStatus;
   default_instructions?: string;
 }
 
@@ -475,6 +539,7 @@ export interface AgentInstanceInput {
   template_id: string;
   status?: string;
   phone_number?: string | null;
+  phone_numbers?: string[];
   sip_trunk_id?: string | null;
   provider?: string;
   voice?: string;

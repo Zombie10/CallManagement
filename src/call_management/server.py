@@ -221,8 +221,11 @@ async def entrypoint(ctx: JobContext) -> None:
     from call_management.tenancy.context import resolve_crm_for_tenant, resolve_dispatch
 
     from call_management.tenancy.platform_store import get_platform_store
+    from call_management.tenancy.queue import release as release_queue_slot
+    from call_management.tenancy.queue import try_acquire as acquire_queue_slot
     from call_management.tenancy.scheduling import is_agent_available
 
+    store = get_platform_store()
     tenant, agent_instance, routed_template = resolve_dispatch(
         dialed_number=to_number,
         tenant_id=overrides.get("tenant_id"),  # type: ignore[arg-type]
@@ -232,6 +235,24 @@ async def entrypoint(ctx: JobContext) -> None:
         department_hint = routed_template
 
     after_hours_note = ""
+    queue_note = ""
+    limit_note = ""
+
+    if not store.tenant_within_call_limit(tenant.id):
+        limit_note = (
+            "\n\nLa empresa alcanzó su límite de llamadas del día. "
+            "Informa amablemente que no podemos atender más llamadas hoy y ofrece contacto mañana."
+        )
+        department_hint = "receptionist"
+
+    queued_ok = await acquire_queue_slot(tenant.id)
+    if not queued_ok:
+        queue_note = (
+            "\n\nTodos los agentes están ocupados. Pide al caller esperar un momento "
+            "o ofrece devolver la llamada; sé breve y empático."
+        )
+        department_hint = department_hint or "receptionist"
+
     if agent_instance:
         if agent_instance.status != "active":
             logger.warning(
@@ -248,11 +269,12 @@ async def entrypoint(ctx: JobContext) -> None:
             )
             department_hint = routed_template
             after_hours_note = (
-                "\n\nFuera del horario de atención de este agente. "
-                "Indica el horario configurado, ofrece tomar un mensaje y agenda un callback si aplica."
+                "\n\nIMPORTANTE — Fuera de horario: saluda y di claramente que estamos cerrados. "
+                "Indica el horario de atención, ofrece tomar un mensaje o agendar callback. "
+                "No transfieras a otros departamentos."
             )
-        else:
-            get_platform_store().increment_agent_calls(agent_instance.id)
+        elif not limit_note:
+            store.increment_agent_calls(agent_instance.id)
 
     cfg = get_model_config()
     crm = await resolve_crm_for_tenant(tenant.id)
@@ -283,6 +305,9 @@ async def entrypoint(ctx: JobContext) -> None:
         crm=crm,
         sip=sip,
         start_time=utc_now_iso(),
+        tenant_id=tenant.id,
+        agent_instance_id=agent_instance.id if agent_instance else None,
+        queued=not queued_ok,
     )
 
     from call_management.agents import BankingSupportAgent
@@ -338,8 +363,19 @@ async def entrypoint(ctx: JobContext) -> None:
                 extra += f"\n\n{agent_instance.custom_instructions.strip()}"
             if after_hours_note:
                 extra += after_hours_note
+            if queue_note:
+                extra += queue_note
+            if limit_note:
+                extra += limit_note
             if extra:
                 routed._instructions = f"{routed._instructions}{extra}"
+
+    if after_hours_note and not agent_instance:
+        receptionist._instructions += after_hours_note
+    if queue_note:
+        receptionist._instructions += queue_note
+    if limit_note:
+        receptionist._instructions += limit_note
 
     initial_agent, route_reason = _resolve_initial_agent(
         agents_registry,
@@ -431,6 +467,11 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
     logger.info("Call ending — persisting record for %s", call_ctx.call_id)
     call_ctx.outcome = call_ctx.outcome or "completed"
 
+    if call_ctx.tenant_id:
+        from call_management.tenancy.queue import release as release_queue_slot
+
+        await release_queue_slot(call_ctx.tenant_id)
+
     if not call_ctx.crm:
         return
 
@@ -456,10 +497,29 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
         agent_notes="\n".join(call_ctx.call_notes),
         transferred_to=call_ctx.previous_agent_name,
         duration_seconds=duration_seconds,
+        transcript="\n".join(call_ctx.transcript_lines) if call_ctx.transcript_lines else None,
+        recording_url=call_ctx.recording_url,
+        agent_instance_id=call_ctx.agent_instance_id,
     )
     await call_ctx.crm.create_call_record(record)
     call_ctx.call_persisted = True
     logger.info("Call record persisted (duration=%ss).", duration_seconds)
+
+    if call_ctx.tenant_id:
+        from call_management.tenancy.webhooks import emit_event
+
+        await emit_event(
+            call_ctx.tenant_id,
+            "call.ended",
+            {
+                "call_id": call_ctx.call_id,
+                "from_number": call_ctx.from_number,
+                "to_number": call_ctx.to_number,
+                "outcome": call_ctx.outcome,
+                "duration_seconds": duration_seconds,
+                "summary": call_ctx.post_call_summary,
+            },
+        )
 
 
 def main() -> None:

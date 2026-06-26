@@ -93,17 +93,26 @@ async def list_demo_customers():
 
 @app.get("/api/dashboard")
 async def dashboard(ctx=Depends(require_tenant_context)):
+    from call_management.admin.chat_runner import get_chat_manager
+    from call_management.admin.livekit_playground import livekit_playground_ready
+    from call_management.tenancy.queue import active_count, global_active
+
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     stats = await crm.get_dashboard_stats()
+    analytics = await crm.get_call_analytics(days=14)
     tenant_metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     cfg = get_model_config()
     mcp = load_remote_mcp_config()
+    chat_status = get_chat_manager().status()
+    lk_ready, lk_issues = livekit_playground_ready()
     return {
         "stats": stats,
+        "analytics": analytics,
         "tenant": {
             "id": ctx.tenant.id,
             "name": ctx.tenant.name,
             "brand_color": ctx.tenant.brand_color,
+            "logo_url": ctx.tenant.logo_url,
             "metrics": tenant_metrics,
         },
         "runtime": {
@@ -111,6 +120,14 @@ async def dashboard(ctx=Depends(require_tenant_context)):
             "grok_realtime": cfg.use_grok_realtime,
             "remote_mcp": mcp.enabled,
             "mcp_servers": len(mcp.servers),
+        },
+        "worker": {
+            "livekit_ready": lk_ready,
+            "livekit_issues": lk_issues,
+            "xai_voice_ready": chat_status.get("xai_voice_ready", False),
+            "requires_worker": chat_status.get("requires_worker", True),
+            "active_calls_tenant": active_count(ctx.tenant.id),
+            "active_calls_global": global_active(),
         },
     }
 
