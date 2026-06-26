@@ -29,10 +29,10 @@ def test_upsert_and_reload():
     )
     profiles = load_profiles()
     assert profiles["support"].locale == "es"
-    assert profiles["support"].voice == "Eve"
+    assert profiles["support"].voice == "eve"
     assert get_tool_profile("support") == ["web_search", "file_search"]
     assert get_locale_for_agent("support") == "es"
-    assert get_voice_for_profile("support", "xai") == "Eve"
+    assert get_voice_for_profile("support", "xai") == "eve"
 
 
 def test_delete_custom_agent():

@@ -15,6 +15,14 @@ const PROVIDER_LABELS: Record<string, string> = {
   direct: "Direct APIs",
 };
 
+const VOICE_LABELS: Record<string, string> = {
+  eve: "Eve (energética)",
+  ara: "Ara (cálida)",
+  rex: "Rex (profesional)",
+  sal: "Sal (versátil)",
+  leo: "Leo (autoritaria)",
+};
+
 const TOOL_LABELS: Record<string, string> = {
   web_search: "Web Search",
   x_search: "X Search",
@@ -143,7 +151,7 @@ function AgentEditor({
             >
               {catalog.available_xai_voices.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {VOICE_LABELS[v] || v}
                 </option>
               ))}
             </select>

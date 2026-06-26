@@ -73,7 +73,7 @@ async def test_admin_agents_crud(agent_profiles_file):
             },
         )
         assert create.status_code == 200
-        assert create.json()["voice"] == "Grok"
+        assert create.json()["voice"] == "rex"
 
         update = await client.put(
             "/api/agents/billing",
@@ -106,6 +106,27 @@ async def test_chat_status():
     body = resp.json()
     assert "ready" in body
     assert "provider" in body
+
+
+@pytest.mark.asyncio
+async def test_voice_session_endpoint(monkeypatch):
+    async def fake_token():
+        return {"value": "test-token", "expires_at": 9999999999}
+
+    monkeypatch.setenv("GROK_REALTIME_MODEL", "grok-voice-latest")
+    monkeypatch.setattr(
+        "call_management.admin.voice_session.create_ephemeral_voice_token",
+        fake_token,
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/voice/session", json={"agent": "receptionist"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["model"] == "grok-voice-latest"
+    assert body["client_secret"]["value"] == "test-token"
+    assert body["voice"] == "ara"
 
 
 @pytest.mark.asyncio

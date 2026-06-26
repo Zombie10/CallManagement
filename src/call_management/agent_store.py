@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from call_management.config import LANGUAGE_INSTRUCTIONS, VOICE_PRESETS, XAI_VOICES
+from call_management.config import normalize_xai_voice
 from call_management.xai.mcp import AGENT_MCP_PROFILES
 from call_management.xai.tools import AGENT_TOOL_PROFILES, ToolName
 
@@ -19,7 +20,7 @@ PROFILES_PATH = Path(os.getenv("AGENT_PROFILES_PATH", PROJECT_ROOT / "data" / "a
 AVAILABLE_TOOLS: list[str] = ["web_search", "x_search", "file_search", "code_interpreter"]
 AVAILABLE_LOCALES: list[str] = list(LANGUAGE_INSTRUCTIONS.keys())
 AVAILABLE_PROVIDERS: list[str] = ["xai", "inference", "direct"]
-AVAILABLE_XAI_VOICES: list[str] = ["Ara", "Grok", "Rex", "Sal", "Eve", "Leo"]
+AVAILABLE_XAI_VOICES: list[str] = ["eve", "ara", "rex", "sal", "leo"]
 PROTECTED_AGENTS: frozenset[str] = frozenset({"receptionist"})
 AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
@@ -29,7 +30,7 @@ class AgentProfile:
     name: str
     display_name: str = ""
     provider: str = "xai"
-    voice: str = "Ara"
+    voice: str = "ara"
     locale: str = "en"
     tools: list[str] = field(default_factory=list)
     mcp_servers: list[str] = field(default_factory=list)
@@ -46,7 +47,7 @@ def _default_profiles() -> dict[str, AgentProfile]:
             name=name,
             display_name=name.replace("_", " ").title(),
             provider="xai",
-            voice=XAI_VOICES.get(name, "Ara"),
+            voice=XAI_VOICES.get(name, "ara"),
             locale="en",
             tools=list(AGENT_TOOL_PROFILES.get(name, [])),
             mcp_servers=list(AGENT_MCP_PROFILES.get(name, [])),
@@ -75,7 +76,7 @@ def _validate_profile(profile: AgentProfile) -> AgentProfile:
     profile.mcp_servers = list(dict.fromkeys(profile.mcp_servers))
     if profile.provider == "xai" and profile.voice not in AVAILABLE_XAI_VOICES:
         # Allow custom voice strings for forward compatibility
-        profile.voice = profile.voice.strip() or "Ara"
+        profile.voice = normalize_xai_voice(profile.voice)
     return profile
 
 
@@ -151,7 +152,7 @@ def get_voice_for_profile(agent_name: str, global_provider: str) -> str:
         return XAI_VOICES.get(agent_name, XAI_VOICES["receptionist"])
 
     if profile.provider == "xai":
-        return profile.voice or XAI_VOICES.get(agent_name, "Ara")
+        return normalize_xai_voice(profile.voice or XAI_VOICES.get(agent_name, "ara"))
     return VOICE_PRESETS.get(agent_name, VOICE_PRESETS["receptionist"])
 
 
@@ -186,7 +187,7 @@ def upsert_profile(data: dict[str, Any]) -> AgentProfile:
         name=name,
         display_name=str(data.get("display_name") or (existing.display_name if existing else name.title())),
         provider=str(data.get("provider") or (existing.provider if existing else "xai")),
-        voice=str(data.get("voice") or (existing.voice if existing else "Ara")),
+        voice=normalize_xai_voice(str(data.get("voice") or (existing.voice if existing else "ara"))),
         locale=str(data.get("locale") or (existing.locale if existing else "en")),
         tools=list(data.get("tools") if data.get("tools") is not None else (existing.tools if existing else [])),
         mcp_servers=list(

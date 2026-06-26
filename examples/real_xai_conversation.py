@@ -60,7 +60,7 @@ async def main():
     from livekit.plugins import openai, deepgram, cartesia
 
     llm = openai.LLM(
-        model="grok-voice-think-fast-1.0",
+        model="grok-voice-latest",
         base_url="https://api.x.ai/v1",
         api_key=os.getenv("XAI_API_KEY"),
     )

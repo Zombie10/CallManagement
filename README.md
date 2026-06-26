@@ -76,7 +76,8 @@ XAI_API_KEY=xai-...
 
 MODEL_PROVIDER=xai
 USE_GROK_REALTIME=true          # Full Grok Voice Agent API (best)
-GROK_REALTIME_VOICE=Ara
+GROK_REALTIME_MODEL=grok-voice-latest
+GROK_REALTIME_VOICE=ara
 ```
 
 You can also use the classic pipeline (`USE_GROK_REALTIME=false`) with Grok STT + LLM + TTS individually.

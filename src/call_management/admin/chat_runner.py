@@ -108,6 +108,8 @@ class ChatSessionManager:
             "ready": cfg.provider == "xai" and has_xai or cfg.provider != "xai",
             "provider": cfg.provider,
             "model": cfg.xai_llm_model if cfg.provider == "xai" else cfg.llm_model,
+            "voice_model": cfg.grok_realtime_model,
+            "voice_ready": cfg.provider == "xai" and has_xai,
             "active_sessions": len(self._sessions),
             "requires_xai_key": cfg.provider == "xai" and not has_xai,
         }

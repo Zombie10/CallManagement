@@ -10,11 +10,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from call_management.admin.chat_runner import get_chat_manager
+from call_management.admin.voice_session import create_browser_voice_session
 from call_management.admin.env_store import PROJECT_ROOT, load_settings, save_settings
 from call_management.admin.schemas import (
     AgentProfilePayload,
     ChatMessagePayload,
     ChatSessionCreate,
+    VoiceSessionCreate,
     CustomerCreate,
     CustomerUpdate,
     SettingsUpdate,
@@ -216,6 +218,16 @@ async def reset_chat_session(session_id: str):
 async def delete_chat_session(session_id: str):
     await get_chat_manager().close(session_id)
     return {"deleted": session_id}
+
+
+@app.post("/api/voice/session")
+async def create_voice_session(payload: VoiceSessionCreate):
+    try:
+        return await create_browser_voice_session(agent_name=payload.agent)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 def _mount_static() -> None:

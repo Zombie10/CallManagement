@@ -43,6 +43,11 @@ export const api = {
     request<ChatSessionResponse>(`/chat/sessions/${sessionId}/reset`, { method: "POST" }),
   deleteChatSession: (sessionId: string) =>
     request<{ deleted: string }>(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
+  createVoiceSession: (agent: string) =>
+    request<VoiceSessionResponse>("/voice/session", {
+      method: "POST",
+      body: JSON.stringify({ agent }),
+    }),
   customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
   calls: (limit = 50) => request<ListResponse<CallRecord>>(`/calls?limit=${limit}`),
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
@@ -154,8 +159,23 @@ export interface ChatStatusResponse {
   ready: boolean;
   provider: string;
   model: string;
+  voice_model?: string;
+  voice_ready?: boolean;
   active_sessions: number;
   requires_xai_key: boolean;
+}
+
+export interface VoiceSessionResponse {
+  client_secret: { value: string; expires_at?: number };
+  ws_url: string;
+  model: string;
+  voice: string;
+  agent: string;
+  instructions: string;
+  language_hint?: string | null;
+  tools: Array<Record<string, unknown>>;
+  turn_detection: Record<string, unknown>;
+  reasoning_effort?: string | null;
 }
 
 export interface ChatSessionCreate {

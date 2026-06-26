@@ -21,8 +21,8 @@ class ModelConfig:
 
     # --- xAI / Grok settings (when provider == "xai") ---
     use_grok_realtime: bool = True
-    grok_realtime_model: str = "grok-voice-think-fast-1.0"
-    grok_realtime_voice: str = "Ara"
+    grok_realtime_model: str = "grok-voice-latest"
+    grok_realtime_voice: str = "ara"
 
     xai_stt_model: str = "grok-stt"
     xai_llm_model: str = "grok-3"
@@ -76,12 +76,29 @@ def get_model_config() -> ModelConfig:
     return cfg
 
 
+BUILTIN_XAI_VOICES = ("eve", "ara", "rex", "sal", "leo")
+
+_LEGACY_VOICE_MAP = {
+    "grok": "rex",
+    "ara": "ara",
+    "eve": "eve",
+    "rex": "rex",
+    "sal": "sal",
+    "leo": "leo",
+}
+
+
+def normalize_xai_voice(voice: str | None, *, fallback: str = "ara") -> str:
+    raw = (voice or fallback).strip().lower()
+    return _LEGACY_VOICE_MAP.get(raw, raw if raw in BUILTIN_XAI_VOICES else fallback)
+
+
 XAI_VOICES = {
-    "receptionist": "Ara",
-    "support": "Ara",
-    "sales": "Grok",
-    "technical": "Grok",
-    "escalation": "Ara",
+    "receptionist": "ara",
+    "support": "ara",
+    "sales": "rex",
+    "technical": "leo",
+    "escalation": "ara",
 }
 
 VOICE_PRESETS = {

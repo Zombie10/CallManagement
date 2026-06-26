@@ -42,7 +42,7 @@ def test_model_config_env_override(monkeypatch):
 def test_voice_presets_per_agent():
     from call_management.config import VOICE_PRESETS
 
-    assert get_voice_for_agent("sales", "xai") == "Grok"
+    assert get_voice_for_agent("sales", "xai") == "rex"
     assert get_voice_for_agent("support", "direct") == VOICE_PRESETS["support"]
 
 

@@ -36,6 +36,10 @@ class ChatMessagePayload(BaseModel):
     message: str
 
 
+class VoiceSessionCreate(BaseModel):
+    agent: str = "receptionist"
+
+
 class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None
