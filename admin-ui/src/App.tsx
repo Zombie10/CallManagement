@@ -13,6 +13,7 @@ import { Playground } from "./pages/Playground";
 import { Profile } from "./pages/Profile";
 import { Users } from "./pages/Users";
 import { SetupWizard } from "./pages/SetupWizard";
+import { Analytics } from "./pages/Analytics";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="agents" element={<Agents />} />
           <Route path="customers" element={<Customers />} />
           <Route path="calls" element={<Calls />} />
+          <Route path="analytics" element={<Analytics />} />
           <Route path="appointments" element={<Appointments />} />
           <Route path="playground" element={<Playground />} />
           <Route path="profile" element={<Profile />} />

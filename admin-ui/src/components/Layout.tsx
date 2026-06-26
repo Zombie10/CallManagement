@@ -13,6 +13,7 @@ import {
   Wrench,
   Network,
   Rocket,
+  BarChart3,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -30,6 +31,7 @@ const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; 
   { to: "/agents", label: "Plantillas sistema", icon: Bot, roles: ["super_admin"] },
   { to: "/customers", label: "Clientes", icon: Users, roles: ["super_admin", "admin", "viewer"] },
   { to: "/calls", label: "Llamadas", icon: Phone, roles: ["super_admin", "admin", "viewer"] },
+  { to: "/analytics", label: "Análisis", icon: BarChart3, roles: ["super_admin", "admin", "viewer"] },
   { to: "/appointments", label: "Citas", icon: Headphones, roles: ["super_admin", "admin", "viewer"] },
   { to: "/users", label: "Usuarios", icon: Users, roles: ["super_admin", "admin"] },
 ];

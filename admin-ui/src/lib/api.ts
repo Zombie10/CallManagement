@@ -199,6 +199,12 @@ export const api = {
       body: JSON.stringify({ schedules }),
     }),
   analytics: () => request<AnalyticsResponse>("/analytics"),
+  reportOptions: () => request<ReportOptionsResponse>("/reports/options"),
+  queryReport: (payload: CallReportPayload) =>
+    request<CallReportResponse>("/reports/calls", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   listWebhooks: () => request<{ webhooks: WebhookRecord[] }>("/webhooks"),
   createWebhook: (data: WebhookCreateInput) =>
     request<WebhookRecord>("/webhooks", { method: "POST", body: JSON.stringify(data) }),
@@ -247,6 +253,84 @@ export interface CallAnalytics {
 export interface AnalyticsResponse extends CallAnalytics {
   metrics: TenantMetrics;
   active_calls: number;
+}
+
+export type ReportDimension = "day" | "hour" | "weekday" | "outcome" | "agent" | "month";
+
+export interface CustomReportFilter {
+  field: string;
+  op: string;
+  value: string | number | string[] | null;
+}
+
+export interface CallReportPayload {
+  date_from?: string | null;
+  date_to?: string | null;
+  outcomes?: string[];
+  agent_instance_ids?: string[];
+  from_number?: string | null;
+  min_duration?: number | null;
+  max_duration?: number | null;
+  group_by?: ReportDimension;
+  pivot_row?: ReportDimension | null;
+  pivot_col?: ReportDimension | null;
+  metric?: "count" | "sum_duration" | "avg_duration";
+  custom_filters?: CustomReportFilter[];
+  detail_limit?: number;
+}
+
+export interface ReportOptionsResponse {
+  outcomes: string[];
+  agent_instance_ids: string[];
+  agents: Array<{ id: string; label: string; slug: string }>;
+  date_min: string | null;
+  date_max: string | null;
+  dimensions: Array<{ id: ReportDimension; label: string }>;
+  metrics: Array<{ id: string; label: string }>;
+}
+
+export interface CallReportSummary {
+  total_calls: number;
+  avg_duration_seconds: number;
+  total_duration_seconds: number;
+  unique_callers: number;
+}
+
+export interface CallReportSeries {
+  key: string;
+  label: string;
+  count: number;
+  sum_duration: number;
+  avg_duration: number;
+}
+
+export interface CallReportPivot {
+  row_dimension: string;
+  col_dimension: string;
+  metric: string;
+  row_labels: string[];
+  col_labels: string[];
+  row_keys: string[];
+  col_keys: string[];
+  cells: number[][];
+}
+
+export interface CallReportResponse {
+  summary: CallReportSummary;
+  series: CallReportSeries[];
+  outcome_breakdown: CallReportSeries[];
+  pivot: CallReportPivot | null;
+  detail: Array<{
+    call_id: string;
+    from_number: string;
+    to_number?: string | null;
+    start_time: string;
+    outcome?: string | null;
+    duration_seconds?: number | null;
+    agent_instance_id?: string | null;
+  }>;
+  group_by: string;
+  filters_applied: Record<string, unknown>;
 }
 
 export interface WebhookRecord {

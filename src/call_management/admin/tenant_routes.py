@@ -305,6 +305,107 @@ class WebhookCreatePayload(BaseModel):
     secret: str | None = None
 
 
+class CustomFilterPayload(BaseModel):
+    field: str
+    op: str = "eq"
+    value: Any = None
+
+
+class CallReportPayload(BaseModel):
+    date_from: str | None = None
+    date_to: str | None = None
+    outcomes: list[str] = Field(default_factory=list)
+    agent_instance_ids: list[str] = Field(default_factory=list)
+    from_number: str | None = None
+    min_duration: int | None = None
+    max_duration: int | None = None
+    group_by: str = "day"
+    pivot_row: str | None = None
+    pivot_col: str | None = None
+    metric: str = "count"
+    custom_filters: list[CustomFilterPayload] = Field(default_factory=list)
+    detail_limit: int = 100
+
+
+def _report_query_from_payload(payload: CallReportPayload):
+    from call_management.crm.reports import CallReportQuery
+
+    return CallReportQuery(
+        date_from=payload.date_from,
+        date_to=payload.date_to,
+        outcomes=payload.outcomes,
+        agent_instance_ids=payload.agent_instance_ids,
+        from_number=payload.from_number,
+        min_duration=payload.min_duration,
+        max_duration=payload.max_duration,
+        group_by=payload.group_by,
+        pivot_row=payload.pivot_row,
+        pivot_col=payload.pivot_col,
+        metric=payload.metric,
+        custom_filters=[f.model_dump() for f in payload.custom_filters],
+        detail_limit=min(payload.detail_limit, 500),
+    )
+
+
+@router.get("/reports/options")
+async def report_options(ctx: TenantContext = Depends(require_tenant_context)):
+    crm = await resolve_crm_for_tenant(ctx.tenant.id)
+    options = await crm.get_report_options()
+    store = get_platform_store()
+    agents = store.list_agents(ctx.tenant.id)
+    options["agents"] = [
+        {"id": a.id, "label": a.display_name, "slug": a.slug} for a in agents
+    ]
+    return options
+
+
+@router.get("/reports/calls")
+async def report_calls_get(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    outcomes: str | None = None,
+    agent_instance_ids: str | None = None,
+    from_number: str | None = None,
+    min_duration: int | None = None,
+    max_duration: int | None = None,
+    group_by: str = "day",
+    pivot_row: str | None = None,
+    pivot_col: str | None = None,
+    metric: str = "count",
+    ctx: TenantContext = Depends(require_tenant_context),
+):
+    payload = CallReportPayload(
+        date_from=date_from,
+        date_to=date_to,
+        outcomes=[o.strip() for o in (outcomes or "").split(",") if o.strip()],
+        agent_instance_ids=[a.strip() for a in (agent_instance_ids or "").split(",") if a.strip()],
+        from_number=from_number,
+        min_duration=min_duration,
+        max_duration=max_duration,
+        group_by=group_by,
+        pivot_row=pivot_row,
+        pivot_col=pivot_col,
+        metric=metric,
+    )
+    crm = await resolve_crm_for_tenant(ctx.tenant.id)
+    try:
+        return await crm.query_call_report(_report_query_from_payload(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/reports/calls")
+async def report_calls_post(
+    payload: CallReportPayload,
+    ctx: TenantContext = Depends(require_tenant_context),
+):
+    crm = await resolve_crm_for_tenant(ctx.tenant.id)
+    try:
+        return await crm.query_call_report(_report_query_from_payload(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/analytics")
 async def tenant_analytics(ctx: TenantContext = Depends(require_tenant_context)):
     crm = await resolve_crm_for_tenant(ctx.tenant.id)

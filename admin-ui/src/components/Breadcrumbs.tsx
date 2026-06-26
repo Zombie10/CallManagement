@@ -10,6 +10,7 @@ const ROUTE_LABELS: Record<string, string> = {
   agents: "Plantillas sistema",
   customers: "Clientes",
   calls: "Llamadas",
+  analytics: "Análisis",
   appointments: "Citas",
   playground: "Probar agente",
   profile: "Mi perfil",

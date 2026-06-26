@@ -359,6 +359,185 @@ class CRMDatabase:
         ]
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
+    async def get_report_options(self) -> dict:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT DISTINCT COALESCE(outcome, 'unknown') AS o FROM call_records ORDER BY o"
+            ) as cursor:
+                outcomes = [r["o"] for r in await cursor.fetchall()]
+            async with db.execute(
+                "SELECT DISTINCT agent_instance_id FROM call_records WHERE agent_instance_id IS NOT NULL"
+            ) as cursor:
+                agent_ids = [r["agent_instance_id"] for r in await cursor.fetchall()]
+            async with db.execute(
+                "SELECT MIN(start_time) AS mn, MAX(start_time) AS mx FROM call_records"
+            ) as cursor:
+                row = await cursor.fetchone()
+                date_min = row["mn"] if row else None
+                date_max = row["mx"] if row else None
+        from call_management.crm.reports import DIMENSIONS
+
+        return {
+            "outcomes": outcomes,
+            "agent_instance_ids": agent_ids,
+            "date_min": date_min,
+            "date_max": date_max,
+            "dimensions": [
+                {"id": k, "label": v[1]} for k, v in DIMENSIONS.items()
+            ],
+            "metrics": [
+                {"id": "count", "label": "Cantidad de llamadas"},
+                {"id": "sum_duration", "label": "Duración total (s)"},
+                {"id": "avg_duration", "label": "Duración promedio (s)"},
+            ],
+        }
+
+    async def query_call_report(self, query) -> dict:
+        from call_management.crm.reports import (
+            CallReportQuery,
+            DIMENSIONS,
+            _label_key,
+            build_where,
+            metric_select,
+        )
+
+        if not isinstance(query, CallReportQuery):
+            raise TypeError("query must be CallReportQuery")
+
+        where, params = build_where(query)
+        metric = metric_select(query.metric)
+        group_by = query.group_by if query.group_by in DIMENSIONS else "day"
+        group_expr = DIMENSIONS[group_by][0]
+
+        async with self._connect() as db:
+            async with db.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS total_calls,
+                    COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_duration,
+                    COALESCE(SUM(duration_seconds), 0) AS total_duration,
+                    COUNT(DISTINCT from_number) AS unique_callers
+                FROM call_records {where}
+                """,
+                params,
+            ) as cursor:
+                summary_row = await cursor.fetchone()
+            summary = {
+                "total_calls": summary_row["total_calls"] if summary_row else 0,
+                "avg_duration_seconds": summary_row["avg_duration"] if summary_row else 0,
+                "total_duration_seconds": summary_row["total_duration"] if summary_row else 0,
+                "unique_callers": summary_row["unique_callers"] if summary_row else 0,
+            }
+
+            async with db.execute(
+                f"""
+                SELECT {group_expr} AS dim_key,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(duration_seconds), 0) AS sum_dur,
+                       COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur
+                FROM call_records {where}
+                GROUP BY dim_key ORDER BY dim_key
+                """,
+                params,
+            ) as cursor:
+                series = [
+                    {
+                        "key": r["dim_key"],
+                        "label": _label_key(str(r["dim_key"]), group_by),
+                        "count": r["cnt"],
+                        "sum_duration": r["sum_dur"],
+                        "avg_duration": r["avg_dur"],
+                    }
+                    for r in await cursor.fetchall()
+                ]
+
+            async with db.execute(
+                f"""
+                SELECT COALESCE(outcome, 'unknown') AS dim_key,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(duration_seconds), 0) AS sum_dur,
+                       COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur
+                FROM call_records {where}
+                GROUP BY dim_key ORDER BY cnt DESC
+                """,
+                params,
+            ) as cursor:
+                outcome_breakdown = [
+                    {
+                        "key": r["dim_key"],
+                        "label": _label_key(str(r["dim_key"]), "outcome"),
+                        "count": r["cnt"],
+                        "sum_duration": r["sum_dur"],
+                        "avg_duration": r["avg_dur"],
+                    }
+                    for r in await cursor.fetchall()
+                ]
+
+            pivot = None
+            if query.pivot_row and query.pivot_col:
+                row_dim = query.pivot_row if query.pivot_row in DIMENSIONS else "weekday"
+                col_dim = query.pivot_col if query.pivot_col in DIMENSIONS else "outcome"
+                row_expr = DIMENSIONS[row_dim][0]
+                col_expr = DIMENSIONS[col_dim][0]
+                async with db.execute(
+                    f"""
+                    SELECT {row_expr} AS row_key, {col_expr} AS col_key, {metric} AS value
+                    FROM call_records {where}
+                    GROUP BY row_key, col_key
+                    ORDER BY row_key, col_key
+                    """,
+                    params,
+                ) as cursor:
+                    cells_raw = await cursor.fetchall()
+                row_keys = sorted({str(r["row_key"]) for r in cells_raw}, key=str)
+                col_keys = sorted({str(r["col_key"]) for r in cells_raw}, key=str)
+                lookup = {(str(r["row_key"]), str(r["col_key"])): r["value"] for r in cells_raw}
+                cells = [
+                    [lookup.get((rk, ck), 0) for ck in col_keys]
+                    for rk in row_keys
+                ]
+                pivot = {
+                    "row_dimension": row_dim,
+                    "col_dimension": col_dim,
+                    "metric": query.metric,
+                    "row_labels": [_label_key(rk, row_dim) for rk in row_keys],
+                    "col_labels": [_label_key(ck, col_dim) for ck in col_keys],
+                    "row_keys": row_keys,
+                    "col_keys": col_keys,
+                    "cells": cells,
+                }
+
+            detail_params = list(params)
+            async with db.execute(
+                f"""
+                SELECT call_id, from_number, to_number, start_time, outcome,
+                       duration_seconds, agent_instance_id
+                FROM call_records {where}
+                ORDER BY start_time DESC LIMIT ?
+                """,
+                [*detail_params, query.detail_limit],
+            ) as cursor:
+                detail = [dict(r) for r in await cursor.fetchall()]
+
+        return {
+            "summary": summary,
+            "series": series,
+            "outcome_breakdown": outcome_breakdown,
+            "pivot": pivot,
+            "detail": detail,
+            "group_by": group_by,
+            "filters_applied": {
+                "date_from": query.date_from,
+                "date_to": query.date_to,
+                "outcomes": query.outcomes,
+                "agent_instance_ids": query.agent_instance_ids,
+                "from_number": query.from_number,
+                "min_duration": query.min_duration,
+                "max_duration": query.max_duration,
+                "custom_filters": query.custom_filters,
+            },
+        }
+
     async def get_call_analytics(self, *, days: int = 14) -> dict:
         async with self._connect() as db:
             async with db.execute(
