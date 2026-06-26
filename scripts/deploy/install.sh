@@ -60,5 +60,6 @@ fi
 nginx -t
 systemctl reload nginx
 
-echo "==> Done. Admin UI: https://paymercadogo.com/callmgmt/"
+echo "==> Done. Verify: curl -s http://127.0.0.1:8080/api/health"
+echo "    Public URL depends on your nginx config (see docs/DEPLOYMENT.md)"
 systemctl --no-pager status callmanagement
