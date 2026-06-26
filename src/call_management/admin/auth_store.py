@@ -104,26 +104,58 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+def sync_admin_password_from_env() -> bool:
+    """Apply ADMIN_PASSWORD from env to the bootstrap admin user. Returns True if updated."""
+    password = os.getenv("ADMIN_PASSWORD", "").strip()
+    username = os.getenv("ADMIN_USERNAME", "admin").strip().lower()
+    if not password:
+        return False
+
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, password_hash FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if not row:
+            return False
+        new_hash = hash_password(password)
+        if verify_password(password, row["password_hash"]):
+            return False
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (new_hash, row["id"]),
+        )
+        conn.commit()
+        return True
+
+
 def ensure_bootstrap_user() -> AdminUser | None:
     """Create the first admin from env if the database is empty."""
     init_auth_db()
-    username = os.getenv("ADMIN_USERNAME", "admin").strip()
+    username = os.getenv("ADMIN_USERNAME", "admin").strip().lower()
     password = os.getenv("ADMIN_PASSWORD", "").strip()
 
     with _connect() as conn:
         row = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()
         if row and row["c"] > 0:
+            if sync_admin_password_from_env():
+                print(f"\n🔐 Contraseña de '{username}' sincronizada desde ADMIN_PASSWORD en .env\n")
+            elif not password:
+                print(
+                    f"\n⚠️  Usuario admin '{username}' ya existe.\n"
+                    "   Define ADMIN_PASSWORD en .env y reinicia el admin para fijar tu contraseña.\n"
+                    "   O ejecuta: uv run python -m call_management.admin.reset_password\n"
+                )
             return get_user_by_username(username)
 
         if not password:
             password = secrets.token_urlsafe(16)
             print(
                 f"\n🔐 Admin creado — usuario: {username} | contraseña temporal: {password}\n"
-                "   Guárdala y configura ADMIN_PASSWORD en .env. Registra un passkey tras iniciar sesión.\n"
+                "   Copia esta contraseña AHORA. Luego pon ADMIN_PASSWORD en .env y reinicia.\n"
             )
 
         user_id = secrets.token_hex(16)
-        username = username.lower()
         conn.execute(
             "INSERT INTO users (id, username, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
             (user_id, username, "Administrador", hash_password(password), _iso(_utc_now())),

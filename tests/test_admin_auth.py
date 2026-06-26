@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -54,3 +52,19 @@ async def test_password_login_and_me(monkeypatch, tmp_path):
         profile = await client.get("/api/auth/me", cookies={"cm_admin_session": cookie})
         assert profile.status_code == 200
         assert profile.json()["username"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_sync_password_from_env_on_existing_user(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_AUTH_DB_PATH", str(tmp_path / "auth.db"))
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+
+    from call_management.admin.auth_store import ensure_bootstrap_user, verify_user_password
+
+    ensure_bootstrap_user()
+    assert not verify_user_password("admin", "new-password-456")
+
+    monkeypatch.setenv("ADMIN_PASSWORD", "new-password-456")
+    ensure_bootstrap_user()
+    assert verify_user_password("admin", "new-password-456")

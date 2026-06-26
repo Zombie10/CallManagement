@@ -19,7 +19,7 @@ export function Login() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"passkey" | "password">("passkey");
+  const [mode, setMode] = useState<"passkey" | "password">("password");
 
   const { data: authStatus } = useQuery({ queryKey: ["auth-status"], queryFn: api.authStatus });
   const canPasskey = passkeySupported();
@@ -27,8 +27,12 @@ export function Login() {
   const from = (location.state as { from?: string } | null)?.from || "/";
 
   const finishLogin = async () => {
-    await refresh();
-    navigate(from, { replace: true });
+    try {
+      await refresh();
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo validar la sesión");
+    }
   };
 
   const passwordLogin = useMutation({
@@ -174,18 +178,31 @@ export function Login() {
             </p>
           )}
 
-          <div className="mt-6 flex items-start gap-2 rounded-xl border border-cyan-400/10 bg-cyan-500/5 p-3 text-xs text-slate-400">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
-            <p>
-              Tras el primer acceso con contraseña, registra un passkey desde el menú de usuario.
-              {authStatus?.rp_id && (
-                <>
-                  {" "}
-                  RP: <code className="text-cyan-200/80">{authStatus.rp_id}</code>
-                </>
+          {authStatus?.hint && (
+            <div
+              className={clsx(
+                "mt-6 flex items-start gap-2 rounded-xl border p-3 text-xs",
+                authStatus.password_configured
+                  ? "border-cyan-400/10 bg-cyan-500/5 text-slate-400"
+                  : "border-amber-400/20 bg-amber-500/10 text-amber-100",
               )}
-            </p>
-          </div>
+            >
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+              <div className="space-y-1">
+                <p>{authStatus.hint}</p>
+                {!authStatus.password_configured && (
+                  <p className="text-amber-200/90">
+                    Terminal:{" "}
+                    <code className="text-amber-50">uv run python -m call_management.admin.reset_password</code>
+                  </p>
+                )}
+                <p>
+                  Passkey: usa <code className="text-cyan-200/80">http://localhost:8080</code>
+                  {authStatus.rp_id && <> · RP: <code className="text-cyan-200/80">{authStatus.rp_id}</code></>}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

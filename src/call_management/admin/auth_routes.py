@@ -116,11 +116,18 @@ class PasskeyRegisterOptionsPayload(BaseModel):
 @router.get("/status")
 async def auth_status():
     ensure_bootstrap_user()
+    password_configured = bool(os.getenv("ADMIN_PASSWORD", "").strip())
     return {
         "enabled": True,
         "rp_id": _rp_id(),
         "origin": _origin(),
         "passkey_supported": True,
+        "password_configured": password_configured,
+        "hint": (
+            "Usa la pestaña Contraseña. Si no funciona, define ADMIN_PASSWORD en .env y reinicia el admin."
+            if not password_configured
+            else "Inicia con tu ADMIN_PASSWORD o registra un passkey tras entrar."
+        ),
     }
 
 

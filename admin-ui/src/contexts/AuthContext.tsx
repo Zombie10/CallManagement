@@ -5,7 +5,7 @@ import { api, type AuthUserResponse } from "../lib/api";
 type AuthContextValue = {
   user: AuthUserResponse | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<AuthUserResponse>;
   logout: () => Promise<void>;
 };
 
@@ -21,7 +21,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const refresh = useCallback(async () => {
-    await refetch();
+    const result = await refetch();
+    if (result.isError || !result.data) {
+      throw new Error("Sesión no válida tras el login");
+    }
+    return result.data;
   }, [refetch]);
 
   const logout = useCallback(async () => {
