@@ -29,3 +29,16 @@ def test_build_voice_tools_includes_handoff_functions():
     fn_names = {t.get("name") for t in tools if t.get("type") == "function"}
     assert "transfer_to_support" in fn_names
     assert "transfer_to_sales" in fn_names
+
+
+def test_build_voice_tools_includes_crm_functions():
+    tools = build_voice_tools("escalation")
+    fn_names = {t.get("name") for t in tools if t.get("type") == "function"}
+    assert "lookup_customer" in fn_names
+    assert "add_call_note" in fn_names
+
+
+def test_build_voice_tools_code_interpreter(monkeypatch):
+    monkeypatch.setenv("XAI_ENABLE_CODE_INTERPRETER", "true")
+    tools = build_voice_tools("technical")
+    assert any(t.get("type") == "code_interpreter" for t in tools)

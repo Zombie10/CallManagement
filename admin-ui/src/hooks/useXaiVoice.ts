@@ -50,6 +50,9 @@ export function useXaiVoice() {
   const sessionConfigRef = useRef<SessionLike | null>(null);
   const currentLineRef = useRef<{ role: "user" | "assistant"; content: string } | null>(null);
   const sampleRateRef = useRef(24000);
+  const callContextRef = useRef<{ phone_number: string; customer_name?: string }>({
+    phone_number: "+15551234567",
+  });
 
   const appendSystem = useCallback((text: string) => {
     setTranscript((prev) => [...prev, { id: `sys-${Date.now()}`, role: "system", text }]);
@@ -166,17 +169,49 @@ export function useXaiVoice() {
       const name = message.name as string | undefined;
       if (!callId || !name) return;
 
-      const handoffTarget = HANDOFF_TARGETS[name];
-      let output: string;
+      let args: Record<string, unknown> = {};
+      const rawArgs = message.arguments;
+      if (typeof rawArgs === "string" && rawArgs.trim()) {
+        try {
+          args = JSON.parse(rawArgs) as Record<string, unknown>;
+        } catch {
+          args = {};
+        }
+      } else if (rawArgs && typeof rawArgs === "object") {
+        args = rawArgs as Record<string, unknown>;
+      }
 
-      if (handoffTarget) {
-        output = `Transferred to ${handoffTarget} agent. Continue the conversation as that specialist.`;
-        await applyAgentConfig(handoffTarget);
-        appendSystem(`Transferencia de voz → ${handoffTarget}`);
-      } else if (name === "lookup_customer") {
-        output = "Customer lookup is not available in browser voice demo. Ask the caller for their details.";
-      } else {
-        output = `Function ${name} acknowledged.`;
+      const ctx = callContextRef.current;
+      let output: string;
+      let handoffAgent: string | undefined;
+
+      try {
+        const result = await api.executeVoiceTool({
+          function_name: name,
+          arguments: args,
+          phone_number: ctx.phone_number,
+          customer_name: ctx.customer_name,
+        });
+        output = result.output;
+        handoffAgent = result.handoff_agent;
+        if (result.event?.type === "handoff" && result.event.detail) {
+          appendSystem(`Transferencia de voz → ${result.event.detail}`);
+        } else if (result.event) {
+          appendSystem(`${result.event.type}: ${result.event.detail}`);
+        }
+      } catch (err) {
+        const fallback = HANDOFF_TARGETS[name];
+        if (fallback) {
+          handoffAgent = fallback;
+          output = `Transferred to ${fallback} agent. Continue the conversation as that specialist.`;
+          appendSystem(`Transferencia de voz → ${fallback}`);
+        } else {
+          output = err instanceof Error ? err.message : `Function ${name} failed`;
+        }
+      }
+
+      if (handoffAgent) {
+        await applyAgentConfig(handoffAgent);
       }
 
       ws.send(
@@ -207,6 +242,33 @@ export function useXaiVoice() {
       }
       if (message.type === "response.function_call_arguments.done") {
         void handleFunctionCall(message);
+      }
+      if (
+        message.type === "response.mcp_call.in_progress" ||
+        message.type === "response.mcp_call.completed" ||
+        message.type === "response.mcp_call.failed"
+      ) {
+        const label =
+          message.type === "response.mcp_call.in_progress"
+            ? "MCP en curso"
+            : message.type === "response.mcp_call.completed"
+              ? "MCP completado"
+              : "MCP falló";
+        const detail =
+          (message.server_label as string) ||
+          (message.tool_name as string) ||
+          (message.error as string) ||
+          "";
+        if (detail) appendSystem(`${label}: ${detail}`);
+      }
+      if (message.type === "response.output_item.added" && message.item) {
+        const item = message.item as { type?: string; name?: string };
+        if (item.type === "web_search_call" || item.type === "x_search_call") {
+          appendSystem(`Búsqueda: ${item.type.replace("_call", "")}`);
+        }
+        if (item.type === "code_interpreter_call") {
+          appendSystem("Code interpreter ejecutando…");
+        }
       }
       if (message.type === "input_audio_buffer.speech_started") {
         stopPlayback();
@@ -262,14 +324,24 @@ export function useXaiVoice() {
   }, [stopCapture, stopPlayback]);
 
   const start = useCallback(
-    async (agent: string) => {
+    async (
+      agent: string,
+      context?: { phone_number?: string; customer_name?: string },
+    ) => {
       setError(null);
       setTranscript([]);
       setCurrentAgent(agent);
       currentLineRef.current = null;
+      callContextRef.current = {
+        phone_number: context?.phone_number || "+15551234567",
+        customer_name: context?.customer_name,
+      };
       disconnect();
 
-      const voiceSession = await api.createVoiceSession(agent);
+      const voiceSession = await api.createVoiceSession(agent, {
+        phone_number: callContextRef.current.phone_number,
+        customer_name: callContextRef.current.customer_name,
+      });
       setSessionInfo(voiceSession);
       sessionConfigRef.current = voiceSession;
 

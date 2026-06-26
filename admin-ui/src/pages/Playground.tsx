@@ -330,6 +330,8 @@ function LiveKitVoicePanel() {
 
 function XaiVoicePanel() {
   const [agent, setAgent] = useState("receptionist");
+  const [phone, setPhone] = useState("+15551234567");
+  const [customerName, setCustomerName] = useState("");
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useXaiVoice();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -352,6 +354,20 @@ function XaiVoicePanel() {
             <option key={a} value={a}>{a}</option>
           ))}
         </select>
+        <input
+          className="input-field w-auto min-w-[140px]"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Teléfono"
+          disabled={voice.connected}
+        />
+        <input
+          className="input-field w-auto min-w-[120px]"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          placeholder="Nombre (opcional)"
+          disabled={voice.connected}
+        />
         {!voice.connected ? (
           <button
             type="button"
@@ -359,7 +375,12 @@ function XaiVoicePanel() {
             disabled={!status?.xai_voice_ready}
             onClick={() => {
               voice.setError(null);
-              voice.start(agent).catch((err) => voice.setError(String(err)));
+              voice
+                .start(agent, {
+                  phone_number: phone,
+                  customer_name: customerName || undefined,
+                })
+                .catch((err) => voice.setError(String(err)));
             }}
           >
             <Zap className="h-4 w-4" />
@@ -395,7 +416,7 @@ function XaiVoicePanel() {
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {!voice.transcript.length && !voice.connected && (
           <p className="text-center text-sm text-slate-500">
-            WebSocket directo a xAI — ideal sin credenciales LiveKit. Handoffs vía function tools en cliente.
+            WebSocket directo a xAI — CRM, MCP y function tools vía API del servidor.
           </p>
         )}
         {voice.transcript.map((line) => (

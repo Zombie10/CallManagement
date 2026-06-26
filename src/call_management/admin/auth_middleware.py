@@ -8,8 +8,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from call_management.admin.auth_permissions import can_access_api
 from call_management.admin.auth_routes import PUBLIC_PATHS
 from call_management.admin.auth_store import SESSION_COOKIE, get_session_user
+
+_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 def auth_disabled() -> bool:
@@ -28,5 +31,15 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
         user = get_session_user(request.cookies.get(SESSION_COOKIE))
         if not user:
             return JSONResponse(status_code=401, content={"detail": "No autenticado"})
+
+        if not can_access_api(user.role, path):
+            return JSONResponse(status_code=403, content={"detail": "Sin permiso para este recurso"})
+
+        if (
+            user.role == "viewer"
+            and request.method in _MUTATING_METHODS
+            and not path.startswith("/api/auth/")
+        ):
+            return JSONResponse(status_code=403, content={"detail": "Solo lectura: no puedes modificar datos"})
 
         return await call_next(request)

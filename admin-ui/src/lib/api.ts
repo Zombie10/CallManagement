@@ -57,6 +57,39 @@ export const api = {
         device_name: deviceName,
       }),
     }),
+  authRoles: () => request<{ roles: AdminRoleOption[] }>("/auth/roles"),
+  updateProfile: (displayName: string) =>
+    request<AuthUserResponse>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/auth/me/password", {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    }),
+  deletePasskey: (credentialId: string) =>
+    request<{ deleted: string }>(`/auth/passkey/${encodeURIComponent(credentialId)}`, {
+      method: "DELETE",
+    }),
+  listUsers: () => request<{ users: AdminUserRecord[] }>("/auth/users"),
+  createUser: (data: AdminUserCreate) =>
+    request<AdminUserRecord>("/auth/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateUser: (userId: string, data: AdminUserUpdate) =>
+    request<AdminUserRecord>(`/auth/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteUser: (userId: string) =>
+    request<{ deleted: string }>(`/auth/users/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    }),
   health: () => request<{ status: string }>("/health"),
   dashboard: () => request<DashboardResponse>("/dashboard"),
   settings: () => request<SettingsResponse>("/settings"),
@@ -87,10 +120,15 @@ export const api = {
     request<ChatSessionResponse>(`/chat/sessions/${sessionId}/reset`, { method: "POST" }),
   deleteChatSession: (sessionId: string) =>
     request<{ deleted: string }>(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
-  createVoiceSession: (agent: string) =>
+  createVoiceSession: (agent: string, context?: VoiceSessionContext) =>
     request<VoiceSessionResponse>("/voice/session", {
       method: "POST",
-      body: JSON.stringify({ agent }),
+      body: JSON.stringify({ agent, ...context }),
+    }),
+  executeVoiceTool: (data: VoiceToolExecuteInput) =>
+    request<VoiceToolExecuteResponse>("/voice/tools/execute", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
   voiceConfig: (agent: string) =>
     request<VoiceSessionConfig>(`/voice/config/${encodeURIComponent(agent)}`),
@@ -260,17 +298,70 @@ export interface AuthStatusResponse {
   hint?: string;
 }
 
+export type AdminRole = "admin" | "playground" | "viewer";
+
+export interface AdminRoleOption {
+  id: AdminRole;
+  label: string;
+  description: string;
+}
+
 export interface AuthUserResponse {
   id: string;
   username: string;
   display_name: string;
-  passkeys: Array<{ id: string; device_name: string; created_at: string }>;
+  role: AdminRole;
+  enabled?: boolean;
+  passkeys: Array<{ id: string; device_name: string; created_at: string; last_used_at?: string }>;
   has_passkeys: boolean;
+  default_route?: string;
 }
 
 export interface AuthLoginResponse {
   username: string;
   display_name: string;
+  role?: AdminRole;
+  default_route?: string;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  username: string;
+  display_name: string;
+  role: AdminRole;
+  enabled: boolean;
+}
+
+export interface AdminUserCreate {
+  username: string;
+  password: string;
+  display_name: string;
+  role: AdminRole;
+}
+
+export interface AdminUserUpdate {
+  display_name?: string;
+  role?: AdminRole;
+  enabled?: boolean;
+  password?: string;
+}
+
+export interface VoiceSessionContext {
+  phone_number?: string;
+  customer_name?: string;
+}
+
+export interface VoiceToolExecuteInput {
+  function_name: string;
+  arguments?: Record<string, unknown>;
+  phone_number: string;
+  customer_name?: string;
+}
+
+export interface VoiceToolExecuteResponse {
+  output: string;
+  handoff_agent?: string;
+  event?: { type: string; detail: string };
 }
 
 export interface PasskeyOptionsResponse {

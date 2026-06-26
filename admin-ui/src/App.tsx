@@ -8,6 +8,8 @@ import { Customers } from "./pages/Customers";
 import { Calls } from "./pages/Calls";
 import { Appointments } from "./pages/Appointments";
 import { Playground } from "./pages/Playground";
+import { Profile } from "./pages/Profile";
+import { Users } from "./pages/Users";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -23,6 +25,8 @@ export default function App() {
           <Route path="calls" element={<Calls />} />
           <Route path="appointments" element={<Appointments />} />
           <Route path="playground" element={<Playground />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="users" element={<Users />} />
         </Route>
       </Route>
     </Routes>

@@ -26,11 +26,13 @@ from call_management.admin.schemas import (
     ChatMessagePayload,
     ChatSessionCreate,
     VoiceSessionCreate,
+    VoiceToolExecute,
     LiveKitPlaygroundCreate,
     CustomerCreate,
     CustomerUpdate,
     SettingsUpdate,
 )
+from call_management.admin.voice_tool_runner import execute_voice_function
 from call_management.agent_store import delete_profile, get_catalog, load_profiles, upsert_profile
 from call_management.agents.registry import get_default_instructions
 from call_management.config import get_model_config
@@ -259,6 +261,19 @@ async def create_voice_session(payload: VoiceSessionCreate):
         return await create_browser_voice_session(agent_name=payload.agent)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/voice/tools/execute")
+async def execute_voice_tool(payload: VoiceToolExecute):
+    try:
+        return await execute_voice_function(
+            function_name=payload.function_name,
+            arguments=payload.arguments,
+            phone_number=payload.phone_number,
+            customer_name=payload.customer_name,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

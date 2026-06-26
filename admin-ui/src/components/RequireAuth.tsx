@@ -1,9 +1,24 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import type { AdminRole } from "../lib/api";
+
+const ROLE_ROUTES: Record<AdminRole, string[]> = {
+  admin: ["/", "/settings", "/playground", "/agents", "/customers", "/calls", "/appointments", "/profile", "/users"],
+  playground: ["/playground", "/profile"],
+  viewer: ["/", "/customers", "/calls", "/appointments", "/profile"],
+};
+
+function routeAllowed(role: AdminRole, path: string): boolean {
+  const allowed = ROLE_ROUTES[role] || [];
+  if (allowed.includes(path)) return true;
+  if (path === "/" && allowed.includes("/")) return true;
+  return false;
+}
 
 export function RequireAuth() {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const path = location.pathname;
 
   if (loading) {
     return (
@@ -17,7 +32,12 @@ export function RequireAuth() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: path }} />;
+  }
+
+  if (!routeAllowed(user.role, path)) {
+    const fallback = user.default_route || (user.role === "playground" ? "/playground" : "/");
+    return <Navigate to={fallback} replace />;
   }
 
   return <Outlet />;

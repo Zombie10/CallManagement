@@ -59,6 +59,8 @@ def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
                     "max_num_results": cfg.max_file_search_results or 10,
                 }
             )
+        elif tool_name == "code_interpreter" and cfg.enable_code_interpreter:
+            tools.append({"type": "code_interpreter"})
 
     mcp_cfg = load_remote_mcp_config()
     if mcp_cfg.enabled:

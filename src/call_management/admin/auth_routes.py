@@ -22,10 +22,15 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
+from call_management.admin.auth_permissions import ROLES, default_route_for_role, normalize_role
 from call_management.admin.auth_store import (
     SESSION_COOKIE,
+    change_own_password,
     create_session,
+    create_user,
     delete_session,
+    delete_user,
+    delete_user_credential,
     ensure_bootstrap_user,
     get_credential_by_id,
     get_session_user,
@@ -33,10 +38,13 @@ from call_management.admin.auth_store import (
     get_user_by_username,
     list_credentials_for_username,
     list_user_credentials,
+    list_users,
     pop_challenge,
     save_credential,
     store_challenge,
     update_credential_sign_count,
+    update_own_profile,
+    update_user,
     verify_user_password,
 )
 
@@ -81,12 +89,24 @@ def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
 
 
-def get_current_user(request: Request) -> dict[str, str]:
+def get_current_user(request: Request) -> dict[str, str | bool]:
     session_id = request.cookies.get(SESSION_COOKIE)
     user = get_session_user(session_id)
     if not user:
         raise HTTPException(status_code=401, detail="No autenticado")
-    return {"id": user.id, "username": user.username, "display_name": user.display_name}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+        "enabled": user.enabled,
+    }
+
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if normalize_role(str(user.get("role"))) != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    return user
 
 
 class PasswordLoginPayload(BaseModel):
@@ -113,6 +133,39 @@ class PasskeyRegisterOptionsPayload(BaseModel):
     device_name: str = "Passkey"
 
 
+class ProfileUpdatePayload(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+
+
+class PasswordChangePayload(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class AdminUserCreatePayload(BaseModel):
+    username: str = Field(min_length=2, max_length=40)
+    password: str = Field(min_length=8)
+    display_name: str = Field(min_length=1, max_length=80)
+    role: str = "playground"
+
+
+class AdminUserUpdatePayload(BaseModel):
+    display_name: str | None = None
+    role: str | None = None
+    enabled: bool | None = None
+    password: str | None = Field(default=None, min_length=8)
+
+
+def _user_payload(user) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+        "enabled": user.enabled,
+    }
+
+
 @router.get("/status")
 async def auth_status():
     ensure_bootstrap_user()
@@ -131,6 +184,11 @@ async def auth_status():
     }
 
 
+@router.get("/roles")
+async def auth_roles():
+    return {"roles": ROLES}
+
+
 @router.get("/me")
 async def auth_me(user: dict = Depends(get_current_user)):
     creds = list_user_credentials(user["id"])
@@ -138,7 +196,85 @@ async def auth_me(user: dict = Depends(get_current_user)):
         **user,
         "passkeys": creds,
         "has_passkeys": len(creds) > 0,
+        "default_route": default_route_for_role(str(user["role"])),
     }
+
+
+@router.patch("/me")
+async def update_profile(payload: ProfileUpdatePayload, user: dict = Depends(get_current_user)):
+    updated = update_own_profile(user["id"], display_name=payload.display_name)
+    return _user_payload(updated)
+
+
+@router.post("/me/password")
+async def change_password(payload: PasswordChangePayload, user: dict = Depends(get_current_user)):
+    try:
+        change_own_password(
+            user["id"],
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@router.delete("/passkey/{credential_id}")
+async def remove_passkey(credential_id: str, user: dict = Depends(get_current_user)):
+    try:
+        delete_user_credential(user["id"], credential_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"deleted": credential_id}
+
+
+@router.get("/users")
+async def list_admin_users(_admin: dict = Depends(require_admin)):
+    return {"users": [_user_payload(u) for u in list_users()]}
+
+
+@router.post("/users")
+async def create_admin_user(payload: AdminUserCreatePayload, _admin: dict = Depends(require_admin)):
+    try:
+        created = create_user(
+            username=payload.username,
+            password=payload.password,
+            display_name=payload.display_name,
+            role=payload.role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _user_payload(created)
+
+
+@router.patch("/users/{user_id}")
+async def patch_admin_user(
+    user_id: str,
+    payload: AdminUserUpdatePayload,
+    _admin: dict = Depends(require_admin),
+):
+    try:
+        updated = update_user(
+            user_id,
+            display_name=payload.display_name,
+            role=payload.role,
+            enabled=payload.enabled,
+            password=payload.password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _user_payload(updated)
+
+
+@router.delete("/users/{user_id}")
+async def remove_admin_user(user_id: str, admin: dict = Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
+    try:
+        delete_user(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": user_id}
 
 
 @router.post("/login")
@@ -149,7 +285,12 @@ async def password_login(payload: PasswordLoginPayload, response: Response):
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
     session_id, _ = create_session(user.id)
     _set_session_cookie(response, session_id)
-    return {"username": user.username, "display_name": user.display_name}
+    return {
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+        "default_route": default_route_for_role(user.role),
+    }
 
 
 @router.post("/logout")
@@ -316,9 +457,14 @@ async def passkey_login_verify(payload: PasskeyVerifyPayload, response: Response
         raise HTTPException(status_code=401, detail=f"Passkey inválido: {exc}") from exc
 
     update_credential_sign_count(row["id"], verification.new_sign_count)
+    user = get_user_by_id(row["user_id"])
+    if not user or not user.enabled:
+        raise HTTPException(status_code=401, detail="Usuario desactivado")
     session_id, _ = create_session(row["user_id"])
     _set_session_cookie(response, session_id)
     return {
-        "username": row["username"],
-        "display_name": row["display_name"],
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+        "default_route": default_route_for_role(user.role),
     }

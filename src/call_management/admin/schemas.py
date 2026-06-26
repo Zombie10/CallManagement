@@ -38,6 +38,15 @@ class ChatMessagePayload(BaseModel):
 
 class VoiceSessionCreate(BaseModel):
     agent: str = "receptionist"
+    phone_number: str = "+15551234567"
+    customer_name: str | None = None
+
+
+class VoiceToolExecute(BaseModel):
+    function_name: str
+    arguments: dict = Field(default_factory=dict)
+    phone_number: str = "+15551234567"
+    customer_name: str | None = None
 
 
 class LiveKitPlaygroundCreate(BaseModel):

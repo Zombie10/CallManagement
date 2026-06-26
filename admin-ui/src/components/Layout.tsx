@@ -1,8 +1,6 @@
-import { useMutation } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   Bot,
-  Fingerprint,
   Headphones,
   LayoutDashboard,
   LogOut,
@@ -10,41 +8,27 @@ import {
   Settings2,
   Users,
   MessageSquare,
+  UserCircle,
   Wrench,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
-import { registerPasskey } from "../pages/Login";
-import { useState } from "react";
+import type { AdminRole } from "../lib/api";
 
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/settings", label: "Configuración", icon: Settings2 },
-  { to: "/playground", label: "Probar agente", icon: MessageSquare },
-  { to: "/agents", label: "Agentes & Tools", icon: Bot },
-  { to: "/customers", label: "Clientes", icon: Users },
-  { to: "/calls", label: "Llamadas", icon: Phone },
-  { to: "/appointments", label: "Citas", icon: Headphones },
+const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; roles: AdminRole[] }> = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "viewer"] },
+  { to: "/settings", label: "Configuración", icon: Settings2, roles: ["admin"] },
+  { to: "/playground", label: "Probar agente", icon: MessageSquare, roles: ["admin", "playground"] },
+  { to: "/agents", label: "Agentes & Tools", icon: Bot, roles: ["admin"] },
+  { to: "/customers", label: "Clientes", icon: Users, roles: ["admin", "viewer"] },
+  { to: "/calls", label: "Llamadas", icon: Phone, roles: ["admin", "viewer"] },
+  { to: "/appointments", label: "Citas", icon: Headphones, roles: ["admin", "viewer"] },
+  { to: "/users", label: "Usuarios", icon: Users, roles: ["admin"] },
 ];
 
 export function Layout() {
-  const { user, logout, refresh } = useAuth();
-  const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
-
-  const registerPasskeyMutation = useMutation({
-    mutationFn: async () => {
-      const name =
-        typeof window !== "undefined" && /iPhone|iPad|Mac/.test(navigator.userAgent)
-          ? "Face ID / Touch ID"
-          : "Huella / Passkey";
-      await registerPasskey(name);
-    },
-    onSuccess: async () => {
-      setPasskeyMsg("Passkey registrado correctamente");
-      await refresh();
-    },
-    onError: (err: Error) => setPasskeyMsg(err.message),
-  });
+  const { user, logout } = useAuth();
+  const nav = ALL_NAV.filter((item) => user && item.roles.includes(user.role));
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 p-4 md:p-6">
@@ -75,23 +59,19 @@ export function Layout() {
         </nav>
 
         <div className="mt-4 space-y-2 border-t border-white/5 pt-4">
-          <div className="rounded-xl bg-white/[0.03] px-3 py-2.5">
-            <p className="truncate text-sm font-medium text-slate-200">{user?.display_name}</p>
-            <p className="truncate text-xs text-slate-500">@{user?.username}</p>
-          </div>
-          <button
-            type="button"
-            className="btn-ghost w-full justify-start text-xs"
-            disabled={registerPasskeyMutation.isPending}
-            onClick={() => {
-              setPasskeyMsg(null);
-              registerPasskeyMutation.mutate();
-            }}
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              clsx("block rounded-xl px-3 py-2.5 transition-colors", isActive ? "bg-cyan-500/10" : "bg-white/[0.03] hover:bg-white/[0.05]")
+            }
           >
-            <Fingerprint className="h-4 w-4" />
-            {registerPasskeyMutation.isPending ? "Registrando…" : "Añadir passkey"}
-          </button>
-          {passkeyMsg && <p className="px-1 text-xs text-cyan-300/90">{passkeyMsg}</p>}
+            <p className="truncate text-sm font-medium text-slate-200">{user?.display_name}</p>
+            <p className="truncate text-xs text-slate-500">@{user?.username} · Perfil</p>
+          </NavLink>
+          <NavLink to="/profile" className="btn-ghost w-full justify-start text-xs">
+            <UserCircle className="h-4 w-4" />
+            Mi perfil
+          </NavLink>
           <button type="button" className="btn-ghost w-full justify-start text-xs text-red-300" onClick={() => logout()}>
             <LogOut className="h-4 w-4" />
             Cerrar sesión

@@ -164,6 +164,65 @@ _VOICE_FUNCTION_SCHEMAS: dict[str, dict[str, Any]] = {
         "description": "Look up the current caller in the CRM by phone number.",
         "parameters": {"type": "object", "properties": {}},
     },
+    "update_customer_name": {
+        "type": "function",
+        "name": "update_customer_name",
+        "description": "Update the caller's name in the CRM.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Customer full name"},
+            },
+            "required": ["name"],
+        },
+    },
+    "add_call_note": {
+        "type": "function",
+        "name": "add_call_note",
+        "description": "Add a note about this call to the customer's CRM record.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "note": {"type": "string", "description": "Note text to save"},
+            },
+            "required": ["note"],
+        },
+    },
+    "schedule_appointment": {
+        "type": "function",
+        "name": "schedule_appointment",
+        "description": "Schedule an appointment or callback for the caller.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "scheduled_time": {"type": "string", "description": "ISO datetime for the appointment"},
+                "purpose": {"type": "string", "description": "Reason for the appointment"},
+            },
+            "required": ["scheduled_time"],
+        },
+    },
+    "escalate_to_human": {
+        "type": "function",
+        "name": "escalate_to_human",
+        "description": "Escalate the call to a human agent when the caller requests it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "description": "Reason for escalation"},
+            },
+        },
+    },
+    "end_call_gracefully": {
+        "type": "function",
+        "name": "end_call_gracefully",
+        "description": "End the call politely after resolving the caller's request.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "description": "Brief call summary"},
+            },
+        },
+    },
 }
 
 

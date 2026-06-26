@@ -24,12 +24,13 @@ export function Login() {
   const { data: authStatus } = useQuery({ queryKey: ["auth-status"], queryFn: api.authStatus });
   const canPasskey = passkeySupported();
 
-  const from = (location.state as { from?: string } | null)?.from || "/";
+  const from = (location.state as { from?: string } | null)?.from;
 
-  const finishLogin = async () => {
+  const finishLogin = async (loginResult?: { default_route?: string }) => {
     try {
-      await refresh();
-      navigate(from, { replace: true });
+      const me = await refresh();
+      const target = from || loginResult?.default_route || me.default_route || "/";
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo validar la sesión");
     }
@@ -37,7 +38,7 @@ export function Login() {
 
   const passwordLogin = useMutation({
     mutationFn: () => api.login(username, password),
-    onSuccess: finishLogin,
+    onSuccess: (data) => finishLogin(data),
     onError: (err: Error) => setError(err.message),
   });
 
@@ -51,7 +52,7 @@ export function Login() {
       if (!credential) throw new Error("Inicio con passkey cancelado");
       return api.passkeyLoginVerify(challenge_id, credentialToJSON(credential));
     },
-    onSuccess: finishLogin,
+    onSuccess: (data) => finishLogin(data),
     onError: (err: Error) => setError(err.message),
   });
 
