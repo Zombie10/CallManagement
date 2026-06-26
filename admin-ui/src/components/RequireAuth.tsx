@@ -8,6 +8,8 @@ const ROLE_ROUTES: Record<AdminRole, string[]> = {
     "/",
     "/tenants",
     "/my-agents",
+    "/setup",
+    "/analytics",
     "/settings",
     "/playground",
     "/agents",
@@ -17,9 +19,21 @@ const ROLE_ROUTES: Record<AdminRole, string[]> = {
     "/profile",
     "/users",
   ],
-  admin: ["/", "/my-agents", "/settings", "/playground", "/customers", "/calls", "/appointments", "/profile", "/users"],
+  admin: [
+    "/",
+    "/my-agents",
+    "/setup",
+    "/analytics",
+    "/settings",
+    "/playground",
+    "/customers",
+    "/calls",
+    "/appointments",
+    "/profile",
+    "/users",
+  ],
   playground: ["/playground", "/profile"],
-  viewer: ["/", "/customers", "/calls", "/appointments", "/profile"],
+  viewer: ["/", "/analytics", "/customers", "/calls", "/appointments", "/profile"],
 };
 
 function routeAllowed(role: AdminRole, path: string): boolean {
