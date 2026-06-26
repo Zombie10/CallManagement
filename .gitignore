@@ -19,3 +19,7 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+
+# Admin UI
+admin-ui/node_modules/
+admin-ui/dist/

@@ -103,7 +103,14 @@ def get_language_instruction(locale: str | None = None) -> str:
     return LANGUAGE_INSTRUCTIONS.get(locale or "multi", LANGUAGE_INSTRUCTIONS["multi"])
 
 
+def get_language_instruction_for_agent(agent_name: str, fallback_locale: str | None = None) -> str:
+    from call_management.agent_store import get_locale_for_agent
+
+    locale = get_locale_for_agent(agent_name, fallback_locale or "multi")
+    return get_language_instruction(locale)
+
+
 def get_voice_for_agent(agent_name: str, provider: Provider) -> str:
-    if provider == "xai":
-        return XAI_VOICES.get(agent_name, XAI_VOICES["receptionist"])
-    return VOICE_PRESETS.get(agent_name, VOICE_PRESETS["receptionist"])
+    from call_management.agent_store import get_voice_for_profile
+
+    return get_voice_for_profile(agent_name, provider)

@@ -128,8 +128,10 @@ def build_provider_tools_for_agent(
     realtime: bool,
     cfg: XAIToolsConfig | None = None,
 ) -> list[ProviderTool]:
+    from call_management.agent_store import get_tool_profile
+
     cfg = cfg or get_xai_tools_config()
-    profile = AGENT_TOOL_PROFILES.get(agent_name, [])
+    profile = get_tool_profile(agent_name) or AGENT_TOOL_PROFILES.get(agent_name, [])
     tools: list[ProviderTool] = []
 
     for tool_name in profile:

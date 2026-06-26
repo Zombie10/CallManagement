@@ -278,6 +278,102 @@ class CRMDatabase:
             await db.commit()
         return appt.id
 
+    async def list_customers(self, limit: int = 50, offset: int = 0) -> dict:
+        async with self._connect() as db:
+            async with db.execute("SELECT COUNT(*) AS c FROM customers") as cursor:
+                total = (await cursor.fetchone())["c"]
+            async with db.execute(
+                "SELECT * FROM customers ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        items = [
+            {
+                "phone_number": r["phone_number"],
+                "name": r["name"],
+                "email": r["email"],
+                "notes": r["notes"],
+                "vip": bool(r["vip"]),
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    async def list_call_records(self, limit: int = 50, offset: int = 0) -> dict:
+        async with self._connect() as db:
+            async with db.execute("SELECT COUNT(*) AS c FROM call_records") as cursor:
+                total = (await cursor.fetchone())["c"]
+            async with db.execute(
+                "SELECT * FROM call_records ORDER BY start_time DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        items = [
+            {
+                "call_id": r["call_id"],
+                "room_name": r["room_name"],
+                "from_number": r["from_number"],
+                "to_number": r["to_number"],
+                "start_time": r["start_time"],
+                "end_time": r["end_time"],
+                "outcome": r["outcome"],
+                "summary": r["summary"],
+                "duration_seconds": r["duration_seconds"],
+                "transferred_to": r["transferred_to"],
+            }
+            for r in rows
+        ]
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    async def list_appointments(self, limit: int = 50, offset: int = 0) -> dict:
+        async with self._connect() as db:
+            async with db.execute("SELECT COUNT(*) AS c FROM appointments") as cursor:
+                total = (await cursor.fetchone())["c"]
+            async with db.execute(
+                "SELECT * FROM appointments ORDER BY scheduled_time DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        items = [
+            {
+                "id": r["id"],
+                "customer_phone": r["customer_phone"],
+                "scheduled_time": r["scheduled_time"],
+                "purpose": r["purpose"],
+                "notes": r["notes"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    async def get_dashboard_stats(self) -> dict:
+        async with self._connect() as db:
+            async with db.execute("SELECT COUNT(*) AS c FROM customers") as cursor:
+                customers = (await cursor.fetchone())["c"]
+            async with db.execute("SELECT COUNT(*) AS c FROM call_records") as cursor:
+                calls = (await cursor.fetchone())["c"]
+            async with db.execute("SELECT COUNT(*) AS c FROM appointments") as cursor:
+                appointments = (await cursor.fetchone())["c"]
+            async with db.execute("SELECT COUNT(*) AS c FROM customers WHERE vip = 1") as cursor:
+                vip_customers = (await cursor.fetchone())["c"]
+            async with db.execute(
+                """
+                SELECT outcome, COUNT(*) AS c FROM call_records
+                WHERE outcome IS NOT NULL GROUP BY outcome ORDER BY c DESC LIMIT 5
+                """
+            ) as cursor:
+                outcomes = {row["outcome"]: row["c"] for row in await cursor.fetchall()}
+        return {
+            "customers": customers,
+            "calls": calls,
+            "appointments": appointments,
+            "vip_customers": vip_customers,
+            "outcomes": outcomes,
+        }
+
     async def get_upcoming_appointments(self, phone_number: str, limit: int = 5) -> list[Appointment]:
         async with self._connect() as db:
             async with db.execute(

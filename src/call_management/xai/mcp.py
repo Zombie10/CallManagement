@@ -174,7 +174,9 @@ def _servers_for_agent(agent_name: str, cfg: RemoteMCPConfig) -> list[RemoteMCPS
     by_id = {server.id: server for server in cfg.servers}
     selected_ids: list[str] = []
 
-    for server_id in AGENT_MCP_PROFILES.get(agent_name, []):
+    from call_management.agent_store import get_mcp_profile
+
+    for server_id in get_mcp_profile(agent_name) or AGENT_MCP_PROFILES.get(agent_name, []):
         if server_id in by_id and server_id not in selected_ids:
             selected_ids.append(server_id)
 
@@ -216,7 +218,9 @@ def get_remote_mcp_summary(cfg: RemoteMCPConfig | None = None) -> dict[str, list
     """Return MCP server labels attached per agent (for logging/tests)."""
     cfg = cfg or load_remote_mcp_config()
     summary: dict[str, list[str]] = {}
-    for agent_name in AGENT_MCP_PROFILES:
+    from call_management.agent_store import list_agent_names
+
+    for agent_name in list_agent_names():
         labels = [server.server_label for server in _servers_for_agent(agent_name, cfg)]
         if labels:
             summary[agent_name] = labels

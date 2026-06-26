@@ -10,7 +10,11 @@ import yaml
 from livekit.agents import Agent, RunContext
 from livekit.agents.llm import function_tool
 
-from call_management.config import get_language_instruction, get_model_config, get_voice_for_agent
+from call_management.config import (
+    get_language_instruction_for_agent,
+    get_model_config,
+    get_voice_for_agent,
+)
 from call_management.crm.database import CRMDatabase
 from call_management.telephony.sip_tools import SIPManager
 from call_management.utils.time import utc_now_iso
@@ -153,7 +157,10 @@ class BaseAgent(Agent):
             for item in recent:
                 chat_ctx.items.append(item)
 
-        language_instruction = get_language_instruction(get_model_config().default_locale)
+        language_instruction = get_language_instruction_for_agent(
+            self.agent_name,
+            get_model_config().default_locale,
+        )
         xai_tool_note = _xai_tools_instruction(self.tools)
         vip_note = (
             "This caller is a VIP customer. Prioritize fast resolution and white-glove service."
