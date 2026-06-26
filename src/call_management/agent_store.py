@@ -196,6 +196,7 @@ def get_voice_language_for_agent(agent_name: str) -> str | None:
 
 
 def get_effective_instructions(agent_name: str, *, for_voice: bool = False) -> str:
+    from call_management.agents.phone_style import phone_style_for_agent
     from call_management.config import get_language_instruction_for_agent
 
     profile = get_profile(agent_name)
@@ -203,21 +204,22 @@ def get_effective_instructions(agent_name: str, *, for_voice: bool = False) -> s
         agent_name
     )
     language = get_language_instruction_for_agent(agent_name)
+    phone_style = phone_style_for_agent(agent_name)
     routing = ""
     fn_tools = get_function_tool_profile(agent_name)
     if fn_tools:
         transfer_tools = [t for t in fn_tools if t.startswith("to_")]
         if transfer_tools:
             routing = (
-                "\n\nIMPORTANT: When routing is needed, you MUST call the appropriate transfer function tool "
-                f"({', '.join(transfer_tools)}). Do not only describe a transfer — execute it."
+                "\n\nWhen routing is needed, call the transfer tool "
+                f"({', '.join(transfer_tools)}) — don't only say you'll transfer."
             )
     voice_note = (
-        "\n\nYou are in a live voice call. Keep responses concise and natural for speech."
+        "\n\nLive voice call: short spoken replies, natural pacing, no monologues."
         if for_voice
         else ""
     )
-    return f"{base}\n\n{language}{routing}{voice_note}".strip()
+    return f"{base}\n\n{phone_style}\n\n{language}{routing}{voice_note}".strip()
 
 
 def get_locale_for_agent(agent_name: str, fallback: str = "en") -> str:

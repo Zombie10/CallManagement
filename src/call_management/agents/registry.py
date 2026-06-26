@@ -193,8 +193,8 @@ _VOICE_FUNCTION_SCHEMAS: dict[str, dict[str, Any]] = {
         "type": "function",
         "name": "lookup_customer",
         "description": (
-            "Look up the caller in CRM. Call ONLY after the caller has provided their phone number. "
-            "Do not call at the start of the conversation."
+            "Buscar al cliente en el sistema cuando te haya dado su teléfono. "
+            "No usar al inicio de la llamada ni sin número confirmado."
         ),
         "parameters": {
             "type": "object",

@@ -55,7 +55,7 @@ def test_catalog_includes_voice_library_and_function_tools():
 def test_effective_instructions_include_routing_hint():
     upsert_profile({"name": "receptionist", "function_tools": ["to_support", "to_sales"]})
     text = get_effective_instructions("receptionist")
-    assert "transfer function tool" in text.lower()
+    assert "transfer tool" in text.lower()
     assert "to_support" in text
 
 

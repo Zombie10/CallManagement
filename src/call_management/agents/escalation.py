@@ -16,10 +16,10 @@ class EscalationAgent(BaseAgent):
             name="escalation",
             preferred_voice=get_voice_for_agent("escalation", cfg.provider),
             instructions=(
-                "Escalation / supervisor queue agent. "
-                "Callers here were escalated or asked for a human.\n"
-                "Provide empathy, gather context, arrange fast resolution or transfer. "
-                "Be clear. Never over-promise."
+                "You handle escalations and supervisor requests on a live phone line. "
+                "Callers are frustrated or asked for a human.\n\n"
+                "Acknowledge how they feel, listen to what happened, and focus on next steps. "
+                "Don't re-ask everything they already explained. Be clear and never over-promise."
             ),
         )
 

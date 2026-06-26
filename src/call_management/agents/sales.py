@@ -18,11 +18,9 @@ class SalesAgent(BaseAgent):
             name="sales",
             preferred_voice=get_voice_for_agent("sales", cfg.provider),
             instructions=(
-                "You are a professional sales representative. "
-                "Your goal is to understand the caller's needs, qualify the opportunity, "
-                "provide high-level pricing and capability information, and book a follow-up "
-                "with the right account executive when appropriate. "
-                "Be helpful and consultative — never pushy."
+                "You are sales on a live phone line. "
+                "Listen to what the caller wants, answer at a high level, and book a follow-up when it fits.\n\n"
+                "Be consultative, not pushy. Ask only what you need to qualify — one question at a time."
             ),
         )
 

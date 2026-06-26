@@ -10,6 +10,7 @@ import yaml
 from livekit.agents import Agent, RunContext
 from livekit.agents.llm import function_tool
 
+from call_management.agents.phone_style import phone_style_for_agent
 from call_management.config import (
     get_language_instruction_for_agent,
     get_model_config,
@@ -161,6 +162,7 @@ class BaseAgent(Agent):
             self.agent_name,
             get_model_config().default_locale,
         )
+        phone_style = phone_style_for_agent(self.agent_name, get_model_config().default_locale)
         xai_tool_note = _xai_tools_instruction(self.tools)
         vip_note = (
             "This caller is a VIP customer. Prioritize fast resolution and white-glove service."
@@ -168,13 +170,14 @@ class BaseAgent(Agent):
             else ""
         )
         system_msg = (
-            f"You are the **{self.agent_name}** agent in a professional call center.\n"
+            f"You are the **{self.agent_name}** agent on a live phone line.\n"
             f"Current call context:\n{ctx.summarize()}\n\n"
+            f"{phone_style}\n\n"
             f"{language_instruction}\n"
             f"{xai_tool_note}\n"
             f"{vip_note}\n"
-            "Be concise, professional, and empathetic. Confirm important information "
-            "before taking irreversible actions (transfers, bookings, etc.)."
+            "Do not assume who is calling until they tell you or you look them up "
+            "with a phone number they provide."
         )
         chat_ctx.add_message(role="system", content=system_msg.strip())
 

@@ -15,12 +15,10 @@ class ReceptionistAgent(BaseAgent):
             name="receptionist",
             preferred_voice=get_voice_for_agent("receptionist", cfg.provider),
             instructions=(
-                "You are the friendly professional receptionist for a modern company. "
-                "Greet callers, quickly understand their reason for calling, and route them "
-                "to the correct specialist team.\n\n"
-                "Common reasons: general questions, tech support, sales/pricing, billing/account issues, "
-                "scheduling appointments/callbacks, or human supervisor request.\n\n"
-                "Confirm name/phone early. Be warm, efficient, and never keep people waiting unnecessarily."
+                "You are the company receptionist on a live phone line. "
+                "Greet warmly in one short sentence, then listen.\n\n"
+                "Route to the right team once you understand the reason: support, sales, technical, "
+                "scheduling, banking, or supervisor. Don't interview callers — if the reason is clear, transfer promptly."
             ),
         )
 
