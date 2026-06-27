@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolCallEntry } from "../components/ToolCallLog";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
-import { base64PCM16ToFloat32, float32ToPCM16Base64 } from "../lib/audio";
+import {
+  base64PCM16ToFloat32,
+  float32ToPCM16Base64,
+  micReleaseDelay,
+  microphoneErrorMessage,
+} from "../lib/audio";
 
 const CHUNK_MS = 100;
 /** xAI Voice API default; input/output must use the same rate for playback. */
@@ -382,20 +387,29 @@ export function useXaiVoice() {
     setAudioLevel(0);
   }, []);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     stopCapture();
     stopPlayback();
-    wsRef.current?.close();
-    wsRef.current = null;
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
     configuredRef.current = false;
     assistantSpeakingRef.current = false;
     playbackGainRef.current = null;
-    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
-      void audioCtxRef.current.close();
-      audioCtxRef.current = null;
+    const ctx = audioCtxRef.current;
+    audioCtxRef.current = null;
+    if (ctx && ctx.state !== "closed") {
+      try {
+        await ctx.close();
+      } catch {
+        /* already closing */
+      }
     }
     setConnected(false);
     currentLineRef.current = null;
+    await micReleaseDelay();
   }, [stopCapture, stopPlayback]);
 
   const start = useCallback(
@@ -413,7 +427,7 @@ export function useXaiVoice() {
         customer_name: context?.customer_name,
         tenant_id: context?.tenant_id,
       };
-      disconnect();
+      await disconnect();
 
       const voiceSession = await api.createVoiceSession(agent, {
         phone_number: callContextRef.current.phone_number,
@@ -424,9 +438,6 @@ export function useXaiVoice() {
       setSessionInfo(voiceSession);
       sessionConfigRef.current = voiceSession;
 
-      if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
-        await audioCtxRef.current.close();
-      }
       const ctx = new AudioContext({ sampleRate: XAI_AUDIO_RATE });
       audioCtxRef.current = ctx;
       if (ctx.state === "suspended") await ctx.resume();
@@ -438,14 +449,19 @@ export function useXaiVoice() {
       playbackGain.connect(ctx.destination);
       playbackGainRef.current = playbackGain;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (err) {
+        throw new Error(microphoneErrorMessage(err));
+      }
       mediaRef.current = stream;
 
       const url = `${voiceSession.ws_url}?model=${encodeURIComponent(voiceSession.model)}`;
@@ -546,7 +562,9 @@ export function useXaiVoice() {
     [disconnect, handleServerMessage, sendSessionUpdate, stopCapture],
   );
 
-  useEffect(() => () => disconnect(), [disconnect]);
+  useEffect(() => () => {
+    void disconnect();
+  }, [disconnect]);
 
   return {
     connected,

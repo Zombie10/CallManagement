@@ -285,7 +285,7 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
             })
             .catch((err) => voice.setError(String(err)));
         }}
-        onDisconnect={() => voice.stop()}
+        onDisconnect={() => void voice.stop()}
       />
 
       {!status?.livekit_ready && (
@@ -373,7 +373,11 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
               Conectar
             </button>
           ) : (
-            <button type="button" className="btn-ghost text-red-300" onClick={() => voice.stop()}>
+            <button
+              type="button"
+              className="btn-ghost text-red-300"
+              onClick={() => void voice.stop()}
+            >
               <MicOff className="h-4 w-4" />
               Desconectar
             </button>

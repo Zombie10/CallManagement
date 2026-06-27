@@ -1,5 +1,33 @@
 /** PCM16 helpers for browser microphone capture and playback. */
 
+const MIC_RELEASE_MS = 200;
+
+export function micReleaseDelay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, MIC_RELEASE_MS));
+}
+
+/** User-facing message when getUserMedia / LiveKit mic fails (Safari AVAudioSession, etc.). */
+export function microphoneErrorMessage(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : "";
+  const raw = err instanceof Error ? err.message : String(err);
+  if (
+    name === "NotAllowedError" ||
+    raw.includes("AVAudioSession") ||
+    raw.includes("CaptureDevice") ||
+    raw.includes("Permission denied")
+  ) {
+    return (
+      "No se pudo usar el micrófono. Pulsa Desconectar, espera un momento y vuelve a Conectar. " +
+      "Si persiste: cierra otras pestañas/apps de voz (Zoom, Meet), revisa permisos del micrófono " +
+      "en el navegador y recarga la página. No está relacionado con otra persona usando el mismo agente."
+    );
+  }
+  if (name === "NotFoundError" || raw.includes("device not found")) {
+    return "No hay micrófono disponible. Conecta un micrófono o permite el dispositivo integrado.";
+  }
+  return raw || "Error al acceder al micrófono";
+}
+
 export function float32ToPCM16Base64(float32Array: Float32Array): string {
   const pcm16 = new Int16Array(float32Array.length);
   for (let i = 0; i < float32Array.length; i++) {

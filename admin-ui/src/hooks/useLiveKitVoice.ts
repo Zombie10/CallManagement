@@ -9,6 +9,7 @@ import {
   type RemoteParticipant,
 } from "livekit-client";
 import { api, type LiveKitPlaygroundInput, type LiveKitPlaygroundResponse } from "../lib/api";
+import { micReleaseDelay, microphoneErrorMessage } from "../lib/audio";
 
 export function useLiveKitVoice() {
   const [connected, setConnected] = useState(false);
@@ -75,14 +76,20 @@ export function useLiveKitVoice() {
     stopMeter();
     cleanupAudioElements();
     const room = roomRef.current;
+    roomRef.current = null;
     if (room) {
       room.removeAllListeners();
+      try {
+        await room.localParticipant.setMicrophoneEnabled(false);
+      } catch {
+        /* mic may already be off */
+      }
       await room.disconnect();
-      roomRef.current = null;
     }
     setConnected(false);
     setAgentJoined(false);
     setAgentIdentity(null);
+    await micReleaseDelay();
   }, [cleanupAudioElements, stopMeter]);
 
   const start = useCallback(
@@ -139,7 +146,7 @@ export function useLiveKitVoice() {
 
         setConnected(true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(microphoneErrorMessage(err));
         await disconnect();
       } finally {
         setConnecting(false);
