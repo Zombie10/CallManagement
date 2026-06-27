@@ -22,7 +22,12 @@ export function routeAllowed(
 ): boolean {
   if (path === "/profile" || path.startsWith("/login")) return true;
   if (!allowedRoutes?.length) return false;
-  return allowedRoutes.includes(path);
+  if (allowedRoutes.includes(path)) return true;
+  return allowedRoutes.some((route) => route !== "/" && path.startsWith(`${route}/`));
+}
+
+export function canListenRecordings(effectiveModules?: string[] | null): boolean {
+  return moduleAllowed("recordings", effectiveModules);
 }
 
 export function moduleAllowed(moduleId: string, effectiveModules?: string[] | null): boolean {

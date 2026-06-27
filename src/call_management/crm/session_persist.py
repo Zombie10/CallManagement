@@ -64,6 +64,19 @@ async def finalize_interaction(
 
     duration_seconds = _calculate_duration_seconds(call_ctx.start_time, end_time)
 
+    if call_ctx.egress_id and not call_ctx.recording_url:
+        from call_management.recordings.livekit_egress import resolve_egress_recording_url
+
+        egress_url = await resolve_egress_recording_url(call_ctx.egress_id)
+        if egress_url:
+            call_ctx.recording_url = egress_url
+
+    if not call_ctx.recording_url and call_ctx.tenant_id:
+        from call_management.recordings.store import find_recording_file, recording_api_url
+
+        if find_recording_file(call_ctx.tenant_id, call_ctx.call_id):
+            call_ctx.recording_url = recording_api_url(call_ctx.call_id)
+
     if enable_summary:
         call_ctx.post_call_summary = await generate_call_summary(call_ctx)
     else:

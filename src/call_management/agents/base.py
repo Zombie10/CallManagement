@@ -87,6 +87,7 @@ class CallContext:
     tenant_id: str | None = None
     agent_instance_id: str | None = None
     recording_url: str | None = None
+    egress_id: str | None = None
     channel: str = "sip"
     agent_session: object | None = field(default=None, repr=False)
     queued: bool = False

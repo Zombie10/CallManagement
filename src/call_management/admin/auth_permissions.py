@@ -30,7 +30,20 @@ MODULES: tuple[ModuleDef, ...] = (
     {"id": "setup", "label": "Guía inicio", "route": "/setup", "category": "Operación", "api_prefixes": ()},
     {"id": "analytics", "label": "Análisis", "route": "/analytics", "category": "Reportes", "api_prefixes": ("/api/reports/", "/api/analytics")},
     {"id": "customers", "label": "Clientes", "route": "/customers", "category": "CRM", "api_prefixes": ("/api/customers",)},
-    {"id": "calls", "label": "Llamadas", "route": "/calls", "category": "CRM", "api_prefixes": ("/api/calls",)},
+    {
+        "id": "calls",
+        "label": "Registros",
+        "route": "/calls",
+        "category": "CRM",
+        "api_prefixes": ("/api/calls",),
+    },
+    {
+        "id": "recordings",
+        "label": "Escuchar grabaciones",
+        "route": "/calls",
+        "category": "CRM",
+        "api_prefixes": ("/api/calls/",),
+    },
     {"id": "appointments", "label": "Citas", "route": "/appointments", "category": "CRM", "api_prefixes": ("/api/appointments",)},
     {"id": "playground", "label": "Probar agente", "route": "/playground", "category": "Pruebas", "api_prefixes": ("/api/chat/", "/api/voice/", "/api/livekit/", "/api/demo/")},
     {"id": "settings", "label": "Configuración", "route": "/settings", "category": "Sistema", "api_prefixes": ("/api/settings", "/api/webhooks")},
@@ -47,7 +60,9 @@ _ROLE_MODULE_CEILING: dict[str, frozenset[str]] = {
         m["id"] for m in MODULES if m["id"] not in ("tenants", "agents")
     ),
     "playground": frozenset({"playground"}),
-    "viewer": frozenset({"dashboard", "analytics", "customers", "calls", "appointments"}),
+    "viewer": frozenset(
+        {"dashboard", "analytics", "customers", "calls", "recordings", "appointments"}
+    ),
 }
 
 _ROLE_DEFAULT_MODULES: dict[str, frozenset[str]] = _ROLE_MODULE_CEILING.copy()
@@ -116,6 +131,10 @@ def can_access_route(role: str, route: str, module_ids: list[str] | None = None)
     return route in allowed_routes
 
 
+def _is_recording_api(path: str) -> bool:
+    return path.startswith("/api/calls/") and "/recording" in path
+
+
 def can_access_api(role: str, path: str, module_ids: list[str] | None = None) -> bool:
     role = normalize_role(role)
     if any(path.startswith(p) for p in _ALWAYS_API_PREFIXES):
@@ -124,6 +143,14 @@ def can_access_api(role: str, path: str, module_ids: list[str] | None = None) ->
         return True
 
     mods = effective_modules(role, module_ids)
+    mods_set = set(mods)
+
+    if _is_recording_api(path):
+        if "recordings" in mods_set:
+            return True
+        if module_ids is None and role in ("super_admin", "admin"):
+            return True
+        return False
     prefixes: list[str] = []
     for mid in mods:
         mod = MODULE_BY_ID.get(mid)

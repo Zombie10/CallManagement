@@ -260,6 +260,22 @@ class CRMDatabase:
             )
             await db.commit()
 
+    async def update_call_recording(self, call_id: str, recording_url: str) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                "UPDATE call_records SET recording_url = ? WHERE call_id = ?",
+                (recording_url, call_id),
+            )
+            await db.commit()
+
+    async def get_call_record_row(self, call_id: str) -> dict | None:
+        async with self._connect() as db:
+            async with db.execute("SELECT * FROM call_records WHERE call_id = ?", (call_id,)) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+            return dict(row)
+
     async def update_call_record(self, record: CallRecord) -> None:
         async with self._connect() as db:
             await db.execute(

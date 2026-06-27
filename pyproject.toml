@@ -18,6 +18,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     "openai>=1.40.0",
     "fastapi>=0.115.0",
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.32.0",
     "webauthn>=2.8.0",
     "bcrypt>=5.0.0",

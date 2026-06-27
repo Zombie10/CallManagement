@@ -81,6 +81,7 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
     vip: bool | None = None
     tenant_id: str | None = None
     agent_instance_id: str | None = None
+    call_id: str | None = None
 
     if metadata_raw:
         try:
@@ -102,6 +103,8 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
                 customer_name = str(meta["customer_name"])
             if "vip" in meta:
                 vip = bool(meta["vip"])
+            if meta.get("call_id"):
+                call_id = str(meta["call_id"])
             logger.info("Dispatch metadata: %s", meta)
         except json.JSONDecodeError:
             logger.warning("Could not parse job metadata as JSON: %s", metadata_raw)
@@ -128,6 +131,7 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
         "vip": vip,
         "tenant_id": tenant_id,
         "agent_instance_id": agent_instance_id,
+        "call_id": call_id,
     }
 
 
@@ -290,7 +294,8 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info("Returning customer: %s (%s)", customer.name, from_number)
 
     is_playground_room = ctx.room.name.startswith("admin-voice-")
-    call_id = f"call_{uuid.uuid4().hex[:12]}"
+    preset_call_id = overrides.get("call_id")  # type: ignore[assignment]
+    call_id = str(preset_call_id) if preset_call_id else f"call_{uuid.uuid4().hex[:12]}"
     call_ctx = CallContext(
         call_id=call_id,
         room_name=ctx.room.name,
@@ -389,6 +394,14 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(agent=initial_agent, room=ctx.room)
     await ctx.connect()
     call_ctx.agent_session = session
+
+    from call_management.recordings.livekit_egress import start_room_audio_recording
+
+    call_ctx.egress_id = await start_room_audio_recording(
+        room_name=ctx.room.name,
+        call_id=call_ctx.call_id,
+        tenant_id=call_ctx.tenant_id,
+    )
 
     logger.info("Agent session started. Initial agent: %s", initial_agent.agent_name)
 

@@ -159,7 +159,29 @@ export const api = {
       body: JSON.stringify(data),
     }),
   customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
-  calls: (limit = 50) => request<ListResponse<CallRecord>>(`/calls?limit=${limit}`),
+  calls: (limit = 50, offset = 0) =>
+    request<ListResponse<CallRecord>>(`/calls?limit=${limit}&offset=${offset}`),
+  getCall: (callId: string) => request<CallRecord>(`/calls/${encodeURIComponent(callId)}`),
+  recordingStreamUrl: (callId: string) =>
+    `${API}/calls/${encodeURIComponent(callId)}/recording`,
+  uploadCallRecording: async (callId: string, blob: Blob) => {
+    const form = new FormData();
+    form.append("file", blob, `${callId}.webm`);
+    const headers: Record<string, string> = {};
+    if (_tenantId) headers["X-Tenant-Id"] = _tenantId;
+    if (_agentInstanceId) headers["X-Agent-Instance-Id"] = _agentInstanceId;
+    const res = await fetch(`${API}/calls/${encodeURIComponent(callId)}/recording`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === "string" ? err.detail : res.statusText);
+    }
+    return res.json() as Promise<{ saved: boolean; call_id: string; recording_url: string }>;
+  },
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
   updateCustomer: (phone: string, data: Partial<Customer>) =>
     request(`/customers/${encodeURIComponent(phone)}`, {
@@ -468,6 +490,7 @@ export interface CallRecord {
   end_time?: string;
   duration_seconds?: number;
   summary?: string;
+  transferred_to?: string | null;
   transcript?: string | null;
   recording_url?: string | null;
   agent_instance_id?: string | null;
@@ -766,6 +789,7 @@ export interface LiveKitPlaygroundInput {
 }
 
 export interface LiveKitPlaygroundResponse {
+  call_id?: string;
   room_name: string;
   token: string;
   url: string;

@@ -30,7 +30,7 @@ const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; 
   { to: "/playground", label: "Probar agente", icon: MessageSquare, module: "playground" },
   { to: "/agents", label: "Plantillas sistema", icon: Bot, module: "agents" },
   { to: "/customers", label: "Clientes", icon: Users, module: "customers" },
-  { to: "/calls", label: "Llamadas", icon: Phone, module: "calls" },
+  { to: "/calls", label: "Registros", icon: Phone, module: "calls" },
   { to: "/analytics", label: "Análisis", icon: BarChart3, module: "analytics" },
   { to: "/appointments", label: "Citas", icon: Headphones, module: "appointments" },
   { to: "/users", label: "Usuarios", icon: Users, module: "users" },

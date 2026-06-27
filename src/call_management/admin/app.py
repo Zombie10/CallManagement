@@ -6,7 +6,7 @@ import os
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +18,12 @@ from call_management.admin.chat_runner import get_chat_manager
 from call_management.admin.livekit_playground import (
     create_livekit_playground_session,
     livekit_playground_ready,
+)
+from call_management.admin.call_records import (
+    get_call_for_tenant,
+    list_calls_for_tenant,
+    stream_call_recording,
+    upload_call_recording,
 )
 from call_management.admin.interaction_complete import complete_voice_xai_session
 from call_management.admin.voice_session import create_browser_voice_session
@@ -246,8 +252,26 @@ async def update_customer(phone_number: str, payload: CustomerUpdate, ctx=Depend
 
 @app.get("/api/calls")
 async def list_calls(limit: int = 50, offset: int = 0, ctx=Depends(require_tenant_context)):
-    crm = await resolve_crm_for_tenant(ctx.tenant.id)
-    return await crm.list_call_records(limit=limit, offset=offset)
+    return await list_calls_for_tenant(ctx, limit=limit, offset=offset)
+
+
+@app.get("/api/calls/{call_id}")
+async def get_call(call_id: str, ctx=Depends(require_tenant_context)):
+    return await get_call_for_tenant(ctx, call_id)
+
+
+@app.get("/api/calls/{call_id}/recording")
+async def get_call_recording(call_id: str, ctx=Depends(require_tenant_context)):
+    return await stream_call_recording(ctx, call_id)
+
+
+@app.post("/api/calls/{call_id}/recording")
+async def post_call_recording(
+    call_id: str,
+    file: UploadFile = File(...),
+    ctx=Depends(require_tenant_context),
+):
+    return await upload_call_recording(ctx, call_id, file)
 
 
 @app.get("/api/appointments")

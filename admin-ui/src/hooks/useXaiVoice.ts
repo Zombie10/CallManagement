@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolCallEntry } from "../components/ToolCallLog";
+import { useAudioRecorder } from "./useAudioRecorder";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
 import {
   base64PCM16ToFloat32,
@@ -77,6 +78,8 @@ export function useXaiVoice() {
   const transcriptRef = useRef<VoiceTranscriptLine[]>([]);
   const sessionInfoRef = useRef<VoiceSessionResponse | null>(null);
   const currentAgentRef = useRef("receptionist");
+  const recordDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const { start: startRecorder, stop: stopRecorder } = useAudioRecorder();
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -433,10 +436,14 @@ export function useXaiVoice() {
         start_time: info.start_time,
         transcript: body,
       });
+      const blob = await stopRecorder();
+      if (blob && info.call_id) {
+        await api.uploadCallRecording(info.call_id, blob);
+      }
     } catch {
       /* persist best-effort on disconnect */
     }
-  }, []);
+  }, [stopRecorder]);
 
   const disconnect = useCallback(
     async (options?: { releaseMic?: boolean; persist?: boolean }) => {
@@ -610,6 +617,13 @@ export function useXaiVoice() {
         processor.connect(silentGain);
         silentGain.connect(ctx.destination);
         processorRef.current = processor;
+
+        const recordDest = ctx.createMediaStreamDestination();
+        recordDestRef.current = recordDest;
+        source.connect(recordDest);
+        playbackGain.connect(recordDest);
+        startRecorder(recordDest.stream);
+
         setCapturing(true);
       } catch (err) {
         const msg = err instanceof Error ? err.message : microphoneErrorMessage(err);
@@ -620,7 +634,7 @@ export function useXaiVoice() {
         setConnecting(false);
       }
     },
-    [connecting, disconnect, handleServerMessage, sendSessionUpdate, stopCapture],
+    [connecting, disconnect, handleServerMessage, sendSessionUpdate, startRecorder, stopCapture],
   );
 
   useEffect(() => () => {

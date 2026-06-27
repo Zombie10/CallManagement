@@ -50,6 +50,7 @@ async def create_livekit_playground_session(
     api_secret = os.environ["LIVEKIT_API_SECRET"]
 
     room_name = f"admin-voice-{uuid.uuid4().hex[:12]}"
+    call_id = f"call_{uuid.uuid4().hex[:12]}"
     metadata = json.dumps(
         {
             "department": initial_agent,
@@ -58,6 +59,7 @@ async def create_livekit_playground_session(
             "vip": vip,
             "tenant_id": tenant_id,
             "agent_instance_id": agent_instance_id,
+            "call_id": call_id,
         }
     )
 
@@ -98,6 +100,7 @@ async def create_livekit_playground_session(
     cfg = get_model_config()
 
     return {
+        "call_id": call_id,
         "room_name": room_name,
         "token": token,
         "url": url,
