@@ -15,7 +15,7 @@ from call_management.utils.time import utc_now_iso
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass
@@ -45,6 +45,7 @@ class CallRecord:
     transcript: str | None = None
     recording_url: str | None = None
     agent_instance_id: str | None = None
+    channel: str = "sip"
 
 
 @dataclass
@@ -121,6 +122,7 @@ class CRMDatabase:
                 (1, utc_now_iso()),
             )
             await self._migrate_v2(db)
+            await self._migrate_v3(db)
             await db.commit()
 
     async def _migrate_v2(self, db: aiosqlite.Connection) -> None:
@@ -141,6 +143,21 @@ class CRMDatabase:
         await db.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (2, utc_now_iso()),
+        )
+
+    async def _migrate_v3(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT MAX(version) AS v FROM schema_migrations") as cur:
+            row = await cur.fetchone()
+            current = row["v"] if row and row["v"] else 1
+        if current >= 3:
+            return
+        try:
+            await db.execute("ALTER TABLE call_records ADD COLUMN channel TEXT DEFAULT 'sip'")
+        except Exception:
+            pass
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (3, utc_now_iso()),
         )
 
     @asynccontextmanager
@@ -220,8 +237,8 @@ class CRMDatabase:
                 INSERT OR REPLACE INTO call_records
                 (call_id, room_name, from_number, to_number, start_time, end_time,
                  outcome, summary, agent_notes, transferred_to, duration_seconds,
-                 transcript, recording_url, agent_instance_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 transcript, recording_url, agent_instance_id, channel)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.call_id,
@@ -238,6 +255,7 @@ class CRMDatabase:
                     record.transcript,
                     record.recording_url,
                     record.agent_instance_id,
+                    record.channel,
                 ),
             )
             await db.commit()
@@ -354,6 +372,7 @@ class CRMDatabase:
                 "transcript": r["transcript"] if "transcript" in r.keys() else None,
                 "recording_url": r["recording_url"] if "recording_url" in r.keys() else None,
                 "agent_instance_id": r["agent_instance_id"] if "agent_instance_id" in r.keys() else None,
+                "channel": r["channel"] if "channel" in r.keys() else "sip",
             }
             for r in rows
         ]

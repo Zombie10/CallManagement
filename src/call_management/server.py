@@ -6,8 +6,6 @@ import asyncio
 import json
 import os
 import uuid
-from datetime import UTC, datetime
-
 from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli
@@ -25,10 +23,10 @@ from call_management.agents import (
 )
 from call_management.agent_store import get_effective_instructions
 from call_management.config import get_model_config, get_voice_for_agent
-from call_management.crm.database import CallRecord, get_crm
+from call_management.crm.database import get_crm
+from call_management.crm.session_persist import finalize_interaction
 from call_management.telephony.sip_tools import SIPManager, make_sip_tools
 from call_management.utils.logging import configure_logging
-from call_management.utils.summary import generate_call_summary
 from call_management.utils.time import utc_now_iso
 from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_config
 
@@ -291,6 +289,7 @@ async def entrypoint(ctx: JobContext) -> None:
     if customer.name:
         logger.info("Returning customer: %s (%s)", customer.name, from_number)
 
+    is_playground_room = ctx.room.name.startswith("admin-voice-")
     call_id = f"call_{uuid.uuid4().hex[:12]}"
     call_ctx = CallContext(
         call_id=call_id,
@@ -307,6 +306,7 @@ async def entrypoint(ctx: JobContext) -> None:
         start_time=utc_now_iso(),
         tenant_id=tenant.id,
         agent_instance_id=agent_instance.id if agent_instance else None,
+        channel="voice_livekit" if is_playground_room else "sip",
         queued=not queued_ok,
     )
 
@@ -388,6 +388,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(agent=initial_agent, room=ctx.room)
     await ctx.connect()
+    call_ctx.agent_session = session
 
     logger.info("Agent session started. Initial agent: %s", initial_agent.agent_name)
 
@@ -400,6 +401,8 @@ async def entrypoint(ctx: JobContext) -> None:
     def on_participant_disconnected(participant: rtc.RemoteParticipant):
         logger.info("Participant left: %s (kind=%s)", participant.identity, participant.kind)
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+            asyncio.create_task(_handle_call_ended(call_ctx, cfg.enable_post_call_summary))
+        elif is_playground_room and participant.identity.startswith("admin-"):
             asyncio.create_task(_handle_call_ended(call_ctx, cfg.enable_post_call_summary))
 
     ctx.room.on("participant_connected", on_participant_connected)
@@ -445,81 +448,19 @@ async def _handle_attributes_changed(
             await _handle_call_ended(call_ctx, cfg.enable_post_call_summary)
 
 
-def _calculate_duration_seconds(start_time: str, end_time: str) -> int | None:
-    try:
-        start = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-        end = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=UTC)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
-        return max(0, int((end - start).total_seconds()))
-    except ValueError:
-        logger.warning("Could not calculate call duration from %s to %s", start_time, end_time)
-        return None
-
-
 async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> None:
-    """Persist final call record when the SIP leg ends."""
+    """Persist final call record when the SIP or playground leg ends."""
     if call_ctx.call_persisted:
         return
 
     logger.info("Call ending — persisting record for %s", call_ctx.call_id)
-    call_ctx.outcome = call_ctx.outcome or "completed"
 
     if call_ctx.tenant_id:
         from call_management.tenancy.queue import release as release_queue_slot
 
         await release_queue_slot(call_ctx.tenant_id)
 
-    if not call_ctx.crm:
-        return
-
-    end_time = utc_now_iso()
-    duration_seconds = _calculate_duration_seconds(call_ctx.start_time, end_time)
-
-    if enable_summary:
-        call_ctx.post_call_summary = await generate_call_summary(call_ctx)
-    else:
-        from call_management.utils.summary import build_structured_summary
-
-        call_ctx.post_call_summary = build_structured_summary(call_ctx)
-
-    record = CallRecord(
-        call_id=call_ctx.call_id,
-        room_name=call_ctx.room_name,
-        from_number=call_ctx.from_number,
-        to_number=call_ctx.to_number,
-        start_time=call_ctx.start_time,
-        end_time=end_time,
-        outcome=call_ctx.outcome,
-        summary=call_ctx.post_call_summary,
-        agent_notes="\n".join(call_ctx.call_notes),
-        transferred_to=call_ctx.previous_agent_name,
-        duration_seconds=duration_seconds,
-        transcript="\n".join(call_ctx.transcript_lines) if call_ctx.transcript_lines else None,
-        recording_url=call_ctx.recording_url,
-        agent_instance_id=call_ctx.agent_instance_id,
-    )
-    await call_ctx.crm.create_call_record(record)
-    call_ctx.call_persisted = True
-    logger.info("Call record persisted (duration=%ss).", duration_seconds)
-
-    if call_ctx.tenant_id:
-        from call_management.tenancy.webhooks import emit_event
-
-        await emit_event(
-            call_ctx.tenant_id,
-            "call.ended",
-            {
-                "call_id": call_ctx.call_id,
-                "from_number": call_ctx.from_number,
-                "to_number": call_ctx.to_number,
-                "outcome": call_ctx.outcome,
-                "duration_seconds": duration_seconds,
-                "summary": call_ctx.post_call_summary,
-            },
-        )
+    await finalize_interaction(call_ctx, enable_summary=enable_summary)
 
 
 def main() -> None:

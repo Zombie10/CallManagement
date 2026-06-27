@@ -29,6 +29,8 @@ async def create_livekit_playground_session(
     initial_agent: str = "receptionist",
     phone_number: str = "+15551234567",
     customer_name: str | None = None,
+    tenant_id: str | None = None,
+    agent_instance_id: str | None = None,
     vip: bool = False,
 ) -> dict[str, Any]:
     """Create a LiveKit room, dispatch the production agent, return a user join token."""
@@ -54,6 +56,8 @@ async def create_livekit_playground_session(
             "phone_number": phone_number,
             "customer_name": customer_name,
             "vip": vip,
+            "tenant_id": tenant_id,
+            "agent_instance_id": agent_instance_id,
         }
     )
 

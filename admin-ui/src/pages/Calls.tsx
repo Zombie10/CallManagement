@@ -17,6 +17,11 @@ function CallCard({ call }: { call: CallRecord }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-sm text-cyan-300">{call.call_id}</p>
+            {call.channel && call.channel !== "sip" && (
+              <span className="mt-1 inline-block rounded-md bg-violet-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-300">
+                {call.channel.replace("_", " ")}
+              </span>
+            )}
             <p className="mt-1 text-sm text-slate-300">
               <Phone className="mr-1 inline h-3.5 w-3.5" />
               {call.from_number}
@@ -96,7 +101,7 @@ export function Calls() {
       <header>
         <h1 className="font-display text-3xl font-semibold">Historial de llamadas</h1>
         <p className="mt-1 text-slate-400">
-          {data.total} registros · Expande para ver transcript y grabación
+          {data.total} registros · Expande para ver transcript completo
         </p>
       </header>
 

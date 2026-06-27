@@ -66,9 +66,29 @@ export function useXaiVoice() {
   const sessionConfigRef = useRef<SessionLike | null>(null);
   const currentLineRef = useRef<{ role: "user" | "assistant"; content: string } | null>(null);
   const sampleRateRef = useRef(XAI_AUDIO_RATE);
-  const callContextRef = useRef<{ phone_number: string; customer_name?: string; tenant_id?: string }>({
+  const callContextRef = useRef<{
+    phone_number: string;
+    customer_name?: string;
+    tenant_id?: string;
+    agent_instance_id?: string;
+  }>({
     phone_number: "+15551234567",
   });
+  const transcriptRef = useRef<VoiceTranscriptLine[]>([]);
+  const sessionInfoRef = useRef<VoiceSessionResponse | null>(null);
+  const currentAgentRef = useRef("receptionist");
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  useEffect(() => {
+    sessionInfoRef.current = sessionInfo;
+  }, [sessionInfo]);
+
+  useEffect(() => {
+    currentAgentRef.current = currentAgent;
+  }, [currentAgent]);
 
   const appendSystem = useCallback((text: string) => {
     setTranscript((prev) => [...prev, { id: `sys-${Date.now()}`, role: "system", text }]);
@@ -389,8 +409,40 @@ export function useXaiVoice() {
     setAudioLevel(0);
   }, []);
 
+  const persistTranscript = useCallback(async () => {
+    const info = sessionInfoRef.current;
+    const lines = transcriptRef.current;
+    if (!info?.call_id || !lines.length) return;
+    const body = lines
+      .filter((line) => line.text.trim())
+      .map((line) => {
+        const label =
+          line.role === "user" ? "Cliente" : line.role === "assistant" ? "Agente" : "Sistema";
+        return `[${label}] ${line.text.trim()}`;
+      })
+      .join("\n");
+    if (!body) return;
+    try {
+      await api.completeVoiceSession({
+        call_id: info.call_id,
+        agent: currentAgentRef.current,
+        phone_number: callContextRef.current.phone_number,
+        customer_name: callContextRef.current.customer_name,
+        tenant_id: callContextRef.current.tenant_id,
+        agent_instance_id: callContextRef.current.agent_instance_id,
+        start_time: info.start_time,
+        transcript: body,
+      });
+    } catch {
+      /* persist best-effort on disconnect */
+    }
+  }, []);
+
   const disconnect = useCallback(
-    async (options?: { releaseMic?: boolean }) => {
+    async (options?: { releaseMic?: boolean; persist?: boolean }) => {
+      if (options?.persist !== false) {
+        await persistTranscript();
+      }
       stopCapture();
       stopPlayback();
       if (wsRef.current) {
@@ -416,7 +468,7 @@ export function useXaiVoice() {
         await micReleaseDelay();
       }
     },
-    [stopCapture, stopPlayback],
+    [persistTranscript, stopCapture, stopPlayback],
   );
 
   const start = useCallback(
@@ -435,11 +487,12 @@ export function useXaiVoice() {
         phone_number: context?.phone_number || "+15551234567",
         customer_name: context?.customer_name,
         tenant_id: context?.tenant_id,
+        agent_instance_id: context?.agent_instance_id,
       };
 
       try {
         // iOS Safari: getUserMedia must run right after the tap — no network/delay before it.
-        await disconnect({ releaseMic: false });
+        await disconnect({ releaseMic: false, persist: false });
 
         const stream = await requestMicrophone({ preserveUserActivation: true });
         mediaRef.current = stream;

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
+from call_management.utils.time import utc_now_iso
 from call_management.xai.voice import build_voice_session_payload, create_ephemeral_voice_token
 
 VALID_VOICE_AGENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
@@ -35,6 +37,8 @@ async def create_browser_voice_session(
             session["instructions"] = instance.custom_instructions
 
     return {
+        "call_id": f"voice_{uuid.uuid4().hex[:12]}",
+        "start_time": utc_now_iso(),
         "client_secret": {
             "value": token_data["value"],
             "expires_at": token_data.get("expires_at"),

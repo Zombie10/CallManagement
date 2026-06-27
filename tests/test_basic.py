@@ -16,7 +16,8 @@ from call_management.agents.base import CallContext
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import CRMDatabase, reset_crm_singleton
 from call_management.scheduling.calendar import schedule_appointment
-from call_management.server import VALID_DEPARTMENTS, _calculate_duration_seconds, _resolve_initial_agent
+from call_management.crm.session_persist import _calculate_duration_seconds
+from call_management.server import VALID_DEPARTMENTS, _resolve_initial_agent
 from call_management.utils.summary import build_structured_summary
 
 

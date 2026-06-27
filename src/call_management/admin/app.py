@@ -19,6 +19,7 @@ from call_management.admin.livekit_playground import (
     create_livekit_playground_session,
     livekit_playground_ready,
 )
+from call_management.admin.interaction_complete import complete_voice_xai_session
 from call_management.admin.voice_session import create_browser_voice_session
 from call_management.admin.env_store import PROJECT_ROOT, load_settings, save_settings
 from call_management.admin.schemas import (
@@ -26,6 +27,7 @@ from call_management.admin.schemas import (
     ChatMessagePayload,
     ChatSessionCreate,
     VoiceSessionCreate,
+    VoiceSessionComplete,
     VoiceToolExecute,
     LiveKitPlaygroundCreate,
     CustomerCreate,
@@ -315,6 +317,25 @@ async def create_voice_session(payload: VoiceSessionCreate):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/api/voice/complete")
+async def complete_voice_session(payload: VoiceSessionComplete):
+    try:
+        return await complete_voice_xai_session(
+            call_id=payload.call_id,
+            agent=payload.agent,
+            phone_number=payload.phone_number,
+            customer_name=payload.customer_name,
+            tenant_id=payload.tenant_id,
+            agent_instance_id=payload.agent_instance_id,
+            start_time=payload.start_time,
+            transcript=payload.transcript,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/api/voice/tools/execute")
 async def execute_voice_tool(payload: VoiceToolExecute):
     try:
@@ -342,6 +363,8 @@ async def create_livekit_playground(payload: LiveKitPlaygroundCreate):
             initial_agent=payload.initial_agent,
             phone_number=payload.phone_number,
             customer_name=payload.customer_name,
+            tenant_id=payload.tenant_id,
+            agent_instance_id=payload.agent_instance_id,
             vip=payload.vip,
         )
     except ValueError as exc:

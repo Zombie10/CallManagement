@@ -63,6 +63,17 @@ class LiveKitPlaygroundCreate(BaseModel):
     vip: bool = False
 
 
+class VoiceSessionComplete(BaseModel):
+    call_id: str
+    agent: str = "receptionist"
+    phone_number: str = "+15551234567"
+    customer_name: str | None = None
+    tenant_id: str | None = None
+    agent_instance_id: str | None = None
+    start_time: str | None = None
+    transcript: str
+
+
 class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None

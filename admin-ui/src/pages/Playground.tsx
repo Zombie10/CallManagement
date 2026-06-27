@@ -14,7 +14,7 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Select } from "../components/Select";
 import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
@@ -158,6 +158,12 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
   });
 
   const busy = startSession.isPending || sendMessage.isPending || resetSession.isPending;
+
+  useEffect(() => {
+    return () => {
+      if (sessionId) void api.deleteChatSession(sessionId);
+    };
+  }, [sessionId]);
 
   return (
     <div className="glass-card flex h-[min(640px,calc(100vh-11rem))] min-h-[520px] flex-col lg:flex-row">

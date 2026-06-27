@@ -24,6 +24,7 @@ from call_management.agents import (
 from call_management.agent_store import get_effective_instructions
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
+from call_management.crm.session_persist import finalize_interaction
 from call_management.utils.time import utc_now_iso
 from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_config
 
@@ -171,7 +172,7 @@ class ChatSessionManager:
             await crm.update_customer(customer)
 
         call_ctx = CallContext(
-            call_id=f"admin_{uuid.uuid4().hex[:12]}",
+            call_id=f"chat_{uuid.uuid4().hex[:12]}",
             room_name="admin-playground",
             from_number=phone_number,
             department_hint=department,
@@ -181,6 +182,9 @@ class ChatSessionManager:
             is_vip=vip or customer.vip,
             crm=crm,
             start_time=utc_now_iso(),
+            tenant_id=tenant_id,
+            agent_instance_id=agent_instance_id,
+            channel="chat",
         )
 
         agents_registry = {
@@ -235,6 +239,9 @@ class ChatSessionManager:
             reply, events = _extract_reply(result)
             current = managed.agent_session.current_agent
             agent_name = getattr(current, "agent_name", "unknown")
+            managed.call_ctx.transcript_lines.append(f"[Cliente] {message}")
+            if reply.strip():
+                managed.call_ctx.transcript_lines.append(f"[Agente ({agent_name})] {reply.strip()}")
 
         return {
             "reply": reply,
@@ -242,9 +249,14 @@ class ChatSessionManager:
             "events": events,
         }
 
+    async def _persist_managed(self, managed: ManagedChatSession) -> None:
+        managed.call_ctx.agent_session = managed.agent_session
+        await finalize_interaction(managed.call_ctx, enable_summary=True)
+
     async def close(self, session_id: str) -> None:
         managed = self._sessions.pop(session_id, None)
         if managed:
+            await self._persist_managed(managed)
             await managed.agent_session.aclose()
 
     async def reset(self, session_id: str) -> dict[str, Any]:
@@ -255,11 +267,15 @@ class ChatSessionManager:
         vip = managed.call_ctx.is_vip
         department = managed.call_ctx.department_hint
         initial = getattr(managed.agent_session.current_agent, "agent_name", "receptionist")
+        tenant_id = managed.call_ctx.tenant_id
+        agent_instance_id = managed.call_ctx.agent_instance_id
         await self.close(session_id)
         return await self.create(
             phone_number=phone,
             department=department,
             initial_agent=initial if initial in VALID_START_AGENTS else "receptionist",
+            tenant_id=tenant_id,
+            agent_instance_id=agent_instance_id,
             vip=vip,
         )
 

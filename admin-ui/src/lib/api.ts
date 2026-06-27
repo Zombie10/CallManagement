@@ -140,6 +140,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ agent, ...context }),
     }),
+  completeVoiceSession: (data: VoiceSessionCompleteInput) =>
+    request<{ saved: boolean; call_id: string; transcript_lines: number }>("/voice/complete", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   executeVoiceTool: (data: VoiceToolExecuteInput) =>
     request<VoiceToolExecuteResponse>("/voice/tools/execute", {
       method: "POST",
@@ -467,6 +472,7 @@ export interface CallRecord {
   recording_url?: string | null;
   agent_instance_id?: string | null;
   agent_notes?: string | null;
+  channel?: string;
 }
 
 export interface Appointment {
@@ -772,7 +778,20 @@ export interface LiveKitPlaygroundResponse {
   pipeline: string;
 }
 
+export interface VoiceSessionCompleteInput {
+  call_id: string;
+  agent: string;
+  phone_number: string;
+  customer_name?: string;
+  tenant_id?: string;
+  agent_instance_id?: string;
+  start_time?: string;
+  transcript: string;
+}
+
 export interface VoiceSessionResponse {
+  call_id?: string;
+  start_time?: string;
   client_secret: { value: string; expires_at?: number };
   ws_url: string;
   model: string;
