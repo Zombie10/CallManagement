@@ -75,8 +75,12 @@ ADMIN_AUTH_DB_PATH=/opt/callmanagement/data/admin_auth.db
 LOG_LEVEL=INFO
 DEFAULT_LOCALE=es
 
-# Multi-tenant limits
-MAX_CONCURRENT_CALLS_PER_TENANT=5
+# Multi-tenant limits (global per company; worker in-process)
+MAX_CONCURRENT_CALLS_PER_TENANT=12
+
+# Per-agent / per-DID limits are configured in Admin → Mis agentes
+# (max_concurrent_calls on agent instance; optional cap per phone number).
+# All three layers apply: tenant env cap AND agent cap AND number cap when set.
 
 # LiveKit (worker + LiveKit voice mode)
 LIVEKIT_URL=wss://your-project.livekit.cloud

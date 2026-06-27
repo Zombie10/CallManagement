@@ -47,6 +47,8 @@ function emptyAgent(): AgentInstanceInput {
     custom_instructions: "",
     tools: [],
     function_tools: [],
+    max_concurrent_calls: null,
+    phone_limits: {},
   };
 }
 
@@ -115,6 +117,9 @@ function AgentCard({
       )}
       <p className="mt-2 text-xs text-slate-500">
         {agent.call_count_today ?? 0} llamadas hoy · {agent.locale.toUpperCase()}
+        {agent.max_concurrent_calls != null && (
+          <> · máx. {agent.max_concurrent_calls} simultáneas</>
+        )}
       </p>
       <div className="mt-3 flex gap-1 opacity-0 transition group-hover:opacity-100">
         <span className="btn-ghost px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
@@ -146,15 +151,26 @@ export function TenantAgents() {
   const [isNew, setIsNew] = useState(false);
   const [schedules, setSchedules] = useState<Array<{ day_of_week: number; start_time: string; end_time: string }>>([]);
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
+  const [phoneLimits, setPhoneLimits] = useState<Record<string, string>>({});
 
   const buildPayload = (): AgentInstanceInput => {
     const primary = (draft.phone_number || "").trim();
     const extras = extraPhones.map((p) => p.trim()).filter(Boolean);
     const all = [...new Set([primary, ...extras].filter(Boolean))];
+    const limits: Record<string, number | null> = {};
+    for (const num of all) {
+      const raw = phoneLimits[num];
+      if (raw != null && raw !== "") {
+        const parsed = Number(raw);
+        if (!Number.isNaN(parsed) && parsed > 0) limits[num] = parsed;
+      }
+    }
     return {
       ...draft,
       phone_number: all[0] || null,
       phone_numbers: all,
+      phone_limits: limits,
+      max_concurrent_calls: draft.max_concurrent_calls ?? null,
     };
   };
 
@@ -194,6 +210,7 @@ export function TenantAgents() {
     setDraft(emptyAgent());
     setSchedules([]);
     setExtraPhones([]);
+    setPhoneLimits({});
   };
 
   const openEdit = async (agent: AgentInstanceRecord) => {
@@ -215,6 +232,7 @@ export function TenantAgents() {
       tools: agent.tools || [],
       function_tools: agent.function_tools || [],
       brand_name: agent.brand_name,
+      max_concurrent_calls: agent.max_concurrent_calls ?? null,
     });
     const phones = agent.phone_numbers?.length
       ? agent.phone_numbers
@@ -222,6 +240,16 @@ export function TenantAgents() {
         ? [agent.phone_number]
         : [];
     setExtraPhones(phones.slice(1));
+    const limits: Record<string, string> = {};
+    for (const route of agent.phone_routes || []) {
+      if (route.max_concurrent_calls != null) {
+        limits[route.phone_number] = String(route.max_concurrent_calls);
+      }
+    }
+    for (const [num, cap] of Object.entries(agent.phone_limits || {})) {
+      if (cap != null) limits[num] = String(cap);
+    }
+    setPhoneLimits(limits);
     const sched = await api.getAgentSchedules(agent.id);
     setSchedules(sched.schedules.map((s) => ({ day_of_week: s.day_of_week, start_time: s.start_time, end_time: s.end_time })));
   };
@@ -313,16 +341,52 @@ export function TenantAgents() {
               options={STATUS_OPTIONS}
             />
             <label className="block space-y-1.5">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Máx. llamadas simultáneas (agente)
+              </span>
+              <input
+                className="input-field w-full"
+                type="number"
+                min={1}
+                placeholder="Sin límite propio (usa solo el de empresa)"
+                value={draft.max_concurrent_calls ?? ""}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    max_concurrent_calls: e.target.value === "" ? null : Number(e.target.value),
+                  }))
+                }
+              />
+              <p className="text-xs text-slate-500">
+                Ej.: banco 8, recepción 4. Vacío = solo aplica el límite global de la empresa.
+              </p>
+            </label>
+            <label className="block space-y-1.5">
               <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
                 <Phone className="h-3 w-3" />
                 Teléfono principal (E.164)
               </span>
-              <input
-                className="input-field w-full"
-                placeholder="+50255551234"
-                value={draft.phone_number || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
-              />
+              <div className="flex gap-2">
+                <input
+                  className="input-field flex-1"
+                  placeholder="+50255551234"
+                  value={draft.phone_number || ""}
+                  onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
+                />
+                <input
+                  className="input-field w-24"
+                  type="number"
+                  min={1}
+                  title="Límite por número"
+                  placeholder="Máx."
+                  value={phoneLimits[(draft.phone_number || "").trim()] || ""}
+                  onChange={(e) => {
+                    const num = (draft.phone_number || "").trim();
+                    if (!num) return;
+                    setPhoneLimits((prev) => ({ ...prev, [num]: e.target.value }));
+                  }}
+                />
+              </div>
             </label>
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -336,9 +400,32 @@ export function TenantAgents() {
                     value={num}
                     onChange={(e) => {
                       const next = [...extraPhones];
-                      next[i] = e.target.value;
+                      const old = next[i]?.trim();
+                      const value = e.target.value;
+                      next[i] = value;
                       setExtraPhones(next);
+                      if (old && old !== value.trim()) {
+                        setPhoneLimits((prev) => {
+                          const copy = { ...prev };
+                          if (old in copy) {
+                            copy[value.trim()] = copy[old];
+                            delete copy[old];
+                          }
+                          return copy;
+                        });
+                      }
                     }}
+                  />
+                  <input
+                    className="input-field w-24"
+                    type="number"
+                    min={1}
+                    title="Límite por número"
+                    placeholder="Máx."
+                    value={phoneLimits[num.trim()] || ""}
+                    onChange={(e) =>
+                      setPhoneLimits((prev) => ({ ...prev, [num.trim()]: e.target.value }))
+                    }
                   />
                   <button
                     type="button"

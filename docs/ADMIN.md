@@ -40,12 +40,24 @@ Default URL: **http://127.0.0.1:8080**
 Cada empresa tiene:
 
 - CRM SQLite aislado: `data/tenants/{tenant_id}/crm.db`
-- Límites: `max_agents`, `max_calls_per_day`
+- Límites: `max_agents`, `max_calls_per_day`, concurrencia global (`MAX_CONCURRENT_CALLS_PER_TENANT`)
 - Branding: `logo_url`, `brand_color` (visible en Playground)
 - Webhooks por tenant (`call.started`, `call.ended`, `appointment.*`, `agent.handoff`)
 - API keys para integraciones (`/api/public/v1/*`)
 
 Los agentes son **instancias** (plantilla + config + teléfono(s)), no solo plantillas del sistema (`/agents`).
+
+### Límites de concurrencia (capas)
+
+Las llamadas simultáneas se controlan en **tres capas** (todas deben tener cupo):
+
+| Capa | Dónde se configura | Ejemplo |
+|------|-------------------|---------|
+| Empresa | `.env` → `MAX_CONCURRENT_CALLS_PER_TENANT` | 12 en VPS |
+| Agente | **Mis agentes** → campo *Máx. llamadas simultáneas* | Banco 8, Recepción 4 |
+| Número (DID) | **Mis agentes** → columna *Máx.* junto a cada teléfono | Línea bancaria 6 |
+
+Vacío en agente o número = solo aplica el límite de empresa. El panel **Supervisor** muestra uso por empresa, agente y línea, con alertas cuando alguna capa está llena.
 
 **Header API:** `X-Tenant-Id` (super admin cambia empresa en la barra de contexto).  
 **Header opcional:** `X-Agent-Instance-Id` (playground con instancia concreta).

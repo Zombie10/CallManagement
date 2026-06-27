@@ -300,11 +300,29 @@ export interface SupervisorResponse {
     recording?: boolean;
   }>;
   tenant_metrics?: TenantMetrics;
+  tenant_limit?: { key: string; active: number; cap: number; at_capacity: boolean };
+  agent_limits?: Array<{
+    agent_instance_id: string;
+    display_name: string;
+    active: number;
+    cap: number;
+    at_capacity: boolean;
+  }>;
+  number_limits?: Array<{
+    phone_number: string;
+    agent_instance_id: string;
+    active: number;
+    cap: number;
+    at_capacity: boolean;
+  }>;
   agents?: Array<{
     id: string;
     display_name: string;
     status: string;
     call_count_today: number;
+    max_concurrent_calls?: number | null;
+    active_calls?: number;
+    at_capacity?: boolean;
   }>;
   recordings?: { egress_configured: boolean };
   alerts: Array<{ level: string; message: string }>;
@@ -783,6 +801,9 @@ export interface AgentInstanceRecord {
   mcp_servers: string[];
   brand_name?: string | null;
   call_count_today?: number;
+  max_concurrent_calls?: number | null;
+  phone_limits?: Record<string, number | null>;
+  phone_routes?: Array<{ phone_number: string; max_concurrent_calls?: number | null }>;
   schedule_status?: ScheduleStatus;
   default_instructions?: string;
 }
@@ -804,6 +825,8 @@ export interface AgentInstanceInput {
   function_tools?: string[];
   mcp_servers?: string[];
   brand_name?: string | null;
+  max_concurrent_calls?: number | null;
+  phone_limits?: Record<string, number | null>;
 }
 
 export interface TenantAgentsResponse {

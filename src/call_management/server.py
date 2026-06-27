@@ -224,6 +224,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     from call_management.tenancy.platform_store import get_platform_store
     from call_management.tenancy.queue import release as release_queue_slot
+    from call_management.tenancy.queue import resolve_queue_limits_from_store
     from call_management.tenancy.queue import try_acquire as acquire_queue_slot
     from call_management.tenancy.scheduling import is_agent_available
 
@@ -247,12 +248,30 @@ async def entrypoint(ctx: JobContext) -> None:
         )
         department_hint = "receptionist"
 
-    queued_ok = await acquire_queue_slot(tenant.id)
+    agent_id_for_queue = agent_instance.id if agent_instance else None
+    queue_limits = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=agent_id_for_queue,
+        dialed_number=to_number,
+    )
+    queued_ok, blocked_layer = await acquire_queue_slot(queue_limits)
     if not queued_ok:
-        queue_note = (
-            "\n\nTodos los agentes están ocupados. Pide al caller esperar un momento "
-            "o ofrece devolver la llamada; sé breve y empático."
-        )
+        if blocked_layer == "agent":
+            queue_note = (
+                "\n\nEste departamento tiene el máximo de llamadas simultáneas. "
+                "Pide al caller esperar un momento o ofrece devolver la llamada; sé breve y empático."
+            )
+        elif blocked_layer == "number":
+            queue_note = (
+                "\n\nEsta línea telefónica está al máximo de llamadas simultáneas. "
+                "Pide al caller esperar un momento o ofrece devolver la llamada; sé breve y empático."
+            )
+        else:
+            queue_note = (
+                "\n\nTodos los agentes están ocupados. Pide al caller esperar un momento "
+                "o ofrece devolver la llamada; sé breve y empático."
+            )
         department_hint = department_hint or "receptionist"
 
     if agent_instance:
@@ -313,6 +332,8 @@ async def entrypoint(ctx: JobContext) -> None:
         agent_instance_id=agent_instance.id if agent_instance else None,
         channel="voice_livekit" if is_playground_room else "sip",
         queued=not queued_ok,
+        queue_limits=queue_limits,
+        queue_blocked_layer=blocked_layer,
     )
 
     from call_management.agents import BankingSupportAgent
@@ -413,9 +434,11 @@ async def entrypoint(ctx: JobContext) -> None:
         from_number=from_number,
         channel=call_ctx.channel,
         agent_instance_id=call_ctx.agent_instance_id,
+        dialed_number=to_number,
         started_at=call_ctx.start_time,
         queued=not queued_ok,
         recording=bool(call_ctx.egress_id) or egress_configured(),
+        queue_blocked_layer=call_ctx.queue_blocked_layer,
     )
     await emit_event(
         tenant.id,
@@ -499,7 +522,7 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
         from call_management.tenancy.queue import release as release_queue_slot
         from call_management.tenancy.queue import unregister_active_call
 
-        await release_queue_slot(call_ctx.tenant_id)
+        await release_queue_slot(call_ctx.queue_limits)
         await unregister_active_call(call_ctx.call_id)
 
     await finalize_interaction(call_ctx, enable_summary=enable_summary)

@@ -121,7 +121,12 @@ async def dashboard(ctx=Depends(require_tenant_context)):
     mcp = load_remote_mcp_config()
     chat_status = get_chat_manager().status()
     lk_ready, lk_issues = livekit_playground_ready()
-    supervisor = supervisor_snapshot(ctx.tenant.id)
+    store = get_platform_store()
+    supervisor = supervisor_snapshot(
+        ctx.tenant.id,
+        agents=store.list_agents(ctx.tenant.id),
+        phone_routes=store.list_tenant_phone_routes(ctx.tenant.id),
+    )
     return {
         "stats": stats,
         "analytics": analytics,
@@ -375,9 +380,11 @@ async def supervisor_panel(ctx=Depends(require_tenant_context)):
     from call_management.tenancy.queue import supervisor_snapshot
 
     store = get_platform_store()
-    snap = supervisor_snapshot(ctx.tenant.id)
-    metrics = store.tenant_metrics(ctx.tenant.id)
     agents = store.list_agents(ctx.tenant.id)
+    phone_routes = store.list_tenant_phone_routes(ctx.tenant.id)
+    snap = supervisor_snapshot(ctx.tenant.id, agents=agents, phone_routes=phone_routes)
+    metrics = store.tenant_metrics(ctx.tenant.id)
+    agent_limit_map = {a["agent_instance_id"]: a for a in snap.get("agent_limits", [])}
     return {
         **snap,
         "tenant_metrics": metrics,
@@ -387,6 +394,9 @@ async def supervisor_panel(ctx=Depends(require_tenant_context)):
                 "display_name": a.display_name,
                 "status": a.status,
                 "call_count_today": a.call_count_today,
+                "max_concurrent_calls": a.max_concurrent_calls,
+                "active_calls": agent_limit_map.get(a.id, {}).get("active", 0),
+                "at_capacity": agent_limit_map.get(a.id, {}).get("at_capacity", False),
             }
             for a in agents
         ],
@@ -399,6 +409,22 @@ def _supervisor_alerts(snap: dict, metrics: dict) -> list[dict]:
     alerts: list[dict] = []
     if snap.get("at_capacity"):
         alerts.append({"level": "warning", "message": "Cola al límite de llamadas concurrentes"})
+    for agent in snap.get("agent_limits", []):
+        if agent.get("at_capacity"):
+            alerts.append(
+                {
+                    "level": "warning",
+                    "message": f"{agent.get('display_name', 'Agente')} al máximo ({agent.get('active')}/{agent.get('cap')})",
+                }
+            )
+    for route in snap.get("number_limits", []):
+        if route.get("at_capacity"):
+            alerts.append(
+                {
+                    "level": "warning",
+                    "message": f"Línea {route.get('phone_number')} al máximo ({route.get('active')}/{route.get('cap')})",
+                }
+            )
     if snap.get("queued_calls", 0) > 0:
         alerts.append(
             {

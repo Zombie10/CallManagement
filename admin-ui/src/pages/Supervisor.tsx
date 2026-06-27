@@ -27,6 +27,15 @@ export function Supervisor() {
         </button>
       </header>
 
+      {data.tenant_limit && (
+        <div className="glass-card p-4 text-sm text-slate-400">
+          Límite empresa: {data.tenant_limit.active}/{data.tenant_limit.cap} simultáneas
+          {data.tenant_limit.at_capacity && (
+            <span className="ml-2 text-amber-300">· al máximo</span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="glass-card p-4">
           <p className="text-xs text-slate-500">Activas</p>
@@ -113,6 +122,10 @@ export function Supervisor() {
               <p className="font-medium text-slate-200">{a.display_name}</p>
               <p className="text-xs text-slate-500">
                 {a.status} · {a.call_count_today} llamadas hoy
+                {a.max_concurrent_calls != null && (
+                  <> · {a.active_calls ?? 0}/{a.max_concurrent_calls} activas</>
+                )}
+                {a.at_capacity && <span className="text-amber-300"> · lleno</span>}
               </p>
             </div>
           ))}

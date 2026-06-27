@@ -91,6 +91,8 @@ class CallContext:
     channel: str = "sip"
     agent_session: object | None = field(default=None, repr=False)
     queued: bool = False
+    queue_limits: object | None = field(default=None, repr=False)
+    queue_blocked_layer: str | None = None
 
     crm: CRMDatabase | None = None
     sip: SIPManager | None = None

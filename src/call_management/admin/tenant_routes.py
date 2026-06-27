@@ -56,6 +56,8 @@ class AgentInstancePayload(BaseModel):
     mcp_servers: list[str] = Field(default_factory=list)
     brand_name: str | None = None
     schedule_json: str | None = None
+    max_concurrent_calls: int | None = Field(default=None, ge=1, le=500)
+    phone_limits: dict[str, int | None] = Field(default_factory=dict)
 
 
 class AgentDuplicatePayload(BaseModel):
@@ -75,6 +77,7 @@ class SchedulesPayload(BaseModel):
 
 
 def _agent_dict(agent) -> dict[str, Any]:
+    store = get_platform_store()
     data = {
         "id": agent.id,
         "tenant_id": agent.tenant_id,
@@ -95,6 +98,19 @@ def _agent_dict(agent) -> dict[str, Any]:
         "mcp_servers": agent.mcp_servers,
         "brand_name": agent.brand_name,
         "schedule_json": agent.schedule_json,
+        "max_concurrent_calls": agent.max_concurrent_calls,
+        "phone_limits": {
+            r.phone_number: r.max_concurrent_calls
+            for r in store.list_phone_routes(agent.id)
+            if r.max_concurrent_calls is not None
+        },
+        "phone_routes": [
+            {
+                "phone_number": r.phone_number,
+                "max_concurrent_calls": r.max_concurrent_calls,
+            }
+            for r in store.list_phone_routes(agent.id)
+        ],
         "call_count_today": agent.call_count_today,
         "schedule_status": agent_schedule_status(agent.id),
         "default_instructions": get_default_instructions(agent.template_id),

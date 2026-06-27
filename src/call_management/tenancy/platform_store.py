@@ -65,6 +65,7 @@ class AgentInstance:
     brand_name: str | None = None
     schedule_json: str | None = None
     phone_numbers: list[str] = field(default_factory=list)
+    max_concurrent_calls: int | None = None
     call_count_today: int = 0
     created_at: str = ""
     updated_at: str = ""
@@ -78,6 +79,7 @@ class PhoneRoute:
     phone_number: str
     sip_trunk_id: str | None = None
     enabled: bool = True
+    max_concurrent_calls: int | None = None
 
 
 @dataclass
@@ -218,6 +220,11 @@ class PlatformStore:
                 conn.execute(
                     "ALTER TABLE agent_instances ADD COLUMN phone_numbers_json TEXT NOT NULL DEFAULT '[]'"
                 )
+            if "max_concurrent_calls" not in cols:
+                conn.execute("ALTER TABLE agent_instances ADD COLUMN max_concurrent_calls INTEGER")
+            route_cols = {r[1] for r in conn.execute("PRAGMA table_info(phone_routes)").fetchall()}
+            if "max_concurrent_calls" not in route_cols:
+                conn.execute("ALTER TABLE phone_routes ADD COLUMN max_concurrent_calls INTEGER")
             conn.commit()
         self.ensure_default_tenant()
 
@@ -272,6 +279,9 @@ class PlatformStore:
             mcp_servers=json.loads(row["mcp_servers_json"] or "[]"),
             brand_name=row["brand_name"],
             schedule_json=row["schedule_json"],
+            max_concurrent_calls=row["max_concurrent_calls"]
+            if "max_concurrent_calls" in keys
+            else None,
             call_count_today=row["call_count_today"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -423,8 +433,8 @@ class PlatformStore:
                     id, tenant_id, slug, display_name, template_id, status,
                     phone_number, phone_numbers_json, sip_trunk_id, provider, voice, locale, voice_language,
                     custom_instructions, tools_json, function_tools_json, mcp_servers_json,
-                    brand_name, schedule_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    brand_name, schedule_json, max_concurrent_calls, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     agent_id,
@@ -446,6 +456,7 @@ class PlatformStore:
                     json.dumps(kwargs.get("mcp_servers") or []),
                     kwargs.get("brand_name"),
                     kwargs.get("schedule_json"),
+                    kwargs.get("max_concurrent_calls"),
                     now,
                     now,
                 ),
@@ -453,7 +464,7 @@ class PlatformStore:
             conn.commit()
         agent = self.get_agent(agent_id)
         if agent:
-            self._sync_phone_routes(agent)
+            self._sync_phone_routes(agent, phone_limits=kwargs.get("phone_limits"))
         return agent  # type: ignore[return-value]
 
     def update_agent(self, agent_id: str, **fields: Any) -> AgentInstance:
@@ -476,6 +487,8 @@ class PlatformStore:
             "mcp_servers",
             "brand_name",
             "schedule_json",
+            "max_concurrent_calls",
+            "phone_limits",
         }
         updates: dict[str, Any] = {}
         for k, v in fields.items():
@@ -487,6 +500,9 @@ class PlatformStore:
                 nums = [str(n).strip() for n in (v or []) if str(n).strip()]
                 updates["phone_numbers_json"] = json.dumps(nums)
                 updates["phone_number"] = nums[0] if nums else None
+                continue
+            if k == "phone_limits":
+                updates["_phone_limits"] = v
                 continue
             updates[k] = v
         if not updates:
@@ -510,8 +526,9 @@ class PlatformStore:
         updated = self.get_agent(agent_id)
         if not updated:
             raise ValueError("Agente no encontrado")
-        if any(k in updates for k in ("phone_number", "phone_numbers_json", "sip_trunk_id")):
-            self._sync_phone_routes(updated)
+        phone_limits = updates.pop("_phone_limits", None)
+        if any(k in updates for k in ("phone_number", "phone_numbers_json", "sip_trunk_id")) or phone_limits is not None:
+            self._sync_phone_routes(updated, phone_limits=phone_limits)
         return updated
 
     def duplicate_agent(self, agent_id: str, *, slug: str, display_name: str) -> AgentInstance:
@@ -534,6 +551,12 @@ class PlatformStore:
             mcp_servers=list(source.mcp_servers),
             brand_name=source.brand_name,
             schedule_json=source.schedule_json,
+            max_concurrent_calls=source.max_concurrent_calls,
+            phone_limits={
+                r.phone_number: r.max_concurrent_calls
+                for r in self.list_phone_routes(source.id)
+                if r.max_concurrent_calls is not None
+            },
         )
 
     def delete_agent(self, agent_id: str) -> None:
@@ -549,17 +572,32 @@ class PlatformStore:
             nums.insert(0, agent.phone_number.strip())
         return list(dict.fromkeys(n for n in nums if n))
 
-    def _sync_phone_routes(self, agent: AgentInstance) -> None:
+    def _sync_phone_routes(
+        self,
+        agent: AgentInstance,
+        *,
+        phone_limits: dict[str, int | None] | None = None,
+    ) -> None:
         numbers = self._agent_phone_list(agent)
+        limits = phone_limits or {}
         with self._connect() as conn:
             conn.execute("DELETE FROM phone_routes WHERE agent_instance_id = ?", (agent.id,))
             for num in numbers:
                 conn.execute(
                     """
-                    INSERT INTO phone_routes (id, tenant_id, agent_instance_id, phone_number, sip_trunk_id, enabled)
-                    VALUES (?, ?, ?, ?, ?, 1)
+                    INSERT INTO phone_routes (
+                        id, tenant_id, agent_instance_id, phone_number, sip_trunk_id, enabled, max_concurrent_calls
+                    )
+                    VALUES (?, ?, ?, ?, ?, 1, ?)
                     """,
-                    (_new_id("phn"), agent.tenant_id, agent.id, num, agent.sip_trunk_id),
+                    (
+                        _new_id("phn"),
+                        agent.tenant_id,
+                        agent.id,
+                        num,
+                        agent.sip_trunk_id,
+                        limits.get(num),
+                    ),
                 )
             conn.commit()
 
@@ -569,6 +607,7 @@ class PlatformStore:
                 "SELECT * FROM phone_routes WHERE agent_instance_id = ? ORDER BY phone_number",
                 (agent_instance_id,),
             ).fetchall()
+        keys = rows[0].keys() if rows else ()
         return [
             PhoneRoute(
                 id=r["id"],
@@ -577,6 +616,9 @@ class PlatformStore:
                 phone_number=r["phone_number"],
                 sip_trunk_id=r["sip_trunk_id"],
                 enabled=bool(r["enabled"]),
+                max_concurrent_calls=r["max_concurrent_calls"]
+                if "max_concurrent_calls" in keys
+                else None,
             )
             for r in rows
         ]
@@ -604,6 +646,7 @@ class PlatformStore:
                 ).fetchone()
         if not row:
             return None
+        keys = row.keys()
         return PhoneRoute(
             id=row["id"],
             tenant_id=row["tenant_id"],
@@ -611,7 +654,32 @@ class PlatformStore:
             phone_number=row["phone_number"],
             sip_trunk_id=row["sip_trunk_id"],
             enabled=bool(row["enabled"]),
+            max_concurrent_calls=row["max_concurrent_calls"]
+            if "max_concurrent_calls" in keys
+            else None,
         )
+
+    def list_tenant_phone_routes(self, tenant_id: str) -> list[PhoneRoute]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM phone_routes WHERE tenant_id = ? ORDER BY phone_number",
+                (tenant_id,),
+            ).fetchall()
+        keys = rows[0].keys() if rows else ()
+        return [
+            PhoneRoute(
+                id=r["id"],
+                tenant_id=r["tenant_id"],
+                agent_instance_id=r["agent_instance_id"],
+                phone_number=r["phone_number"],
+                sip_trunk_id=r["sip_trunk_id"],
+                enabled=bool(r["enabled"]),
+                max_concurrent_calls=r["max_concurrent_calls"]
+                if "max_concurrent_calls" in keys
+                else None,
+            )
+            for r in rows
+        ]
 
     def list_schedules(self, agent_instance_id: str) -> list[AgentSchedule]:
         with self._connect() as conn:

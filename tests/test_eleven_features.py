@@ -11,9 +11,16 @@ from call_management.admin.auth_store import ensure_bootstrap_user
 from call_management.crm.database import Appointment, CRMDatabase, reset_crm_singleton
 from call_management.tenancy.platform_store import get_platform_store, reset_platform_store
 from call_management.tenancy.queue import (
+    QueueLimits,
+    agent_active_count,
+    build_queue_limits,
+    number_active_count,
     register_active_call,
+    release,
     reset_queue_state,
+    resolve_queue_limits_from_store,
     supervisor_snapshot,
+    try_acquire,
     unregister_active_call,
 )
 from call_management.tenancy.webhooks import WEBHOOK_EVENTS
@@ -287,3 +294,130 @@ def test_permissions_supervisor_and_export_modules():
     assert can_access_route("viewer", "/supervisor", ["supervisor"])
     assert can_access_api("admin", "/api/supervisor")
     assert can_access_api("admin", "/api/export/calls.csv")
+
+
+@pytest.mark.asyncio
+async def test_per_agent_concurrency_limits(monkeypatch):
+    monkeypatch.setenv("MAX_CONCURRENT_CALLS_PER_TENANT", "20")
+    store = get_platform_store()
+    tenant = store.ensure_default_tenant()
+    banco = store.create_agent(
+        tenant.id,
+        slug="banco",
+        display_name="Banco",
+        template_id="banking_support",
+        status="active",
+        max_concurrent_calls=8,
+    )
+    recepcion = store.create_agent(
+        tenant.id,
+        slug="recepcion",
+        display_name="Recepción",
+        template_id="receptionist",
+        status="active",
+        max_concurrent_calls=4,
+    )
+
+    banco_limits = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=banco.id,
+        dialed_number=None,
+    )
+    recepcion_limits = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=recepcion.id,
+        dialed_number=None,
+    )
+
+    for _ in range(8):
+        ok, blocked = await try_acquire(banco_limits)
+        assert ok and blocked is None
+    ok, blocked = await try_acquire(banco_limits)
+    assert not ok and blocked == "agent"
+    assert agent_active_count(banco.id) == 8
+
+    for _ in range(4):
+        ok, blocked = await try_acquire(recepcion_limits)
+        assert ok and blocked is None
+    ok, blocked = await try_acquire(recepcion_limits)
+    assert not ok and blocked == "agent"
+
+    await release(banco_limits)
+    ok, blocked = await try_acquire(banco_limits)
+    assert ok and blocked is None
+
+
+@pytest.mark.asyncio
+async def test_per_number_concurrency_limits(monkeypatch):
+    monkeypatch.setenv("MAX_CONCURRENT_CALLS_PER_TENANT", "20")
+    store = get_platform_store()
+    tenant = store.ensure_default_tenant()
+    agent = store.create_agent(
+        tenant.id,
+        slug="multi-line",
+        display_name="Multi línea",
+        template_id="receptionist",
+        status="active",
+        phone_number="+15551110001",
+        phone_numbers=["+15551110001", "+15551110002"],
+        phone_limits={"+15551110001": 2, "+15551110002": 4},
+        max_concurrent_calls=8,
+    )
+
+    line1 = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=agent.id,
+        dialed_number="+15551110001",
+    )
+    line2 = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=agent.id,
+        dialed_number="+15551110002",
+    )
+
+    for _ in range(2):
+        ok, blocked = await try_acquire(line1)
+        assert ok and blocked is None
+    ok, blocked = await try_acquire(line1)
+    assert not ok and blocked == "number"
+    assert number_active_count("+15551110001") == 2
+
+    for _ in range(4):
+        ok, blocked = await try_acquire(line2)
+        assert ok and blocked is None
+    ok, blocked = await try_acquire(line2)
+    assert not ok and blocked == "number"
+
+
+@pytest.mark.asyncio
+async def test_supervisor_snapshot_agent_limits(monkeypatch):
+    monkeypatch.setenv("MAX_CONCURRENT_CALLS_PER_TENANT", "12")
+    store = get_platform_store()
+    tenant = store.ensure_default_tenant()
+    agent = store.create_agent(
+        tenant.id,
+        slug="soporte",
+        display_name="Soporte",
+        template_id="support",
+        status="active",
+        max_concurrent_calls=3,
+    )
+    limits = build_queue_limits(
+        tenant_id=tenant.id,
+        agent_instance_id=agent.id,
+        agent_max_concurrent=3,
+    )
+    for _ in range(3):
+        await try_acquire(limits)
+
+    snap = supervisor_snapshot(
+        tenant.id,
+        agents=store.list_agents(tenant.id),
+        phone_routes=store.list_tenant_phone_routes(tenant.id),
+    )
+    assert snap["agent_limits"][0]["at_capacity"] is True
+    assert snap["tenant_limit"]["cap"] == 12

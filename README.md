@@ -31,7 +31,7 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 | Auth & RBAC | Password + WebAuthn; roles + módulos: `supervisor`, `export`, `audit`, `api_keys` |
 | Telephony | SIP inbound por DID, grabación Egress→S3, varios números por agente |
 | CRM | SQLite por tenant (Postgres opcional con `asyncpg`): customers, calls, appointments |
-| Cola y límites | Llamadas concurrentes y máximo por día por empresa |
+| Cola y límites | Concurrentes por empresa (env), por agente y por DID; máximo diario por plan |
 | Webhooks | `call.started`, `call.ended`, `appointment.*`, `agent.handoff` + auditoría y reintentos |
 | **API pública** | API keys por tenant (`/api/public/v1/*`) con scopes |
 | Observability | Post-call summaries, dashboard worker LiveKit, analytics accionables |
