@@ -1,9 +1,42 @@
 /** PCM16 helpers for browser microphone capture and playback. */
 
-const MIC_RELEASE_MS = 200;
+const MIC_RELEASE_MS = 400;
+const MIC_RELEASE_SAFARI_MS = 700;
+
+function isSafariLike(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua);
+}
 
 export function micReleaseDelay(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, MIC_RELEASE_MS));
+  const ms = isSafariLike() ? MIC_RELEASE_SAFARI_MS : MIC_RELEASE_MS;
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const MIC_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+/** getUserMedia with short retries — Safari AVAudioSession needs time between sessions. */
+export async function requestMicrophone(maxAttempts = 3): Promise<MediaStream> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS });
+    } catch (err) {
+      lastErr = err;
+      const retryable =
+        err instanceof DOMException &&
+        (err.name === "NotAllowedError" || err.message.includes("AVAudioSession"));
+      if (!retryable || attempt === maxAttempts) break;
+      await micReleaseDelay();
+    }
+  }
+  throw new Error(microphoneErrorMessage(lastErr));
 }
 
 /** User-facing message when getUserMedia / LiveKit mic fails (Safari AVAudioSession, etc.). */

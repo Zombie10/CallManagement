@@ -6,6 +6,7 @@ import {
   float32ToPCM16Base64,
   micReleaseDelay,
   microphoneErrorMessage,
+  requestMicrophone,
 } from "../lib/audio";
 
 const CHUNK_MS = 100;
@@ -41,6 +42,7 @@ type SessionLike = VoiceSessionResponse | VoiceSessionConfig;
 
 export function useXaiVoice() {
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState<VoiceTranscriptLine[]>([]);
@@ -417,6 +419,8 @@ export function useXaiVoice() {
       agent: string,
       context?: { phone_number?: string; customer_name?: string; tenant_id?: string; agent_instance_id?: string },
     ) => {
+      if (connecting) return;
+      setConnecting(true);
       setError(null);
       setTranscript([]);
       setToolCalls([]);
@@ -427,139 +431,137 @@ export function useXaiVoice() {
         customer_name: context?.customer_name,
         tenant_id: context?.tenant_id,
       };
-      await disconnect();
 
-      const voiceSession = await api.createVoiceSession(agent, {
-        phone_number: callContextRef.current.phone_number,
-        customer_name: callContextRef.current.customer_name,
-        tenant_id: context?.tenant_id,
-        agent_instance_id: context?.agent_instance_id,
-      });
-      setSessionInfo(voiceSession);
-      sessionConfigRef.current = voiceSession;
-
-      const ctx = new AudioContext({ sampleRate: XAI_AUDIO_RATE });
-      audioCtxRef.current = ctx;
-      if (ctx.state === "suspended") await ctx.resume();
-      const sampleRate = ctx.sampleRate;
-      sampleRateRef.current = sampleRate;
-
-      const playbackGain = ctx.createGain();
-      playbackGain.gain.value = 1;
-      playbackGain.connect(ctx.destination);
-      playbackGainRef.current = playbackGain;
-
-      let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+        await disconnect();
+
+        const voiceSession = await api.createVoiceSession(agent, {
+          phone_number: callContextRef.current.phone_number,
+          customer_name: callContextRef.current.customer_name,
+          tenant_id: context?.tenant_id,
+          agent_instance_id: context?.agent_instance_id,
         });
-      } catch (err) {
-        throw new Error(microphoneErrorMessage(err));
-      }
-      mediaRef.current = stream;
+        setSessionInfo(voiceSession);
+        sessionConfigRef.current = voiceSession;
 
-      const url = `${voiceSession.ws_url}?model=${encodeURIComponent(voiceSession.model)}`;
-      const token = voiceSession.client_secret.value;
-      const ws = new WebSocket(url, [`xai-client-secret.${token}`]);
+        const ctx = new AudioContext({ sampleRate: XAI_AUDIO_RATE });
+        audioCtxRef.current = ctx;
+        if (ctx.state === "suspended") await ctx.resume();
+        const sampleRate = ctx.sampleRate;
+        sampleRateRef.current = sampleRate;
 
-      await new Promise<void>((resolve, reject) => {
-        ws.onopen = () => resolve();
-        ws.onerror = () => reject(new Error("No se pudo conectar al Voice Agent de xAI"));
-        ws.onclose = (ev) => {
-          if (!configuredRef.current) reject(new Error(`WebSocket cerrado (${ev.code})`));
-        };
-      });
+        const playbackGain = ctx.createGain();
+        playbackGain.gain.value = 1;
+        playbackGain.connect(ctx.destination);
+        playbackGainRef.current = playbackGain;
 
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data as string) as XaiMessage;
-          if (
-            (message.type === "conversation.created" || message.type === "session.created") &&
-            !configuredRef.current
-          ) {
-            sendSessionUpdate(ws, voiceSession, sampleRate);
-          }
-          if (message.type === "session.updated" && !configuredRef.current) {
-            configuredRef.current = true;
-            setConnected(true);
-          }
-          handleServerMessage(message);
-        } catch {
-          /* ignore parse errors */
-        }
-      };
+        const stream = await requestMicrophone();
+        mediaRef.current = stream;
 
-      ws.onclose = () => {
-        setConnected(false);
-        configuredRef.current = false;
-        stopCapture();
-      };
+        const url = `${voiceSession.ws_url}?model=${encodeURIComponent(voiceSession.model)}`;
+        const token = voiceSession.client_secret.value;
+        const ws = new WebSocket(url, [`xai-client-secret.${token}`]);
 
-      wsRef.current = ws;
+        await new Promise<void>((resolve, reject) => {
+          ws.onopen = () => resolve();
+          ws.onerror = () => reject(new Error("No se pudo conectar al Voice Agent de xAI"));
+          ws.onclose = (ev) => {
+            if (!configuredRef.current) reject(new Error(`WebSocket cerrado (${ev.code})`));
+          };
+        });
 
-      const source = ctx.createMediaStreamSource(stream);
-      sourceNodeRef.current = source;
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
-      let buffers: Float32Array[] = [];
-      let total = 0;
-      const chunkSamples = (sampleRate * CHUNK_MS) / 1000;
-
-      processor.onaudioprocess = (ev) => {
-        const input = ev.inputBuffer.getChannelData(0);
-        let sum = 0;
-        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-        setAudioLevel(Math.sqrt(sum / input.length));
-
-        buffers.push(new Float32Array(input));
-        total += input.length;
-
-        while (
-          total >= chunkSamples &&
-          configuredRef.current &&
-          ws.readyState === WebSocket.OPEN &&
-          !assistantSpeakingRef.current
-        ) {
-          const chunk = new Float32Array(chunkSamples);
-          let offset = 0;
-          while (offset < chunkSamples && buffers.length) {
-            const buf = buffers[0];
-            const need = chunkSamples - offset;
-            if (buf.length <= need) {
-              chunk.set(buf, offset);
-              offset += buf.length;
-              total -= buf.length;
-              buffers.shift();
-            } else {
-              chunk.set(buf.subarray(0, need), offset);
-              buffers[0] = buf.subarray(need);
-              offset += need;
-              total -= need;
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data as string) as XaiMessage;
+            if (
+              (message.type === "conversation.created" || message.type === "session.created") &&
+              !configuredRef.current
+            ) {
+              sendSessionUpdate(ws, voiceSession, sampleRate);
             }
+            if (message.type === "session.updated" && !configuredRef.current) {
+              configuredRef.current = true;
+              setConnected(true);
+            }
+            handleServerMessage(message);
+          } catch {
+            /* ignore parse errors */
           }
-          ws.send(
-            JSON.stringify({
-              type: "input_audio_buffer.append",
-              audio: float32ToPCM16Base64(chunk),
-            }),
-          );
-        }
-      };
+        };
 
-      source.connect(processor);
-      const silentGain = ctx.createGain();
-      silentGain.gain.value = 0;
-      processor.connect(silentGain);
-      silentGain.connect(ctx.destination);
-      processorRef.current = processor;
-      setCapturing(true);
+        ws.onclose = () => {
+          setConnected(false);
+          configuredRef.current = false;
+          stopCapture();
+        };
+
+        wsRef.current = ws;
+
+        const source = ctx.createMediaStreamSource(stream);
+        sourceNodeRef.current = source;
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        let buffers: Float32Array[] = [];
+        let total = 0;
+        const chunkSamples = (sampleRate * CHUNK_MS) / 1000;
+
+        processor.onaudioprocess = (ev) => {
+          const input = ev.inputBuffer.getChannelData(0);
+          let sum = 0;
+          for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+          setAudioLevel(Math.sqrt(sum / input.length));
+
+          buffers.push(new Float32Array(input));
+          total += input.length;
+
+          while (
+            total >= chunkSamples &&
+            configuredRef.current &&
+            ws.readyState === WebSocket.OPEN &&
+            !assistantSpeakingRef.current
+          ) {
+            const chunk = new Float32Array(chunkSamples);
+            let offset = 0;
+            while (offset < chunkSamples && buffers.length) {
+              const buf = buffers[0];
+              const need = chunkSamples - offset;
+              if (buf.length <= need) {
+                chunk.set(buf, offset);
+                offset += buf.length;
+                total -= buf.length;
+                buffers.shift();
+              } else {
+                chunk.set(buf.subarray(0, need), offset);
+                buffers[0] = buf.subarray(need);
+                offset += need;
+                total -= need;
+              }
+            }
+            ws.send(
+              JSON.stringify({
+                type: "input_audio_buffer.append",
+                audio: float32ToPCM16Base64(chunk),
+              }),
+            );
+          }
+        };
+
+        source.connect(processor);
+        const silentGain = ctx.createGain();
+        silentGain.gain.value = 0;
+        processor.connect(silentGain);
+        silentGain.connect(ctx.destination);
+        processorRef.current = processor;
+        setCapturing(true);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : microphoneErrorMessage(err);
+        setError(msg);
+        await disconnect();
+        throw err;
+      } finally {
+        setConnecting(false);
+      }
     },
-    [disconnect, handleServerMessage, sendSessionUpdate, stopCapture],
+    [connecting, disconnect, handleServerMessage, sendSessionUpdate, stopCapture],
   );
 
   useEffect(() => () => {
@@ -568,6 +570,7 @@ export function useXaiVoice() {
 
   return {
     connected,
+    connecting,
     capturing,
     audioLevel,
     transcript,

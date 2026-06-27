@@ -352,12 +352,12 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
     <div className="animate-fade-in flex h-[min(640px,calc(100vh-11rem))] min-h-[400px] flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-          <AgentPickerSelect picker={picker} disabled={voice.connected} />
+          <AgentPickerSelect picker={picker} disabled={voice.connected || voice.connecting} />
           {!voice.connected ? (
             <button
               type="button"
               className="btn-primary"
-              disabled={!status?.xai_voice_ready}
+              disabled={!status?.xai_voice_ready || voice.connecting}
               onClick={() => {
                 voice.setError(null);
                 voice
@@ -366,11 +366,13 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
                     tenant_id: picker.sessionContext.tenant_id,
                     agent_instance_id: picker.sessionContext.agent_instance_id,
                   })
-                  .catch((err) => voice.setError(String(err)));
+                  .catch(() => {
+                    /* error shown via voice.error */
+                  });
               }}
             >
-              <Zap className="h-4 w-4" />
-              Conectar
+              {voice.connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {voice.connecting ? "Conectando…" : "Conectar"}
             </button>
           ) : (
             <button
