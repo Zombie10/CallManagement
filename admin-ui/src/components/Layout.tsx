@@ -45,7 +45,7 @@ export function Layout() {
   );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 p-4 md:p-6">
+    <div className="mx-auto flex min-h-dvh max-w-[1600px] gap-4 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:gap-6 md:p-6">
       <aside className="glass-card animate-fade-in hidden w-64 shrink-0 flex-col p-4 md:flex">
         <div className="mb-8 px-2">
           <div className="flex items-center gap-3">

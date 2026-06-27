@@ -234,31 +234,50 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
 
 function VoiceControls({
   picker,
-  connected,
-  busy,
+  sessionActive,
+  connecting,
+  connectDisabled,
   onConnect,
   onDisconnect,
 }: {
   picker: AgentPicker;
-  connected: boolean;
-  busy: boolean;
+  sessionActive: boolean;
+  connecting: boolean;
+  connectDisabled?: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-      <AgentPickerSelect picker={picker} disabled={connected || busy} />
-      {!connected ? (
-        <button type="button" className="btn-primary" disabled={busy} onClick={onConnect}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-          Conectar
-        </button>
-      ) : (
-        <button type="button" className="btn-ghost text-red-300" onClick={onDisconnect}>
-          <MicOff className="h-4 w-4" />
-          Desconectar
-        </button>
-      )}
+    <div className="voice-toolbar p-3 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <AgentPickerSelect
+          picker={picker}
+          disabled={sessionActive}
+          className="w-full sm:w-56"
+        />
+        <div className="voice-toolbar-mobile-actions sm:ml-auto">
+          {sessionActive ? (
+            <button
+              type="button"
+              className="btn-ghost col-span-2 w-full text-red-300 sm:col-auto sm:w-auto"
+              onClick={onDisconnect}
+            >
+              <MicOff className="h-4 w-4" />
+              {connecting ? "Cancelar" : "Desconectar"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary col-span-2 w-full sm:col-auto sm:w-auto"
+              disabled={connectDisabled}
+              onClick={onConnect}
+            >
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+              {connecting ? "Conectando…" : "Conectar"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -272,8 +291,9 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
     <div className="animate-fade-in">
       <VoiceControls
         picker={picker}
-        connected={voice.connected}
-        busy={voice.connecting || !status?.livekit_ready}
+        sessionActive={voice.connected || voice.connecting}
+        connecting={voice.connecting}
+        connectDisabled={voice.connecting || !status?.livekit_ready}
         onConnect={() => {
           voice.setError(null);
           voice
@@ -348,48 +368,36 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
   const chatScrollRef = useChatAutoScroll(voice.transcript);
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
 
+  const sessionActive = voice.connected || voice.connecting || voice.capturing;
+
   return (
-    <div className="animate-fade-in flex h-[min(640px,calc(100vh-11rem))] min-h-[400px] flex-col lg:flex-row">
+    <div className="animate-fade-in playground-voice-shell flex min-h-[320px] flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
-          <AgentPickerSelect picker={picker} disabled={voice.connected || voice.connecting} />
-          {!voice.connected ? (
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!status?.xai_voice_ready || voice.connecting}
-              onClick={() => {
-                voice.setError(null);
-                voice
-                  .start(picker.templateId, {
-                    phone_number: PLAYGROUND_PHONE,
-                    tenant_id: picker.sessionContext.tenant_id,
-                    agent_instance_id: picker.sessionContext.agent_instance_id,
-                  })
-                  .catch(() => {
-                    /* error shown via voice.error */
-                  });
-              }}
-            >
-              {voice.connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-              {voice.connecting ? "Conectando…" : "Conectar"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn-ghost text-red-300"
-              onClick={() => void voice.stop()}
-            >
-              <MicOff className="h-4 w-4" />
-              Desconectar
-            </button>
-          )}
-          {voice.sessionInfo && (
-            <span className="text-xs text-slate-500">
-              {agentLabel(voice.currentAgent)} · {voice.sessionInfo.voice}
-            </span>
-          )}
-        </div>
+        <VoiceControls
+          picker={picker}
+          sessionActive={sessionActive}
+          connecting={voice.connecting}
+          connectDisabled={!status?.xai_voice_ready || voice.connecting}
+          onConnect={() => {
+            voice.setError(null);
+            voice
+              .start(picker.templateId, {
+                phone_number: PLAYGROUND_PHONE,
+                tenant_id: picker.sessionContext.tenant_id,
+                agent_instance_id: picker.sessionContext.agent_instance_id,
+              })
+              .catch(() => {
+                /* error shown via voice.error */
+              });
+          }}
+          onDisconnect={() => void voice.stop()}
+        />
+
+        {voice.sessionInfo && (
+          <p className="border-b border-white/5 px-3 py-2 text-xs text-slate-500 sm:px-4">
+            {agentLabel(voice.currentAgent)} · {voice.sessionInfo.voice}
+          </p>
+        )}
 
         {!status?.xai_voice_ready && (
           <p className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
@@ -429,7 +437,7 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
         </div>
         {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
       </div>
-      <aside className="min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
+      <aside className="hidden min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:block lg:w-80 lg:border-l lg:border-t-0">
         <ToolCallLog entries={voice.toolCalls} title="Tools (voz xAI)" />
       </aside>
     </div>
@@ -545,19 +553,21 @@ export function Playground() {
     >
       <TenantContextBar emphasis agentLabel={picker.activeLabel} />
 
-      <header className="stagger-1 flex flex-wrap items-start gap-4">
+      <header className="stagger-1 flex flex-wrap items-start gap-3 sm:gap-4">
         {tenant?.logo_url ? (
           <img
             src={tenant.logo_url}
             alt={tenant.name}
-            className="h-12 rounded-xl object-contain ring-1 ring-white/10"
+            className="h-10 rounded-xl object-contain ring-1 ring-white/10 sm:h-12"
           />
         ) : null}
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-xl font-semibold tracking-tight sm:text-3xl">
             {tenant?.name ? `${tenant.name} — Probar agente` : "Probar agente"}
           </h1>
-          <p className="mt-1 text-slate-400">Voz xAI directa o LiveKit producción · Texto multi-agente</p>
+          <p className="mt-1 text-sm text-slate-400 sm:text-base">
+            Voz xAI directa o LiveKit · Texto multi-agente
+          </p>
         </div>
       </header>
 
@@ -567,17 +577,17 @@ export function Playground() {
         </div>
       )}
 
-      <div className="stagger-3 flex gap-2">
+      <div className="stagger-3 grid grid-cols-2 gap-2 sm:flex sm:w-auto">
         <button
           type="button"
-          className={clsx("btn-ghost", mode === "voice" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
+          className={clsx("btn-ghost w-full sm:w-auto", mode === "voice" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("voice")}
         >
           <Mic className="h-4 w-4" /> Voz
         </button>
         <button
           type="button"
-          className={clsx("btn-ghost", mode === "text" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
+          className={clsx("btn-ghost w-full sm:w-auto", mode === "text" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("text")}
         >
           <MessageSquare className="h-4 w-4" /> Texto

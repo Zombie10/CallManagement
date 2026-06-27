@@ -72,31 +72,36 @@ export function useLiveKitVoice() {
     }
   }, []);
 
-  const disconnect = useCallback(async () => {
-    stopMeter();
-    cleanupAudioElements();
-    const room = roomRef.current;
-    roomRef.current = null;
-    if (room) {
-      room.removeAllListeners();
-      try {
-        await room.localParticipant.setMicrophoneEnabled(false);
-      } catch {
-        /* mic may already be off */
+  const disconnect = useCallback(
+    async (options?: { releaseMic?: boolean }) => {
+      stopMeter();
+      cleanupAudioElements();
+      const room = roomRef.current;
+      roomRef.current = null;
+      if (room) {
+        room.removeAllListeners();
+        try {
+          await room.localParticipant.setMicrophoneEnabled(false);
+        } catch {
+          /* mic may already be off */
+        }
+        await room.disconnect();
       }
-      await room.disconnect();
-    }
-    setConnected(false);
-    setAgentJoined(false);
-    setAgentIdentity(null);
-    await micReleaseDelay();
-  }, [cleanupAudioElements, stopMeter]);
+      setConnected(false);
+      setAgentJoined(false);
+      setAgentIdentity(null);
+      if (options?.releaseMic !== false) {
+        await micReleaseDelay();
+      }
+    },
+    [cleanupAudioElements, stopMeter],
+  );
 
   const start = useCallback(
     async (input: LiveKitPlaygroundInput) => {
       setError(null);
       setConnecting(true);
-      await disconnect();
+      await disconnect({ releaseMic: false });
 
       try {
         const session = await api.createLiveKitPlayground(input);

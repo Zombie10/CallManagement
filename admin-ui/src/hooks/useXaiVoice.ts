@@ -389,30 +389,35 @@ export function useXaiVoice() {
     setAudioLevel(0);
   }, []);
 
-  const disconnect = useCallback(async () => {
-    stopCapture();
-    stopPlayback();
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    configuredRef.current = false;
-    assistantSpeakingRef.current = false;
-    playbackGainRef.current = null;
-    const ctx = audioCtxRef.current;
-    audioCtxRef.current = null;
-    if (ctx && ctx.state !== "closed") {
-      try {
-        await ctx.close();
-      } catch {
-        /* already closing */
+  const disconnect = useCallback(
+    async (options?: { releaseMic?: boolean }) => {
+      stopCapture();
+      stopPlayback();
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
       }
-    }
-    setConnected(false);
-    currentLineRef.current = null;
-    await micReleaseDelay();
-  }, [stopCapture, stopPlayback]);
+      configuredRef.current = false;
+      assistantSpeakingRef.current = false;
+      playbackGainRef.current = null;
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      if (ctx && ctx.state !== "closed") {
+        try {
+          await ctx.close();
+        } catch {
+          /* already closing */
+        }
+      }
+      setConnected(false);
+      currentLineRef.current = null;
+      if (options?.releaseMic !== false) {
+        await micReleaseDelay();
+      }
+    },
+    [stopCapture, stopPlayback],
+  );
 
   const start = useCallback(
     async (
@@ -433,7 +438,11 @@ export function useXaiVoice() {
       };
 
       try {
-        await disconnect();
+        // iOS Safari: getUserMedia must run right after the tap — no network/delay before it.
+        await disconnect({ releaseMic: false });
+
+        const stream = await requestMicrophone({ preserveUserActivation: true });
+        mediaRef.current = stream;
 
         const voiceSession = await api.createVoiceSession(agent, {
           phone_number: callContextRef.current.phone_number,
@@ -454,9 +463,6 @@ export function useXaiVoice() {
         playbackGain.gain.value = 1;
         playbackGain.connect(ctx.destination);
         playbackGainRef.current = playbackGain;
-
-        const stream = await requestMicrophone();
-        mediaRef.current = stream;
 
         const url = `${voiceSession.ws_url}?model=${encodeURIComponent(voiceSession.model)}`;
         const token = voiceSession.client_secret.value;

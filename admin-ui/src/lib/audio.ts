@@ -3,33 +3,53 @@
 const MIC_RELEASE_MS = 400;
 const MIC_RELEASE_SAFARI_MS = 700;
 
+export function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/i.test(navigator.userAgent);
+}
+
 function isSafariLike(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
-  return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua);
+  return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR|CriOS|FxiOS/i.test(ua);
 }
 
 export function micReleaseDelay(): Promise<void> {
-  const ms = isSafariLike() ? MIC_RELEASE_SAFARI_MS : MIC_RELEASE_MS;
+  const ms = isIOS() || isSafariLike() ? MIC_RELEASE_SAFARI_MS : MIC_RELEASE_MS;
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const MIC_CONSTRAINTS: MediaTrackConstraints = {
-  channelCount: 1,
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-};
+function microphoneConstraints(): MediaStreamConstraints {
+  if (isIOS()) {
+    return { audio: true };
+  }
+  return {
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  };
+}
 
-/** getUserMedia with short retries — Safari AVAudioSession needs time between sessions. */
-export async function requestMicrophone(maxAttempts = 3): Promise<MediaStream> {
+/**
+ * getUserMedia — on iOS must run immediately after the user tap (no awaits before this).
+ * Retries only when not preserving user activation (e.g. explicit reconnect after delay).
+ */
+export async function requestMicrophone(options?: {
+  maxAttempts?: number;
+  preserveUserActivation?: boolean;
+}): Promise<MediaStream> {
+  const maxAttempts = options?.preserveUserActivation ? 1 : (options?.maxAttempts ?? 3);
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS });
+      return await navigator.mediaDevices.getUserMedia(microphoneConstraints());
     } catch (err) {
       lastErr = err;
       const retryable =
+        !options?.preserveUserActivation &&
         err instanceof DOMException &&
         (err.name === "NotAllowedError" || err.message.includes("AVAudioSession"));
       if (!retryable || attempt === maxAttempts) break;
@@ -49,10 +69,14 @@ export function microphoneErrorMessage(err: unknown): string {
     raw.includes("CaptureDevice") ||
     raw.includes("Permission denied")
   ) {
+    const iosHint = isIOS()
+      ? "En iPhone: Ajustes → Safari → Micrófono → Permitir en este sitio. "
+      : "";
     return (
-      "No se pudo usar el micrófono. Pulsa Desconectar, espera un momento y vuelve a Conectar. " +
-      "Si persiste: cierra otras pestañas/apps de voz (Zoom, Meet), revisa permisos del micrófono " +
-      "en el navegador y recarga la página. No está relacionado con otra persona usando el mismo agente."
+      "No se pudo usar el micrófono. Pulsa Cancelar/Desconectar, espera un momento y vuelve a Conectar. " +
+      iosHint +
+      "Si persiste: cierra otras apps de voz y recarga la página. " +
+      "No está relacionado con otra persona usando el mismo agente."
     );
   }
   if (name === "NotFoundError" || raw.includes("device not found")) {
