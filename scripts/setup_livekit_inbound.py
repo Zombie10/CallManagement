@@ -16,6 +16,11 @@ from livekit import api
 from livekit.protocol import room as room_proto
 from livekit.protocol import sip as sip_proto
 
+try:
+    from livekit.protocol.agent_dispatch import RoomAgentDispatch
+except ImportError:
+    RoomAgentDispatch = None  # type: ignore[misc, assignment]
+
 AGENT_NAME = "call-management"
 DEFAULT_ROOM_PREFIX = "call-"
 
@@ -49,10 +54,23 @@ def _rule_matches(existing: sip_proto.SIPDispatchRuleInfo, *, number: str, prefi
     return False
 
 
+def _build_room_config() -> room_proto.RoomConfiguration:
+    if RoomAgentDispatch is not None:
+        return room_proto.RoomConfiguration(
+            agents=[RoomAgentDispatch(agent_name=AGENT_NAME)]
+        )
+    agent = room_proto.RoomAgent()
+    agent.dispatches.add(agent_name=AGENT_NAME)
+    return room_proto.RoomConfiguration(agents=[agent])
+
+
 def _has_agent_dispatch(room_config: room_proto.RoomConfiguration) -> bool:
     for agent in room_config.agents:
-        for dispatch in agent.dispatches:
-            if dispatch.agent_name == AGENT_NAME:
+        name = getattr(agent, "agent_name", None)
+        if name == AGENT_NAME:
+            return True
+        for dispatch in getattr(agent, "dispatches", []):
+            if getattr(dispatch, "agent_name", None) == AGENT_NAME:
                 return True
     return False
 
@@ -75,15 +93,7 @@ async def ensure_dispatch_rule(
                     return item.sip_dispatch_rule_id
                 print("  WARNING: rule exists but agent dispatch may be missing; update in LiveKit Cloud")
 
-        room_config = room_proto.RoomConfiguration(
-            agents=[
-                room_proto.RoomAgent(
-                    dispatches=[
-                        room_proto.RoomAgentDispatch(agent_name=AGENT_NAME),
-                    ]
-                )
-            ]
-        )
+        room_config = _build_room_config()
         rule = sip_proto.SIPDispatchRule(
             dispatch_rule_individual=sip_proto.SIPDispatchRuleIndividual(
                 room_prefix=room_prefix,
