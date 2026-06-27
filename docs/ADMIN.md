@@ -4,6 +4,8 @@ The admin console is a **React** SPA (`admin-ui/`) backed by a **FastAPI** app (
 
 **Production:** https://paymercadogo.com/callmgmt/
 
+**Telefonía SIP / LiveKit:** [TELEPHONY.md](TELEPHONY.md) — dispatch rule, DID, worker, troubleshooting.
+
 ## Running locally
 
 ```bash
@@ -35,7 +37,7 @@ Default URL: **http://127.0.0.1:8080**
 |-------|-------------|-------|
 | `/tenants` | Crear y gestionar empresas, logo/color, métricas | `super_admin` |
 | `/my-agents` | Agentes por empresa: voz, teléfonos, horarios, estado | `super_admin`, `admin` |
-| `/setup` | Guía para primera llamada real (worker + DID) | `super_admin`, `admin` |
+| `/setup` | Guía primera llamada SIP (worker + dispatch + DID) | `super_admin`, `admin` |
 
 Cada empresa tiene:
 
@@ -157,7 +159,8 @@ ADMIN_AUTH_DISABLED=true
 ### Voice — LiveKit production
 
 - Misma pipeline que llamadas SIP reales.
-- Requiere `LIVEKIT_*` y worker activo (`callmanagement-worker`).
+- Requiere `LIVEKIT_*` (WebSocket URL del proyecto, ver [TELEPHONY.md](TELEPHONY.md)) y worker activo (`callmanagement-worker`).
+- Llamadas PSTN además requieren dispatch rule en LiveKit y DID en **Mis agentes**.
 
 ### White-label
 

@@ -82,10 +82,16 @@ MAX_CONCURRENT_CALLS_PER_TENANT=12
 # (max_concurrent_calls on agent instance; optional cap per phone number).
 # All three layers apply: tenant env cap AND agent cap AND number cap when set.
 
-# LiveKit (worker + LiveKit voice mode)
-LIVEKIT_URL=wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=...
+# LiveKit — project "call management" (p_39db3sg0f79)
+# WebSocket URL from Settings → Keys (NOT the SIP URI subdomain)
+LIVEKIT_URL=wss://call-management-6g9fmqf0.livekit.cloud
+LIVEKIT_API_KEY=API...
 LIVEKIT_API_SECRET=...
+
+# SIP URI for external trunks only: sip:39db3sg0f79.sip.livekit.cloud
+# Inbound dispatch (once per project / DID):
+#   uv run python scripts/setup_livekit_inbound.py --phone +15109379101
+# See docs/TELEPHONY.md
 
 # Optional: SIP recording via LiveKit Egress → S3/MinIO
 # RECORDINGS_S3_BUCKET=your-bucket
@@ -215,6 +221,16 @@ uv run -m call_management.server start
 
 Requires valid `LIVEKIT_*`. On VPS, use `callmanagement-worker.service`.
 
+Worker registers as `call-management`. Inbound PSTN needs a **dispatch rule** in LiveKit Cloud (script or manual). Full guide: [TELEPHONY.md](TELEPHONY.md).
+
+```bash
+# Verify worker registered
+journalctl -u callmanagement-worker -n 30 | grep registered
+
+# Create or verify dispatch rule for your DID
+uv run python scripts/setup_livekit_inbound.py --phone +15109379101
+```
+
 ### Docker (agent worker)
 
 ```bash
@@ -286,7 +302,9 @@ sudo nginx -t && sudo systemctl reload nginx
 | 502 on `/callmgmt/` | `systemctl status callmanagement`, port 8080 |
 | UI blank / assets 404 | Rebuild with `VITE_BASE=/callmgmt/`, rsync `dist/` |
 | Voice won't connect | `XAI_API_KEY`, `/api/chat/status` → `xai_voice_ready` |
-| LiveKit / SIP fails | `systemctl status callmanagement-worker`, `LIVEKIT_*` |
+| LiveKit / SIP fails | `systemctl status callmanagement-worker`, `LIVEKIT_*` (WebSocket URL, not SIP subdomain) |
+| Call rings, no agent | Dispatch rule → `call-management`; worker Connected in LiveKit Agents |
+| Wrong agent / no CRM route | DID en E.164 en **Mis agentes** (ej. `+15109379101`) |
 | No calls in analytics | Tenant context (`X-Tenant-Id`), data in `data/tenants/*/crm.db` |
 | Passkey fails | `ADMIN_ORIGIN` must be `https://paymercadogo.com/callmgmt` (no trailing issues) |
 | git pull conflicts on VPS | `git stash -u` then `git pull`, or reset to `origin/main` |

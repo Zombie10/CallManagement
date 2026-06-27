@@ -122,10 +122,11 @@ def main() -> int:
     print("  2. Mis agentes → revisar los 3 agentes y horarios")
     print("  3. Playground → elegir agente y probar voz")
     print("\nLlamada real desde celular:")
-    print("  - Configura SIP trunk en LiveKit + DID real")
-    print("  - Asigna el DID al campo teléfono del agente")
-    print("  - Ejecuta el worker: uv run -m call_management.server start")
-    print("  - Marca el DID desde tu celular")
+    print("  - LIVEKIT_* en .env (WebSocket URL desde cloud.livekit.io → Keys)")
+    print("  - Dispatch rule: uv run python scripts/setup_livekit_inbound.py --phone +DID")
+    print("  - Asigna el DID E.164 al agente en Mis agentes")
+    print("  - Worker: systemctl start callmanagement-worker")
+    print("  - Ver docs/TELEPHONY.md")
     return 0
 
 

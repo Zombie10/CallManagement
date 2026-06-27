@@ -15,7 +15,12 @@ SECRET_MARKERS = ("KEY", "SECRET", "TOKEN", "PASSWORD", "WEBHOOK")
 
 SETTING_SECTIONS: dict[str, list[dict[str, Any]]] = {
     "livekit": [
-        {"key": "LIVEKIT_URL", "label": "LiveKit URL", "type": "text"},
+        {
+            "key": "LIVEKIT_URL",
+            "label": "LiveKit WebSocket URL",
+            "type": "text",
+            "hint": "Desde cloud.livekit.io → Keys (no el SIP URI). Ej: wss://call-management-6g9fmqf0.livekit.cloud",
+        },
         {"key": "LIVEKIT_API_KEY", "label": "API Key", "type": "secret"},
         {"key": "LIVEKIT_API_SECRET", "label": "API Secret", "type": "secret"},
     ],

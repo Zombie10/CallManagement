@@ -5,7 +5,15 @@ from __future__ import annotations
 import os
 import sys
 
-PLACEHOLDER_MARKERS = ("your-project", "AP...", "your_", "example.com", "changeme")
+PLACEHOLDER_MARKERS = (
+    "your-project",
+    "AP...",
+    "apidummy",
+    "dummydummy",
+    "your_",
+    "example.com",
+    "changeme",
+)
 
 
 def _is_placeholder(value: str | None) -> bool:
@@ -49,6 +57,8 @@ def print_dev_preflight() -> int:
     for issue in issues:
         print(f"  • {issue}")
     print("\nGet them from: https://cloud.livekit.io/ → Project → Settings → Keys")
+    print("Use the WebSocket URL from Keys/Connect (not the SIP URI subdomain).")
+    print("Telephony setup: docs/TELEPHONY.md")
     print("\nAdmin playground (voice needs this worker + LiveKit creds):")
     print("  uv run call-management-admin  →  http://127.0.0.1:8080/playground")
     print("\nLocal console (mic/speakers, no Cloud worker):")

@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """Configure LiveKit inbound dispatch for Call Management (SIP / phone numbers).
 
-Requires LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET in the environment.
+Creates a dispatch rule that routes inbound calls to agent ``call-management``
+with room prefix ``call-``.
+
+Requires LIVEKIT_URL (WebSocket URL from cloud.livekit.io → Keys, NOT the SIP URI),
+LIVEKIT_API_KEY, and LIVEKIT_API_SECRET in .env.
+
+Example (production project call management, DID US):
+
+    uv run python scripts/setup_livekit_inbound.py --phone +15109379101
+
+See docs/TELEPHONY.md for full telephony setup.
 """
 
 from __future__ import annotations

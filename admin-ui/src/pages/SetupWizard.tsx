@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, Loader2, Phone, Radio, Settings2 } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Loader2, Phone, Radio, Route, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTenant } from "../contexts/TenantContext";
@@ -7,16 +7,26 @@ import { api } from "../lib/api";
 import clsx from "clsx";
 
 const STEPS = [
-  { id: 1, title: "Worker activo", icon: Radio },
-  { id: 2, title: "Agente con teléfono", icon: Phone },
-  { id: 3, title: "Probar llamada", icon: Settings2 },
+  { id: 1, title: "Worker LiveKit", icon: Radio },
+  { id: 2, title: "Dispatch rule", icon: Route },
+  { id: 3, title: "DID en agente", icon: Phone },
+  { id: 4, title: "Probar llamada", icon: Settings2 },
 ];
+
+const DISPATCH_JSON = `{
+  "name": "Call Management inbound",
+  "rule": { "dispatchRuleIndividual": { "roomPrefix": "call-" } },
+  "inboundNumbers": ["+15109379101"],
+  "roomConfig": {
+    "agents": [{ "agentName": "call-management" }]
+  }
+}`;
 
 export function SetupWizard() {
   const queryClient = useQueryClient();
   const { tenant, tenantId } = useTenant();
   const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+15109379101");
 
   const { data: dashboard } = useQuery({
     queryKey: ["dashboard"],
@@ -34,21 +44,21 @@ export function SetupWizard() {
       const agents = agentsData?.agents || [];
       const target = agents.find((a) => a.status === "active") || agents[0];
       if (!target) throw new Error("Crea un agente primero en Mis agentes");
-      const numbers = [...(target.phone_numbers || []), phone].filter(Boolean);
-      const unique = [...new Set(numbers)];
+      const normalized = phone.trim();
+      const numbers = [...new Set([normalized, ...(target.phone_numbers || [])].filter(Boolean))];
       return api.updateTenantAgent(target.id, {
         ...target,
         slug: target.slug,
         display_name: target.display_name,
         template_id: target.template_id,
-        phone_number: unique[0] || phone,
-        phone_numbers: unique,
+        phone_number: numbers[0] || normalized,
+        phone_numbers: numbers,
         status: "active",
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-agents"] });
-      setStep(3);
+      setStep(4);
     },
   });
 
@@ -71,9 +81,20 @@ export function SetupWizard() {
       <header>
         <h1 className="font-display text-3xl font-semibold">Guía — Primera llamada real</h1>
         <p className="mt-1 text-slate-400">
-          {tenant?.name} · Configura SIP + worker para recibir llamadas desde un celular
+          {tenant?.name} · LiveKit + dispatch rule + DID en el agente
         </p>
       </header>
+
+      <div className="glass-card border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-slate-300">
+        <p>
+          <strong className="text-cyan-200">Proyecto LiveKit:</strong> call management ·{" "}
+          <code className="text-xs">p_39db3sg0f79</code>
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Worker URL: <code>wss://call-management-6g9fmqf0.livekit.cloud</code> · SIP (trunks externos):{" "}
+          <code>sip:39db3sg0f79.sip.livekit.cloud</code>
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {STEPS.map((s) => (
@@ -90,7 +111,7 @@ export function SetupWizard() {
           >
             <s.icon className="h-4 w-4" />
             {s.title}
-            {(s.id === 1 && workerOk) || (s.id === 2 && hasPhone) ? (
+            {(s.id === 1 && workerOk) || (s.id === 3 && hasPhone) ? (
               <Check className="h-3.5 w-3.5 text-emerald-400" />
             ) : null}
           </button>
@@ -99,7 +120,7 @@ export function SetupWizard() {
 
       {step === 1 && (
         <div className="glass-card space-y-4 p-6">
-          <h2 className="font-display text-lg font-semibold">1. Verificar worker LiveKit</h2>
+          <h2 className="font-display text-lg font-semibold">1. Worker LiveKit</h2>
           <dl className="grid gap-3 text-sm">
             <div className="flex justify-between border-b border-white/5 pb-2">
               <dt className="text-slate-400">LiveKit listo</dt>
@@ -120,7 +141,22 @@ export function SetupWizard() {
             ) : null}
           </dl>
           <p className="text-sm text-slate-400">
-            En el VPS: <code className="text-slate-300">systemctl status callmanagement-worker</code>
+            En el VPS: <code className="text-slate-300">LIVEKIT_URL</code>,{" "}
+            <code className="text-slate-300">LIVEKIT_API_KEY</code>,{" "}
+            <code className="text-slate-300">LIVEKIT_API_SECRET</code> desde{" "}
+            <a
+              href="https://cloud.livekit.io"
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan-300 hover:underline"
+            >
+              cloud.livekit.io
+            </a>{" "}
+            → Settings → Keys.
+          </p>
+          <p className="text-xs text-slate-500">
+            <code className="text-slate-400">systemctl status callmanagement-worker</code> · debe registrar{" "}
+            <code>call-management</code>
           </p>
           <button type="button" className="btn-primary" disabled={!workerOk} onClick={() => setStep(2)}>
             Continuar <ChevronRight className="h-4 w-4" />
@@ -130,19 +166,53 @@ export function SetupWizard() {
 
       {step === 2 && (
         <div className="glass-card space-y-4 p-6">
-          <h2 className="font-display text-lg font-semibold">2. Asignar número DID al agente</h2>
+          <h2 className="font-display text-lg font-semibold">2. Dispatch rule (obligatoria)</h2>
           <p className="text-sm text-slate-400">
-            Ingresa el número E.164 que recibirá las llamadas SIP (ej. +50255551234).
+            Sin esta regla, LiveKit recibe la llamada pero no despacha el agente de voz. Crea la regla en
+            LiveKit Cloud o ejecuta en el servidor:
+          </p>
+          <pre className="overflow-x-auto rounded-xl bg-black/40 p-4 text-xs text-cyan-100">
+            uv run python scripts/setup_livekit_inbound.py --phone +15109379101
+          </pre>
+          <p className="text-sm text-slate-400">
+            O en{" "}
+            <a
+              href="https://cloud.livekit.io"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
+            >
+              LiveKit Cloud <ExternalLink className="h-3 w-3" />
+            </a>{" "}
+            → Telephony → Dispatch rules → JSON:
+          </p>
+          <pre className="max-h-48 overflow-auto rounded-xl bg-black/40 p-4 text-xs text-slate-300">
+            {DISPATCH_JSON}
+          </pre>
+          <p className="text-xs text-slate-500">
+            Con LiveKit Phone Numbers, asigna la regla al DID en Telephony → Phone numbers.
+          </p>
+          <button type="button" className="btn-primary" onClick={() => setStep(3)}>
+            Regla creada — continuar <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="glass-card space-y-4 p-6">
+          <h2 className="font-display text-lg font-semibold">3. DID en el agente</h2>
+          <p className="text-sm text-slate-400">
+            Número E.164 exacto que marca el caller (debe coincidir con LiveKit y la dispatch rule).
           </p>
           <input
-            className="input-field w-full max-w-sm"
-            placeholder="+50255551234"
+            className="input-field w-full max-w-sm font-mono"
+            placeholder="+15109379101"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
           {activeAgent && (
             <p className="text-xs text-slate-500">
-              Se asignará al agente activo: <strong>{activeAgent.display_name}</strong>
+              Se asignará al agente: <strong>{activeAgent.display_name}</strong>
             </p>
           )}
           {!agentsData?.agents.length && (
@@ -156,7 +226,7 @@ export function SetupWizard() {
           <button
             type="button"
             className="btn-primary"
-            disabled={!phone.startsWith("+") || savePhone.isPending || !agentsData?.agents.length}
+            disabled={!phone.trim().startsWith("+") || savePhone.isPending || !agentsData?.agents.length}
             onClick={() => savePhone.mutate()}
           >
             {savePhone.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -168,23 +238,27 @@ export function SetupWizard() {
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="glass-card space-y-4 p-6">
-          <h2 className="font-display text-lg font-semibold">3. Probar la llamada</h2>
+          <h2 className="font-display text-lg font-semibold">4. Probar la llamada</h2>
           <ol className="list-inside list-decimal space-y-2 text-sm text-slate-300">
-            <li>Confirma que el SIP trunk de LiveKit apunta al DID configurado.</li>
-            <li>Marca desde tu celular al número asignado.</li>
-            <li>Revisa el historial en Llamadas y el dashboard en tiempo real.</li>
+            <li>
+              Marca <strong className="font-mono text-cyan-200">+1 510 937 9101</strong> (o tu DID en E.164).
+            </li>
+            <li>El agente de voz debe responder en unos segundos.</li>
+            <li>Revisa <Link to="/supervisor" className="text-cyan-300 underline">Supervisor</Link> y{" "}
+              <Link to="/calls" className="text-cyan-300 underline">Llamadas</Link> al colgar.
+            </li>
           </ol>
           <div className="flex flex-wrap gap-2">
-            <Link to="/playground" className="btn-primary">
-              Probar en playground
+            <Link to="/supervisor" className="btn-primary">
+              Abrir Supervisor
             </Link>
-            <Link to="/calls" className="btn-ghost">
-              Ver llamadas
+            <Link to="/playground" className="btn-ghost">
+              Playground (sin teléfono)
             </Link>
             <Link to="/settings" className="btn-ghost">
-              Configuración SIP
+              Configuración LiveKit
             </Link>
           </div>
         </div>

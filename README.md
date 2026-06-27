@@ -12,6 +12,7 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 | [Análisis y reportes](docs/ANALYTICS.md) | Filtros, pivot, export CSV, API `/api/reports/*` |
 | [Agents & tools](docs/AGENTS.md) | All agents, phone-call behavior, banking tools, handoffs |
 | [Deployment](docs/DEPLOYMENT.md) | VPS (nginx + systemd), worker, updates, demo seed |
+| [Telefonía / LiveKit](docs/TELEPHONY.md) | SIP, dispatch rule, DID, proyecto call management |
 
 ## Features
 
@@ -79,7 +80,8 @@ cd admin-ui && npm install
 ```bash
 cp .env.example .env
 # Set XAI_API_KEY (required for admin voice playground)
-# Set LIVEKIT_* when using dev/start worker or LiveKit voice mode
+# Set LIVEKIT_* (WebSocket URL from cloud.livekit.io → Keys) — see docs/TELEPHONY.md
+# Then: uv run python scripts/setup_livekit_inbound.py --phone +YOUR_DID
 ```
 
 ### 3. Initialize CRM
@@ -148,6 +150,7 @@ CallManagement/
 │   └── xai/                  # Voice API helpers, built-in tools, MCP
 ├── scripts/
 │   ├── init_crm.py
+│   ├── setup_livekit_inbound.py  # Dispatch rule → call-management
 │   ├── seed_demo_company.py  # Demo tenant (Café Central)
 │   ├── healthcheck.py
 │   └── deploy/               # systemd, nginx, worker service
@@ -204,7 +207,7 @@ CI runs ruff + pytest on every push to `main`.
 
 See [.env.example](.env.example) for the full list. Key groups:
 
-- **LiveKit** — agent worker + LiveKit voice playground
+- **LiveKit** — agent worker + LiveKit voice playground + SIP ([TELEPHONY.md](docs/TELEPHONY.md))
 - **xAI** — voice, LLM, built-in tools, remote MCP
 - **Admin** — `ADMIN_HOST`, `ADMIN_PORT`, `ADMIN_RP_ID`, `ADMIN_ORIGIN`, auth DB paths
 - **CRM** — `CRM_DB_PATH`, `DEFAULT_LOCALE`, VIP routing, post-call summary
