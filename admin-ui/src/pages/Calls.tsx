@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useTenant } from "../contexts/TenantContext";
 import { api, type CallRecord } from "../lib/api";
 import { canListenRecordings } from "../lib/permissions";
 
@@ -81,17 +82,32 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
 
 export function Calls() {
   const { user } = useAuth();
+  const { tenantId } = useTenant();
   const [search, setSearch] = useState("");
   const [channel, setChannel] = useState<string>("all");
+  const [outcome, setOutcome] = useState<string>("all");
   const canPlay = canListenRecordings(user?.effective_modules);
 
-  const { data, isLoading } = useQuery({ queryKey: ["calls"], queryFn: () => api.calls(100) });
+  const { data, isLoading } = useQuery({
+    queryKey: ["calls", tenantId],
+    queryFn: () => api.calls(200, 0, tenantId),
+    enabled: !!tenantId,
+  });
+
+  const outcomeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const call of data?.items || []) {
+      if (call.outcome) set.add(call.outcome);
+    }
+    return Array.from(set).sort();
+  }, [data?.items]);
 
   const filtered = useMemo(() => {
     const items = data?.items || [];
     const q = search.trim().toLowerCase();
     return items.filter((call) => {
       if (channel !== "all" && (call.channel || "sip") !== channel) return false;
+      if (outcome !== "all" && (call.outcome || "") !== outcome) return false;
       if (!q) return true;
       return (
         call.call_id.toLowerCase().includes(q) ||
@@ -100,9 +116,9 @@ export function Calls() {
         (call.transcript || "").toLowerCase().includes(q)
       );
     });
-  }, [channel, data?.items, search]);
+  }, [channel, data?.items, outcome, search]);
 
-  if (isLoading || !data) {
+  if (!tenantId || (isLoading && !data)) {
     return <div className="glass-card p-8 text-slate-400">Cargando registros…</div>;
   }
 
@@ -111,35 +127,52 @@ export function Calls() {
       <header>
         <h1 className="font-display text-xl font-semibold sm:text-3xl">Registros de interacciones</h1>
         <p className="mt-1 text-sm text-slate-400 sm:text-base">
-          {data.total} registros · Transcripts, resúmenes
+          {data?.total ?? 0} registros · Transcripts, resúmenes
           {canPlay ? " y grabaciones de audio" : ""}
         </p>
       </header>
 
-      <div className="glass-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-        <label className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <input
-            className="input-field pl-9"
-            placeholder="Buscar por teléfono, ID o texto…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          <Filter className="h-4 w-4" />
+      <div className="glass-card space-y-3 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              className="input-field pl-9"
+              placeholder="Buscar por teléfono, ID o texto…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-400">
+            <Filter className="h-4 w-4 shrink-0" />
+            <select
+              className="input-field w-full sm:w-40"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+            >
+              <option value="all">Todos los canales</option>
+              <option value="sip">Teléfono</option>
+              <option value="chat">Chat</option>
+              <option value="voice_xai">Voz xAI</option>
+              <option value="voice_livekit">Voz LiveKit</option>
+            </select>
+          </label>
           <select
-            className="input-field w-full sm:w-44"
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
+            className="input-field w-full sm:w-40"
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value)}
           >
-            <option value="all">Todos los canales</option>
-            <option value="sip">Teléfono</option>
-            <option value="chat">Chat</option>
-            <option value="voice_xai">Voz xAI</option>
-            <option value="voice_livekit">Voz LiveKit</option>
+            <option value="all">Todos los outcomes</option>
+            {outcomeOptions.map((o) => (
+              <option key={o} value={o}>
+                {o.replaceAll("_", " ")}
+              </option>
+            ))}
           </select>
-        </label>
+        </div>
+        <p className="text-xs text-slate-500">
+          Mostrando {filtered.length} de {data?.items.length ?? 0} registros
+        </p>
       </div>
 
       <div className="space-y-3">

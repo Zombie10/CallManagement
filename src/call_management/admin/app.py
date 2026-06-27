@@ -378,6 +378,7 @@ async def customer_profile(phone_number: str, ctx=Depends(require_tenant_context
 async def supervisor_panel(ctx=Depends(require_tenant_context)):
     from call_management.recordings.livekit_egress import egress_configured
     from call_management.tenancy.queue import supervisor_snapshot
+    from call_management.tenancy.scheduling import agent_schedule_status
 
     store = get_platform_store()
     agents = store.list_agents(ctx.tenant.id)
@@ -393,6 +394,7 @@ async def supervisor_panel(ctx=Depends(require_tenant_context)):
                 "id": a.id,
                 "display_name": a.display_name,
                 "status": a.status,
+                "schedule_status": agent_schedule_status(a.id),
                 "call_count_today": a.call_count_today,
                 "max_concurrent_calls": a.max_concurrent_calls,
                 "active_calls": agent_limit_map.get(a.id, {}).get("active", 0),
@@ -443,26 +445,63 @@ async def webhook_events_catalog():
 
 
 @app.get("/api/export/calls.csv")
-async def export_calls_csv(ctx=Depends(require_tenant_context)):
-    import csv
-    import io
+async def export_calls_csv(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    outcomes: str | None = None,
+    agent_instance_ids: str | None = None,
+    channels: str | None = None,
+    from_number: str | None = None,
+    min_duration: int | None = None,
+    max_duration: int | None = None,
+    ctx=Depends(require_tenant_context),
+):
+    from datetime import UTC, datetime
 
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response
 
+    from call_management.admin.export_calls import build_calls_csv
+    from call_management.crm.reports import CallReportQuery
+    from call_management.tenancy.platform_store import get_platform_store
+
+    store = get_platform_store()
+    agent_labels = {a.id: a.display_name for a in store.list_agents(ctx.tenant.id)}
+
+    has_filters = any(
+        [
+            date_from,
+            date_to,
+            outcomes,
+            agent_instance_ids,
+            channels,
+            from_number,
+            min_duration is not None,
+            max_duration is not None,
+        ]
+    )
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
-    rows = await crm.export_calls_csv_rows()
-    buf = io.StringIO()
-    if rows:
-        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+    if has_filters:
+        query = CallReportQuery(
+            date_from=date_from,
+            date_to=date_to,
+            outcomes=[o.strip() for o in (outcomes or "").split(",") if o.strip()],
+            agent_instance_ids=[a.strip() for a in (agent_instance_ids or "").split(",") if a.strip()],
+            channels=[c.strip() for c in (channels or "").split(",") if c.strip()],
+            from_number=from_number,
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
+        rows = await crm.export_calls_filtered(query, limit=5000)
     else:
-        buf.write("call_id,from_number,start_time,outcome\n")
-    buf.seek(0)
-    return StreamingResponse(
-        iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="calls_export.csv"'},
+        rows = await crm.export_calls_csv_rows()
+
+    content = build_calls_csv(rows, agent_labels=agent_labels)
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
+    filename = f"llamadas-{ctx.tenant.slug}-{stamp}.csv"
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -593,6 +632,30 @@ async def execute_voice_tool(payload: VoiceToolExecute):
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/playground/agents")
+async def playground_agents(ctx=Depends(require_tenant_context)):
+    """Read-only agent list for Probar agente (all roles with playground access)."""
+    store = get_platform_store()
+    agents = store.list_agents(ctx.tenant.id)
+    return {
+        "tenant": {
+            "id": ctx.tenant.id,
+            "name": ctx.tenant.name,
+            "slug": ctx.tenant.slug,
+        },
+        "agents": [
+            {
+                "id": a.id,
+                "display_name": a.display_name,
+                "template_id": a.template_id,
+                "status": a.status,
+                "phone_number": a.phone_number or None,
+            }
+            for a in agents
+        ],
+    }
 
 
 @app.get("/api/livekit/status")

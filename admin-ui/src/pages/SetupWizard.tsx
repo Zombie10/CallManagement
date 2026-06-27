@@ -29,14 +29,15 @@ export function SetupWizard() {
   const [phone, setPhone] = useState("+15109379101");
 
   const { data: dashboard } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: api.dashboard,
+    queryKey: ["dashboard", tenantId],
+    queryFn: () => api.dashboard(tenantId),
     enabled: !!tenantId,
   });
   const { data: agentsData } = useQuery({
     queryKey: ["tenant-agents", tenantId],
-    queryFn: api.listTenantAgents,
+    queryFn: () => api.listTenantAgents(tenantId),
     enabled: !!tenantId,
+    staleTime: 30_000,
   });
 
   const savePhone = useMutation({

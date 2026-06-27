@@ -93,11 +93,14 @@ LIVEKIT_API_SECRET=...
 #   uv run python scripts/setup_livekit_inbound.py --phone +15109379101
 # See docs/TELEPHONY.md
 
-# Optional: SIP recording via LiveKit Egress → S3/MinIO
-# RECORDINGS_S3_BUCKET=your-bucket
-# RECORDINGS_S3_ACCESS_KEY=...
+# SIP recording — LiveKit Egress → MinIO (self-hosted on VPS)
+# sudo bash scripts/setup_recordings_minio.sh
+# RECORDINGS_S3_BUCKET=callmgmt-recordings
+# RECORDINGS_S3_ACCESS_KEY=cmegressXXXX   # 3–20 chars, no hyphens
 # RECORDINGS_S3_SECRET=...
 # RECORDINGS_S3_REGION=us-east-1
+# RECORDINGS_S3_ENDPOINT=https://paymercadogo.com   # NOT .../s3 (see nginx below)
+# RECORDINGS_S3_FORCE_PATH_STYLE=true
 # RECORDINGS_S3_PREFIX=callmanagement/recordings
 
 # Optional: Postgres CRM (requires: uv sync --extra postgres)
@@ -131,6 +134,18 @@ location ^~ /callmgmt/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
+```
+
+**MinIO / SIP recordings** — append `scripts/deploy/nginx-minio-s3.conf` inside the same `server { }` block, **before** `location /`:
+
+- Path-style S3 at `https://paymercadogo.com/callmgmt-recordings/...`
+- MinIO listens on `127.0.0.1:9000` (`minio.service`)
+- LiveKit Cloud egress needs a **public** endpoint; do not use `127.0.0.1` in `RECORDINGS_S3_ENDPOINT`
+
+One-shot telephony + recordings bootstrap:
+
+```bash
+sudo APP_DIR=/opt/callmanagement PHONE=+15109379101 bash scripts/bootstrap_telephony.sh
 ```
 
 ### systemd
@@ -263,7 +278,7 @@ Demo banking customers seed on admin startup (`demo_seed.py`).
 
 **PostgreSQL:** Set `CRM_DATABASE_URL` and install `asyncpg` (`uv sync --extra postgres`). Uses row-level `tenant_id` isolation. Without asyncpg, falls back to SQLite per tenant.
 
-**SIP recordings:** Configure `RECORDINGS_S3_*` + LiveKit creds. Dashboard shows egress status; worker emits `call.started` with `recording: true` when egress starts.
+**SIP recordings:** Run `scripts/setup_recordings_minio.sh` (or `bootstrap_telephony.sh`). Worker starts LiveKit egress on connect; on hangup persists the call record and attaches `/api/calls/{id}/recording` when egress completes. See [TELEPHONY.md](TELEPHONY.md#grabación-sip).
 
 ## Coexistence with other services (paymercadogo VPS)
 
@@ -273,8 +288,11 @@ Demo banking customers seed on admin startup (`demo_seed.py`).
 | loan | 5001 | Existing app |
 | jukebox | 5055 | Existing app |
 | **Call Management** | **8080** (localhost) | `/callmgmt/*` only |
+| **MinIO** | **9000** (localhost) | S3 API; public via `/callmgmt-recordings/` |
 
 Call Management uses **SQLite** in `/opt/callmanagement/data/` — does not share Postgres with other apps.
+
+SIP recordings are mirrored to `data/recordings/{tenant_id}/` after egress completes.
 
 Backup nginx before changes:
 

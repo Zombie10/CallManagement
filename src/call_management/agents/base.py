@@ -83,6 +83,7 @@ class CallContext:
     outcome: str | None = None
     post_call_summary: str | None = None
     call_persisted: bool = False
+    _finalize_lock: object | None = field(default=None, repr=False)
     transcript_lines: list[str] = field(default_factory=list)
     tenant_id: str | None = None
     agent_instance_id: str | None = None

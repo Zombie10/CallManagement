@@ -6,7 +6,7 @@ import os
 import re
 from pathlib import Path
 
-from call_management.admin.env_store import PROJECT_ROOT
+from call_management.tenancy.paths import PROJECT_ROOT
 
 SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -65,8 +65,8 @@ def save_recording_bytes(
 def guess_media_type(path: Path) -> str:
     ext = path.suffix.lower()
     return {
-        ".webm": "audio/webm",
-        ".ogg": "audio/ogg",
+        ".webm": "audio/webm; codecs=opus",
+        ".ogg": "audio/ogg; codecs=opus",
         ".mp4": "audio/mp4",
         ".m4a": "audio/mp4",
         ".wav": "audio/wav",

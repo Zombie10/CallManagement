@@ -436,9 +436,9 @@ export function useXaiVoice() {
         start_time: info.start_time,
         transcript: body,
       });
-      const blob = await stopRecorder();
-      if (blob && info.call_id) {
-        await api.uploadCallRecording(info.call_id, blob);
+      const recorded = await stopRecorder();
+      if (recorded && info.call_id) {
+        await api.uploadCallRecording(info.call_id, recorded.blob, recorded.ext);
       }
     } catch {
       /* persist best-effort on disconnect */

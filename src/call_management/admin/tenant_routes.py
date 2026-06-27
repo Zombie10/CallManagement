@@ -12,7 +12,7 @@ from call_management.agent_store import get_catalog
 from call_management.agents.registry import get_default_instructions
 from call_management.tenancy.context import TenantContext, resolve_crm_for_tenant
 from call_management.tenancy.platform_store import get_platform_store
-from call_management.tenancy.scheduling import agent_schedule_status
+from call_management.tenancy.scheduling import agent_schedule_status, schedule_status
 
 router = APIRouter(prefix="/api", tags=["tenants"])
 
@@ -76,8 +76,76 @@ class SchedulesPayload(BaseModel):
     schedules: list[ScheduleEntryPayload]
 
 
-def _agent_dict(agent) -> dict[str, Any]:
+def _worker_telephony_flags() -> tuple[bool, bool]:
+    from call_management.admin.chat_runner import get_chat_manager
+    from call_management.admin.livekit_playground import livekit_playground_ready
+
+    lk_ready, _ = livekit_playground_ready()
+    chat_status = get_chat_manager().status()
+    xai_ready = bool(chat_status.get("xai_voice_ready", False))
+    return lk_ready, xai_ready
+
+
+def _build_agent_list_context(tenant_id: str, agents: list) -> dict[str, Any]:
     store = get_platform_store()
+    tenant = store.get_tenant(tenant_id)
+    tz = tenant.timezone if tenant else "America/Guatemala"
+    lk_ready, xai_ready = _worker_telephony_flags()
+    from call_management.telephony.inbound_setup import build_agent_telephony_summary, list_livekit_phone_numbers, livekit_configured
+
+    lk_numbers = list_livekit_phone_numbers() if livekit_configured() else {}
+    routes_by_agent: dict[str, list] = {}
+    for route in store.list_tenant_phone_routes(tenant_id):
+        routes_by_agent.setdefault(route.agent_instance_id, []).append(route)
+    agent_ids = [a.id for a in agents]
+    schedules_by_agent = store.list_schedules_for_agents(agent_ids)
+    schedule_status_by_agent = {
+        aid: schedule_status(schedules_by_agent.get(aid, []), fallback_timezone=tz)
+        for aid in agent_ids
+    }
+    return {
+        "lk_ready": lk_ready,
+        "xai_ready": xai_ready,
+        "lk_numbers": lk_numbers,
+        "routes_by_agent": routes_by_agent,
+        "schedule_status_by_agent": schedule_status_by_agent,
+        "build_telephony": lambda agent: build_agent_telephony_summary(
+            status=agent.status,
+            phone_numbers=agent.phone_numbers or ([agent.phone_number] if agent.phone_number else []),
+            worker_livekit_ready=lk_ready,
+            worker_xai_ready=xai_ready,
+            lk_numbers=lk_numbers,
+        ),
+    }
+
+
+def _agent_dict(
+    agent,
+    *,
+    lk_ready: bool | None = None,
+    xai_ready: bool | None = None,
+    list_ctx: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    store = get_platform_store()
+    if list_ctx:
+        lk_ready = list_ctx["lk_ready"]
+        xai_ready = list_ctx["xai_ready"]
+        routes = list_ctx["routes_by_agent"].get(agent.id, [])
+        sched_status = list_ctx["schedule_status_by_agent"].get(agent.id, "always")
+        telephony = list_ctx["build_telephony"](agent)
+    else:
+        if lk_ready is None or xai_ready is None:
+            lk_ready, xai_ready = _worker_telephony_flags()
+        routes = store.list_phone_routes(agent.id)
+        sched_status = agent_schedule_status(agent.id)
+        from call_management.telephony.inbound_setup import build_agent_telephony_summary
+
+        telephony = build_agent_telephony_summary(
+            status=agent.status,
+            phone_numbers=agent.phone_numbers or ([agent.phone_number] if agent.phone_number else []),
+            worker_livekit_ready=lk_ready,
+            worker_xai_ready=xai_ready,
+        )
     data = {
         "id": agent.id,
         "tenant_id": agent.tenant_id,
@@ -100,24 +168,32 @@ def _agent_dict(agent) -> dict[str, Any]:
         "schedule_json": agent.schedule_json,
         "max_concurrent_calls": agent.max_concurrent_calls,
         "phone_limits": {
-            r.phone_number: r.max_concurrent_calls
-            for r in store.list_phone_routes(agent.id)
-            if r.max_concurrent_calls is not None
+            r.phone_number: r.max_concurrent_calls for r in routes if r.max_concurrent_calls is not None
         },
         "phone_routes": [
             {
                 "phone_number": r.phone_number,
                 "max_concurrent_calls": r.max_concurrent_calls,
             }
-            for r in store.list_phone_routes(agent.id)
+            for r in routes
         ],
         "call_count_today": agent.call_count_today,
-        "schedule_status": agent_schedule_status(agent.id),
+        "schedule_status": sched_status,
         "default_instructions": get_default_instructions(agent.template_id),
+        "telephony": telephony,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }
     return data
+
+
+async def _provision_agent_phones(agent) -> list[dict[str, Any]]:
+    phones = agent.phone_numbers or ([agent.phone_number] if agent.phone_number else [])
+    if not phones:
+        return []
+    from call_management.telephony.inbound_setup import provision_phones_for_agent
+
+    return await provision_phones_for_agent(phones)
 
 
 def _tenant_dict(tenant) -> dict[str, Any]:
@@ -202,10 +278,15 @@ async def tenant_metrics(tenant_id: str, _admin: dict = Depends(require_super_ad
 async def list_tenant_agents(ctx: TenantContext = Depends(require_tenant_context)):
     store = get_platform_store()
     agents = store.list_agents(ctx.tenant.id)
+    list_ctx = _build_agent_list_context(ctx.tenant.id, agents)
     return {
         "tenant": _tenant_dict(ctx.tenant),
-        "agents": [_agent_dict(a) for a in agents],
+        "agents": [_agent_dict(a, list_ctx=list_ctx) for a in agents],
         "catalog": get_catalog(),
+        "worker": {
+            "livekit_ready": list_ctx["lk_ready"],
+            "xai_voice_ready": list_ctx["xai_ready"],
+        },
     }
 
 
@@ -219,7 +300,10 @@ async def create_tenant_agent(
         agent = store.create_agent(ctx.tenant.id, **payload.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _agent_dict(agent)
+    provision = await _provision_agent_phones(agent)
+    data = _agent_dict(agent)
+    data["telephony_provision"] = provision
+    return data
 
 
 @router.patch("/tenant-agents/{agent_id}")
@@ -239,7 +323,10 @@ async def update_tenant_agent(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _agent_dict(updated)
+    provision = await _provision_agent_phones(updated)
+    data = _agent_dict(updated)
+    data["telephony_provision"] = provision
+    return data
 
 
 @router.post("/tenant-agents/{agent_id}/duplicate")
@@ -335,6 +422,7 @@ class CallReportPayload(BaseModel):
     from_number: str | None = None
     min_duration: int | None = None
     max_duration: int | None = None
+    channels: list[str] = Field(default_factory=list)
     group_by: str = "day"
     pivot_row: str | None = None
     pivot_col: str | None = None
@@ -354,6 +442,7 @@ def _report_query_from_payload(payload: CallReportPayload):
         from_number=payload.from_number,
         min_duration=payload.min_duration,
         max_duration=payload.max_duration,
+        channels=payload.channels,
         group_by=payload.group_by,
         pivot_row=payload.pivot_row,
         pivot_col=payload.pivot_col,
@@ -420,6 +509,42 @@ async def report_calls_post(
         return await crm.query_call_report(_report_query_from_payload(payload))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/reports/export.xlsx")
+async def export_report_xlsx(
+    payload: CallReportPayload,
+    ctx: TenantContext = Depends(require_tenant_context),
+):
+    from datetime import UTC, datetime
+
+    from fastapi.responses import Response
+
+    from call_management.crm.export_report import build_analytics_workbook
+
+    store = get_platform_store()
+    query = _report_query_from_payload(payload)
+    query.detail_limit = min(max(payload.detail_limit, 100), 2000)
+
+    crm = await resolve_crm_for_tenant(ctx.tenant.id)
+    try:
+        report = await crm.query_call_report(query)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    agent_labels = {a.id: a.display_name for a in store.list_agents(ctx.tenant.id)}
+    content = build_analytics_workbook(
+        tenant_name=ctx.tenant.name,
+        report=report,
+        agent_labels=agent_labels,
+    )
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
+    filename = f"reporte-llamadas-{ctx.tenant.slug}-{stamp}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/analytics")

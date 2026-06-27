@@ -4,6 +4,8 @@ import {
   Download,
   Filter,
   Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Table2,
@@ -12,9 +14,15 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { PivotTable } from "../components/reports/PivotTable";
+import { ReportDetailGrid } from "../components/reports/ReportDetailGrid";
+import { AgentFleetStatus } from "../components/AgentFleetStatus";
+import { ExportReportMenu } from "../components/reports/ExportReportMenu";
+import { ReportTabFilterBar } from "../components/reports/ReportTabFilterBar";
 import {
   OutcomeDonut,
   SeriesBarChart,
+  SeriesDataTable,
+  SummaryBreakdown,
   SummaryTiles,
   TabButton,
 } from "../components/reports/ReportCharts";
@@ -32,9 +40,15 @@ import {
   type ReportFiltersState,
   type ReportPreset,
 } from "../lib/reports";
+import {
+  CHANNEL_FILTER_OPTIONS,
+  dimensionLabel,
+} from "../lib/reportDisplay";
 import clsx from "clsx";
 
 type TabId = "summary" | "series" | "pivot" | "detail";
+
+const FILTERS_COLLAPSED_KEY = "analytics-filters-collapsed";
 
 function MultiCheck({
   label,
@@ -82,16 +96,23 @@ export function Analytics() {
   const [tab, setTab] = useState<TabId>("summary");
   const [presets, setPresets] = useState<ReportPreset[]>(loadPresets);
   const [presetName, setPresetName] = useState("");
+  const [filtersCollapsed, setFiltersCollapsed] = useState(
+    () => sessionStorage.getItem(FILTERS_COLLAPSED_KEY) === "1",
+  );
+
+  useEffect(() => {
+    sessionStorage.setItem(FILTERS_COLLAPSED_KEY, filtersCollapsed ? "1" : "0");
+  }, [filtersCollapsed]);
 
   const { data: options } = useQuery({
     queryKey: ["report-options", tenantId],
-    queryFn: api.reportOptions,
+    queryFn: () => api.reportOptions(tenantId),
     enabled: !!tenantId,
   });
 
   const { data: analyticsData } = useQuery({
     queryKey: ["analytics", tenantId],
-    queryFn: api.analytics,
+    queryFn: () => api.analytics(tenantId),
     enabled: !!tenantId,
   });
 
@@ -103,7 +124,7 @@ export function Analytics() {
     error,
   } = useQuery({
     queryKey: ["report", tenantId, appliedFilters],
-    queryFn: () => api.queryReport(filtersToPayload(appliedFilters)),
+    queryFn: () => api.queryReport(filtersToPayload(appliedFilters), tenantId),
     enabled: !!tenantId,
   });
 
@@ -141,6 +162,11 @@ export function Analytics() {
         label: m.label,
       })),
     [options?.metrics],
+  );
+
+  const agentLabelMap = useMemo(
+    () => new Map((options?.agents || []).map((a) => [a.id, a.label])),
+    [options?.agents],
   );
 
   const addCustomFilter = () => {
@@ -206,19 +232,22 @@ export function Analytics() {
             {tenant?.name} · Filtros interactivos, series y tabla pivot
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={isFetching}
-          onClick={runReport}
-        >
-          {isFetching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          Ejecutar reporte
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportReportMenu filters={appliedFilters} tenantId={tenantId} />
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={isFetching}
+            onClick={runReport}
+          >
+            {isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Ejecutar reporte
+          </button>
+        </div>
       </header>
 
       {analyticsData?.actionable && (
@@ -241,12 +270,7 @@ export function Analytics() {
               {analyticsData.actionable.sentiment_label}
             </p>
           </div>
-          <div>
-            <p className="text-xs text-slate-500">Exportar</p>
-            <a href={api.exportCallsCsvUrl()} className="text-sm text-cyan-300 hover:text-cyan-200">
-              Descargar CSV de llamadas
-            </a>
-          </div>
+          <AgentFleetStatus tenantId={tenantId} variant="compact" />
           {analyticsData.actionable.agent_comparison.length > 0 && (
             <div className="sm:col-span-2 lg:col-span-4">
               <p className="mb-2 text-xs font-medium uppercase text-slate-500">Comparación agentes</p>
@@ -266,11 +290,39 @@ export function Analytics() {
         </section>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+      <div
+        className={clsx(
+          "grid min-w-0 gap-4 transition-all duration-200",
+          filtersCollapsed ? "xl:grid-cols-[3rem_minmax(0,1fr)]" : "xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]",
+        )}
+      >
+        {filtersCollapsed ? (
+          <aside className="glass-card hidden shrink-0 flex-col items-center gap-2 p-2 xl:flex xl:sticky xl:top-4 xl:self-start">
+            <button
+              type="button"
+              className="btn-ghost w-full justify-center px-1 py-2"
+              title="Expandir filtros"
+              onClick={() => setFiltersCollapsed(false)}
+            >
+              <PanelLeftOpen className="h-4 w-4 text-cyan-400" />
+            </button>
+            <Filter className="h-4 w-4 text-slate-500" aria-hidden />
+          </aside>
+        ) : (
         <aside className="glass-card space-y-5 p-5 xl:sticky xl:top-4 xl:self-start">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
-            <Filter className="h-4 w-4 text-cyan-400" />
-            Filtros
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
+              <Filter className="h-4 w-4 text-cyan-400" />
+              Filtros
+            </div>
+            <button
+              type="button"
+              className="btn-ghost px-2 py-1 text-xs"
+              title="Contraer filtros"
+              onClick={() => setFiltersCollapsed(true)}
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -306,6 +358,13 @@ export function Analytics() {
             options={agentOptions}
             selected={filters.agentIds}
             onChange={(agentIds) => setFilters((f) => ({ ...f, agentIds }))}
+          />
+
+          <MultiCheck
+            label="Canales"
+            options={CHANNEL_FILTER_OPTIONS}
+            selected={filters.channels}
+            onChange={(channels) => setFilters((f) => ({ ...f, channels }))}
           />
 
           <label className="block space-y-1">
@@ -491,8 +550,9 @@ export function Analytics() {
             </ul>
           </div>
         </aside>
+        )}
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {isError && (
             <div className="glass-card border-red-500/30 p-4 text-sm text-red-300">
               {(error as Error).message}
@@ -525,48 +585,132 @@ export function Analytics() {
               </div>
 
               {tab === "summary" && (
-                <div className="glass-card p-6">
-                  <h2 className="mb-4 font-display text-lg font-semibold">Distribución por outcome</h2>
-                  <OutcomeDonut series={data.outcome_breakdown} />
-                  {!data.outcome_breakdown.length && (
-                    <p className="text-sm text-slate-500">Sin datos en el período</p>
-                  )}
+                <div className="space-y-4">
+                  <ReportTabFilterBar
+                    filters={filters}
+                    setFilters={setFilters}
+                    onApply={runReport}
+                    isFetching={isFetching}
+                    outcomeOptions={outcomeOptions}
+                    agentOptions={agentOptions}
+                    resultLabel={`${data.summary.total_calls} llamadas en el período`}
+                  />
+                  <div className="glass-card p-6">
+                    <h2 className="mb-4 font-display text-lg font-semibold">Distribución por outcome</h2>
+                    <OutcomeDonut series={data.outcome_breakdown} />
+                    {!data.outcome_breakdown.length && (
+                      <p className="text-sm text-slate-500">Sin datos en el período</p>
+                    )}
+                  </div>
+                  <div className="glass-card p-6">
+                    <h2 className="mb-4 font-display text-lg font-semibold">Desglose del período</h2>
+                    <SummaryBreakdown summary={data.summary} outcomeBreakdown={data.outcome_breakdown} />
+                  </div>
                 </div>
               )}
 
               {tab === "series" && (
-                <div className="glass-card p-6">
-                  <h2 className="mb-4 font-display text-lg font-semibold">
-                    Serie por {data.group_by}
-                  </h2>
-                  <SeriesBarChart series={data.series} metric={filters.metric} />
+                <div className="space-y-4">
+                  <ReportTabFilterBar
+                    filters={filters}
+                    setFilters={setFilters}
+                    onApply={runReport}
+                    isFetching={isFetching}
+                    outcomeOptions={outcomeOptions}
+                    agentOptions={agentOptions}
+                    showGroupBy
+                    dimensionOptions={dimensionOptions}
+                    resultLabel={`${data.series.length} períodos · ${data.summary.total_calls} llamadas`}
+                  />
+                <div className="glass-card space-y-6 p-6">
+                  <div>
+                    <h2 className="mb-1 font-display text-lg font-semibold">
+                      Serie por {dimensionLabel(data.group_by)}
+                    </h2>
+                    <p className="mb-4 text-sm text-slate-500">
+                      {data.series.length} períodos · métrica:{" "}
+                      {metricOptions.find((m) => m.value === appliedFilters.metric)?.label || appliedFilters.metric}
+                    </p>
+                    <SeriesBarChart series={data.series} metric={appliedFilters.metric} />
+                  </div>
+                  <div>
+                    <h3 className="mb-3 text-sm font-medium text-slate-300">Tabla de la serie</h3>
+                    <SeriesDataTable series={data.series} />
+                  </div>
+                </div>
                 </div>
               )}
 
               {tab === "pivot" && (
                 <div className="glass-card p-6">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="font-display text-lg font-semibold">
-                      Tabla pivot
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-lg font-semibold">Tabla pivot</h2>
                       {data.pivot && (
-                        <span className="ml-2 text-sm font-normal text-slate-500">
-                          {data.pivot.row_dimension} × {data.pivot.col_dimension} · {data.pivot.metric}
-                        </span>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {dimensionLabel(data.pivot.row_dimension)} ×{" "}
+                          {dimensionLabel(data.pivot.col_dimension)} ·{" "}
+                          {metricOptions.find((m) => m.value === data.pivot!.metric)?.label || data.pivot.metric}
+                        </p>
                       )}
-                    </h2>
-                    {data.pivot && (
-                      <button
-                        type="button"
-                        className="btn-ghost text-xs"
-                        onClick={() => exportPivotCsv(data.pivot!)}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Exportar CSV
-                      </button>
-                    )}
+                    </div>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div>
+                        <span className="mb-1 block text-[10px] text-slate-500">Filas</span>
+                        <Select
+                          className="w-36"
+                          size="sm"
+                          value={filters.pivotRow}
+                          onChange={(v) => {
+                            const pivotRow = v as ReportFiltersState["pivotRow"];
+                            setFilters((f) => ({ ...f, pivotRow }));
+                            setAppliedFilters((f) => ({ ...f, pivotRow }));
+                          }}
+                          options={dimensionOptions}
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[10px] text-slate-500">Columnas</span>
+                        <Select
+                          className="w-36"
+                          size="sm"
+                          value={filters.pivotCol}
+                          onChange={(v) => {
+                            const pivotCol = v as ReportFiltersState["pivotCol"];
+                            setFilters((f) => ({ ...f, pivotCol }));
+                            setAppliedFilters((f) => ({ ...f, pivotCol }));
+                          }}
+                          options={dimensionOptions}
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[10px] text-slate-500">Métrica</span>
+                        <Select
+                          className="w-40"
+                          size="sm"
+                          value={filters.metric}
+                          onChange={(v) => {
+                            const metric = v as ReportFiltersState["metric"];
+                            setFilters((f) => ({ ...f, metric }));
+                            setAppliedFilters((f) => ({ ...f, metric }));
+                          }}
+                          options={metricOptions}
+                        />
+                      </div>
+                      {data.pivot && (
+                        <button
+                          type="button"
+                          className="btn-ghost text-xs"
+                          onClick={() => exportPivotCsv(data.pivot!)}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          CSV
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {data.pivot ? (
-                    <PivotTable pivot={data.pivot} />
+                    <PivotTable pivot={data.pivot} agentLabels={agentLabelMap} />
                   ) : (
                     <p className="text-sm text-slate-500">Configura dimensiones pivot en los filtros</p>
                   )}
@@ -574,10 +718,20 @@ export function Analytics() {
               )}
 
               {tab === "detail" && (
-                <div className="glass-card overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+                <div className="space-y-4">
+                  <ReportTabFilterBar
+                    filters={filters}
+                    setFilters={setFilters}
+                    onApply={runReport}
+                    isFetching={isFetching}
+                    outcomeOptions={outcomeOptions}
+                    agentOptions={agentOptions}
+                    resultLabel={`${data.detail.length} filas en detalle (máx. 100)`}
+                  />
+                <div className="glass-card min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 px-4 py-3">
                     <p className="flex items-center gap-2 text-sm text-slate-300">
-                      <Table2 className="h-4 w-4" />
+                      <Table2 className="h-4 w-4 shrink-0" />
                       {data.detail.length} filas (máx. 100)
                     </p>
                     <button
@@ -589,36 +743,8 @@ export function Analytics() {
                       Exportar CSV
                     </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-white/[0.02] text-xs uppercase text-slate-500">
-                        <tr>
-                          <th className="px-4 py-2">Fecha</th>
-                          <th className="px-4 py-2">Origen</th>
-                          <th className="px-4 py-2">Outcome</th>
-                          <th className="px-4 py-2">Duración</th>
-                          <th className="px-4 py-2">Agente</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.detail.map((row) => (
-                          <tr key={row.call_id} className="border-t border-white/5">
-                            <td className="px-4 py-2 text-xs text-slate-400">
-                              {row.start_time ? new Date(row.start_time).toLocaleString() : "—"}
-                            </td>
-                            <td className="px-4 py-2 font-mono text-cyan-200/90">{row.from_number}</td>
-                            <td className="px-4 py-2 capitalize">{row.outcome?.replaceAll("_", " ") || "—"}</td>
-                            <td className="px-4 py-2 tabular-nums">{row.duration_seconds ?? "—"}s</td>
-                            <td className="px-4 py-2 text-xs text-slate-500">
-                              {options?.agents.find((a) => a.id === row.agent_instance_id)?.label ||
-                                row.agent_instance_id ||
-                                "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ReportDetailGrid rows={data.detail} agentLabelMap={agentLabelMap} />
+                </div>
                 </div>
               )}
             </>

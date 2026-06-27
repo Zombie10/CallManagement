@@ -13,10 +13,10 @@ import { useAudioRecorder } from "./useAudioRecorder";
 import { api, type LiveKitPlaygroundInput, type LiveKitPlaygroundResponse } from "../lib/api";
 import { micReleaseDelay, microphoneErrorMessage } from "../lib/audio";
 
-async function uploadRecordingWithRetry(callId: string, blob: Blob) {
+async function uploadRecordingWithRetry(callId: string, blob: Blob, ext = "webm") {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await api.uploadCallRecording(callId, blob);
+      await api.uploadCallRecording(callId, blob, ext);
       return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -61,31 +61,36 @@ export function useLiveKitVoice() {
     setAudioLevel(0);
   }, []);
 
-  const ensureMixGraph = useCallback(() => {
+  const ensureMixGraph = useCallback(async () => {
     if (mixCtxRef.current && mixDestRef.current) return;
     const ctx = new AudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
     const dest = ctx.createMediaStreamDestination();
     mixCtxRef.current = ctx;
     mixDestRef.current = dest;
     startRecorder(dest.stream);
   }, [startRecorder]);
 
-  const attachTrackToMix = useCallback((track: MediaStreamTrack | undefined) => {
-    if (!track || mixTracksRef.current.has(track.id)) return;
-    ensureMixGraph();
-    const ctx = mixCtxRef.current;
-    const dest = mixDestRef.current;
-    if (!ctx || !dest) return;
-    const source = ctx.createMediaStreamSource(new MediaStream([track]));
-    source.connect(dest);
-    mixTracksRef.current.add(track.id);
-  }, [ensureMixGraph]);
+  const attachTrackToMix = useCallback(
+    async (track: MediaStreamTrack | undefined) => {
+      if (!track || mixTracksRef.current.has(track.id)) return;
+      await ensureMixGraph();
+      const ctx = mixCtxRef.current;
+      const dest = mixDestRef.current;
+      if (!ctx || !dest) return;
+      if (ctx.state === "suspended") await ctx.resume();
+      const source = ctx.createMediaStreamSource(new MediaStream([track]));
+      source.connect(dest);
+      mixTracksRef.current.add(track.id);
+    },
+    [ensureMixGraph],
+  );
 
   const startMeter = useCallback((track: LocalAudioTrack) => {
     stopMeter();
     const mediaTrack = track.mediaStreamTrack;
     if (!mediaTrack) return;
-    attachTrackToMix(mediaTrack);
+    void attachTrackToMix(mediaTrack);
 
     const ctx = new AudioContext();
     const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
@@ -115,8 +120,8 @@ export function useLiveKitVoice() {
   const teardownMix = useCallback(async (persist: boolean) => {
     const callId = callIdRef.current;
     if (persist && callId) {
-      const blob = await stopRecorder();
-      if (blob) await uploadRecordingWithRetry(callId, blob);
+      const recorded = await stopRecorder();
+      if (recorded) await uploadRecordingWithRetry(callId, recorded.blob, recorded.ext);
     } else {
       await stopRecorder();
     }
@@ -165,7 +170,7 @@ export function useLiveKitVoice() {
         const session = await api.createLiveKitPlayground(input);
         setSessionInfo(session);
         callIdRef.current = session.call_id || null;
-        ensureMixGraph();
+        await ensureMixGraph();
 
         const room = new Room({
           adaptiveStream: true,
@@ -186,7 +191,7 @@ export function useLiveKitVoice() {
           if (participant.identity === room.localParticipant.identity) return;
           handleAgentParticipant(participant);
           const remote = track as RemoteAudioTrack;
-          attachTrackToMix(remote.mediaStreamTrack);
+          void attachTrackToMix(remote.mediaStreamTrack);
           const el = track.attach();
           el.autoplay = true;
           el.volume = 1;

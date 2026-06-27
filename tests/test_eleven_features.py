@@ -285,7 +285,7 @@ async def test_export_calls_csv(tmp_path):
         )
         assert res.status_code == 200
         assert "text/csv" in res.headers.get("content-type", "")
-        assert "call_id" in res.text
+        assert "id_llamada" in res.text
 
 
 def test_permissions_supervisor_and_export_modules():
@@ -294,6 +294,35 @@ def test_permissions_supervisor_and_export_modules():
     assert can_access_route("viewer", "/supervisor", ["supervisor"])
     assert can_access_api("admin", "/api/supervisor")
     assert can_access_api("admin", "/api/export/calls.csv")
+
+
+@pytest.mark.asyncio
+async def test_playground_agents_endpoint(tmp_path):
+    store = get_platform_store()
+    tenant = store.ensure_default_tenant()
+    store.create_agent(
+        tenant.id,
+        slug="play-test",
+        display_name="Playground Test",
+        template_id="receptionist",
+        status="active",
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        login = await client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "CallMgmt2026!"},
+        )
+        res = await client.get(
+            "/api/playground/agents",
+            headers={"X-Tenant-Id": tenant.id},
+            cookies=login.cookies,
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["tenant"]["id"] == tenant.id
+        assert any(a["display_name"] == "Playground Test" for a in body["agents"])
 
 
 @pytest.mark.asyncio

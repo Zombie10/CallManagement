@@ -490,6 +490,40 @@ class CRMDatabase:
                 "unique_callers": summary_row["unique_callers"] if summary_row else 0,
             }
 
+            handoff_where = (
+                f"{where} AND transferred_to IS NOT NULL AND transferred_to != ''"
+                if where
+                else "WHERE transferred_to IS NOT NULL AND transferred_to != ''"
+            )
+            async with db.execute(
+                f"""
+                SELECT COUNT(*) AS handoffs
+                FROM call_records {handoff_where}
+                """,
+                params,
+            ) as cursor:
+                handoff_row = await cursor.fetchone()
+            summary["handoffs"] = handoff_row["handoffs"] if handoff_row else 0
+
+            async with db.execute(
+                f"""
+                SELECT COALESCE(channel, 'sip') AS ch, COUNT(*) AS cnt
+                FROM call_records {where}
+                GROUP BY ch ORDER BY cnt DESC
+                """,
+                params,
+            ) as cursor:
+                from call_management.crm.reports import CHANNEL_LABELS
+
+                summary["channels"] = [
+                    {
+                        "key": r["ch"],
+                        "label": CHANNEL_LABELS.get(r["ch"], r["ch"]),
+                        "count": r["cnt"],
+                    }
+                    for r in await cursor.fetchall()
+                ]
+
             async with db.execute(
                 f"""
                 SELECT {group_expr} AS dim_key,
@@ -571,14 +605,22 @@ class CRMDatabase:
             detail_params = list(params)
             async with db.execute(
                 f"""
-                SELECT call_id, from_number, to_number, start_time, outcome,
-                       duration_seconds, agent_instance_id
+                SELECT call_id, from_number, to_number, start_time, end_time, outcome,
+                       duration_seconds, agent_instance_id, transferred_to, channel,
+                       summary, agent_notes,
+                       CASE WHEN transcript IS NOT NULL AND transcript != '' THEN 1 ELSE 0 END AS has_transcript,
+                       CASE WHEN recording_url IS NOT NULL AND recording_url != '' THEN 1 ELSE 0 END AS has_recording
                 FROM call_records {where}
                 ORDER BY start_time DESC LIMIT ?
                 """,
                 [*detail_params, query.detail_limit],
             ) as cursor:
-                detail = [dict(r) for r in await cursor.fetchall()]
+                detail = []
+                for r in await cursor.fetchall():
+                    row = dict(r)
+                    row["has_transcript"] = bool(row.pop("has_transcript", 0))
+                    row["has_recording"] = bool(row.pop("has_recording", 0))
+                    detail.append(row)
 
         return {
             "summary": summary,
@@ -595,6 +637,7 @@ class CRMDatabase:
                 "from_number": query.from_number,
                 "min_duration": query.min_duration,
                 "max_duration": query.max_duration,
+                "channels": query.channels,
                 "custom_filters": query.custom_filters,
             },
         }
@@ -924,6 +967,28 @@ class CRMDatabase:
     async def export_calls_csv_rows(self, *, limit: int = 5000) -> list[dict]:
         data = await self.list_call_records(limit=limit, offset=0)
         return data["items"]
+
+    async def export_calls_filtered(self, query, *, limit: int = 5000) -> list[dict]:
+        from call_management.crm.reports import CallReportQuery, build_where
+
+        if not isinstance(query, CallReportQuery):
+            raise TypeError("query must be CallReportQuery")
+
+        where, params = build_where(query)
+        async with self._connect() as db:
+            async with db.execute(
+                f"""
+                SELECT call_id, from_number, to_number, start_time, end_time, outcome,
+                       duration_seconds, agent_instance_id, transferred_to, channel,
+                       summary, agent_notes,
+                       CASE WHEN transcript IS NOT NULL AND transcript != '' THEN 1 ELSE 0 END AS has_transcript,
+                       CASE WHEN recording_url IS NOT NULL AND recording_url != '' THEN 1 ELSE 0 END AS has_recording
+                FROM call_records {where}
+                ORDER BY start_time DESC LIMIT ?
+                """,
+                [*params, limit],
+            ) as cursor:
+                return [dict(r) for r in await cursor.fetchall()]
 
     async def close(self) -> None:
         pass

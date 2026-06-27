@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Loader2, Plus, Shield, Trash2, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
+import { ListFilterBar } from "../components/ListFilterBar";
 import { ModulePermissionPicker } from "../components/ModulePermissionPicker";
 import { Select } from "../components/Select";
 import { TableScroll } from "../components/TableScroll";
@@ -30,6 +31,10 @@ export function Users() {
   const [formModules, setFormModules] = useState<string[]>([]);
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [tenantFilter, setTenantFilter] = useState<string>("all");
 
   const { data: rolesData } = useQuery({
     queryKey: ["auth-roles"],
@@ -109,6 +114,33 @@ export function Users() {
   const catalog = modulesData?.modules || [];
   const roleDefaults = modulesData?.role_defaults || {};
   const roleCeilings = modulesData?.role_ceilings || {};
+
+  const filteredUsers = useMemo(() => {
+    const users = data?.users || [];
+    const q = search.trim().toLowerCase();
+    return users.filter((row) => {
+      if (roleFilter !== "all" && row.role !== roleFilter) return false;
+      if (statusFilter === "enabled" && !row.enabled) return false;
+      if (statusFilter === "disabled" && row.enabled) return false;
+      if (isSuperAdmin && tenantFilter !== "all") {
+        const tid = row.tenant_id || "";
+        if (tenantFilter === "none" && tid) return false;
+        if (tenantFilter !== "none" && tid !== tenantFilter) return false;
+      }
+      if (!q) return true;
+      return (
+        row.username.toLowerCase().includes(q) ||
+        row.display_name.toLowerCase().includes(q) ||
+        row.role.toLowerCase().includes(q)
+      );
+    });
+  }, [data?.users, isSuperAdmin, roleFilter, search, statusFilter, tenantFilter]);
+
+  const clearUserFilters = () => {
+    setRoleFilter("all");
+    setStatusFilter("all");
+    setTenantFilter("all");
+  };
 
   return (
     <div className="animate-page-enter space-y-6">
@@ -221,12 +253,58 @@ export function Users() {
         </div>
       )}
 
+      <ListFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por usuario, nombre o rol…"
+        resultCount={filteredUsers.length}
+        totalCount={data?.users.length ?? 0}
+        onClear={clearUserFilters}
+      >
+        <select
+          className="input-field w-full sm:w-40"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
+          <option value="all">Todos los roles</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input-field w-full sm:w-36"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+        >
+          <option value="all">Todos</option>
+          <option value="enabled">Activos</option>
+          <option value="disabled">Desactivados</option>
+        </select>
+        {isSuperAdmin && (
+          <select
+            className="input-field w-full sm:w-44"
+            value={tenantFilter}
+            onChange={(e) => setTenantFilter(e.target.value)}
+          >
+            <option value="all">Todas las empresas</option>
+            <option value="none">Sin empresa</option>
+            {tenantOptions.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </ListFilterBar>
+
       {isLoading ? (
         <div className="glass-card p-6 text-sm text-slate-500">Cargando usuarios…</div>
       ) : (
         <>
           <div className="space-y-3 md:hidden">
-            {(data?.users || []).map((row) => (
+            {filteredUsers.map((row) => (
               <UserMobileCard
                 key={row.id}
                 row={row}
@@ -258,9 +336,17 @@ export function Users() {
             ))}
           </div>
 
-          <div className="glass-card hidden md:block">
-            <TableScroll minWidth={isSuperAdmin ? 980 : 860}>
-              <table className="w-full text-left text-sm">
+          <div className="glass-card hidden w-full md:block">
+            <TableScroll>
+              <table className={`data-table ${isSuperAdmin ? "min-w-[980px]" : "min-w-[860px]"}`}>
+                <colgroup>
+                  <col style={{ width: isSuperAdmin ? "18%" : "22%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: isSuperAdmin ? "24%" : "28%" }} />
+                  {isSuperAdmin && <col style={{ width: "16%" }} />}
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: isSuperAdmin ? "18%" : "20%" }} />
+                </colgroup>
                 <thead className="border-b border-white/5 bg-white/[0.02] text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Usuario</th>
@@ -272,7 +358,7 @@ export function Users() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.users || []).map((row) => (
+                  {filteredUsers.map((row) => (
                     <UserRow
                       key={row.id}
                       row={row}

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { ListFilterBar } from "../components/ListFilterBar";
+import { useTenant } from "../contexts/TenantContext";
 import { api, type AppointmentInput } from "../lib/api";
 
 const emptyForm: AppointmentInput = {
@@ -10,14 +12,25 @@ const emptyForm: AppointmentInput = {
   notes: "",
 };
 
+type WhenFilter = "all" | "upcoming" | "past";
+
+function parseApptTime(value: string): number {
+  const t = Date.parse(value.replace(" ", "T"));
+  return Number.isNaN(t) ? 0 : t;
+}
+
 export function Appointments() {
   const qc = useQueryClient();
+  const { tenantId } = useTenant();
   const [form, setForm] = useState<AppointmentInput | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [whenFilter, setWhenFilter] = useState<WhenFilter>("all");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: () => api.appointments(),
+    queryKey: ["appointments", tenantId],
+    queryFn: () => api.appointments(200, tenantId),
+    enabled: !!tenantId,
   });
 
   const save = useMutation({
@@ -40,7 +53,25 @@ export function Appointments() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["appointments"] }),
   });
 
-  if (isLoading || !data) {
+  const filtered = useMemo(() => {
+    const items = data?.items || [];
+    const q = search.trim().toLowerCase();
+    const now = Date.now();
+    return items.filter((appt) => {
+      const ts = parseApptTime(appt.scheduled_time);
+      if (whenFilter === "upcoming" && ts < now) return false;
+      if (whenFilter === "past" && ts >= now) return false;
+      if (!q) return true;
+      return (
+        appt.customer_phone.toLowerCase().includes(q) ||
+        appt.purpose.toLowerCase().includes(q) ||
+        (appt.notes || "").toLowerCase().includes(q) ||
+        appt.scheduled_time.toLowerCase().includes(q)
+      );
+    });
+  }, [data?.items, search, whenFilter]);
+
+  if (!tenantId || (isLoading && !data)) {
     return <div className="glass-card p-8 text-slate-400">Cargando citas...</div>;
   }
 
@@ -49,7 +80,7 @@ export function Appointments() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold">Citas & Callbacks</h1>
-          <p className="mt-1 text-slate-400">{data.total} citas programadas</p>
+          <p className="mt-1 text-slate-400">{data?.total ?? 0} citas programadas</p>
         </div>
         <button
           type="button"
@@ -63,6 +94,28 @@ export function Appointments() {
           Nueva cita
         </button>
       </header>
+
+      <ListFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por teléfono, propósito o notas…"
+        resultCount={filtered.length}
+        totalCount={data?.items.length ?? 0}
+        onClear={() => setWhenFilter("all")}
+      >
+        <label className="flex items-center gap-2 text-sm text-slate-400">
+          <span className="shrink-0">Cuándo</span>
+          <select
+            className="input-field w-full sm:w-40"
+            value={whenFilter}
+            onChange={(e) => setWhenFilter(e.target.value as WhenFilter)}
+          >
+            <option value="all">Todas</option>
+            <option value="upcoming">Próximas</option>
+            <option value="past">Pasadas</option>
+          </select>
+        </label>
+      </ListFilterBar>
 
       {form && (
         <div className="glass-card grid gap-3 p-5 sm:grid-cols-2">
@@ -107,7 +160,7 @@ export function Appointments() {
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {data.items.map((appt) => (
+        {filtered.map((appt) => (
           <div key={appt.id} className="glass-card p-4">
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-emerald-500/10 p-2">
@@ -146,9 +199,9 @@ export function Appointments() {
             </div>
           </div>
         ))}
-        {data.items.length === 0 && (
+        {filtered.length === 0 && (
           <div className="glass-card col-span-full py-12 text-center text-slate-500">
-            Sin citas programadas
+            Sin citas que coincidan
           </div>
         )}
       </div>

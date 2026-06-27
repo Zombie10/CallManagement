@@ -26,9 +26,13 @@ async def require_tenant_context(
         except Exception as exc:
             raise HTTPException(status_code=401, detail="No autenticado") from exc
 
+    tenant_id = x_tenant_id
+    if not tenant_id and request.method == "GET":
+        tenant_id = request.query_params.get("tenant_id") or None
+
     try:
         return get_tenant_context(
-            tenant_id=x_tenant_id,
+            tenant_id=tenant_id,
             agent_instance_id=x_agent_instance_id,
             user_tenant_id=user.get("tenant_id") if user else None,
             is_super_admin=_is_super_admin(user) if user else True,

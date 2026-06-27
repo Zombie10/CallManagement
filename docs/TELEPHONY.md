@@ -94,10 +94,16 @@ Sin dispatch rule la llamada no crea sala ni despacha el agente.
 
 ```bash
 cd /opt/callmanagement   # o raíz del repo
-uv run python scripts/setup_livekit_inbound.py --phone +15109379101
+# LiveKit Phone Numbers (DID comprado en cloud.livekit.io):
+uv run python scripts/setup_livekit_inbound.py --phone +15109379101 --livekit-phone-number
+
+# Proveedor SIP externo (Telnyx, DIDWW, …):
+uv run python scripts/setup_livekit_inbound.py --phone +15109379101 --with-trunk
 ```
 
 Idempotente: si la regla ya existe, no duplica.
+
+> **Importante (LiveKit Phone Numbers):** crear la dispatch rule por API **no basta**. Debes **asignarla al número** (`lk number update` o consola → Phone Numbers → Assign dispatch rule). Sin eso la llamada se corta al instante.
 
 **Manual** — LiveKit Cloud → Telephony → Dispatch rules → JSON:
 
@@ -136,7 +142,22 @@ O usar **Setup** (`/setup`) en el admin.
 
 El routing usa `sip.trunkPhoneNumber` → `platform.db` → `phone_routes` → instancia de agente.
 
-### 5. Probar
+### 5. Bootstrap automático (recomendado en VPS)
+
+Con `LIVEKIT_*`, `XAI_API_KEY` y el DID en `.env`:
+
+```bash
+sudo APP_DIR=/opt/callmanagement PHONE=+15109379101 bash scripts/bootstrap_telephony.sh
+```
+
+Orquesta en un solo paso:
+
+1. `setup_livekit_inbound.py` — dispatch rule + asignación al número LiveKit
+2. `setup_recordings_minio.sh` — MinIO + variables `RECORDINGS_S3_*` (si faltan)
+3. `test_telephony_inbound.py` — diagnóstico worker / rutas / dispatch
+4. Reinicio de `callmanagement`, `callmanagement-worker` y `minio`
+
+### 6. Probar
 
 Marca `+1 510 937 9101` (desde US o internacional desde otro país).
 
@@ -144,7 +165,14 @@ Verificar:
 
 - LiveKit → Telephony → call logs
 - Admin → **Supervisor** (llamada activa)
-- Admin → **Llamadas** (registro al colgar)
+- Admin → **Llamadas** (registro al colgar, audio unos segundos después)
+
+Diagnóstico manual en el VPS:
+
+```bash
+cd /opt/callmanagement
+.venv/bin/python scripts/test_telephony_inbound.py --phone +15109379101
+```
 
 [Testing guide LiveKit](https://docs.livekit.io/telephony/testing/)
 
@@ -158,9 +186,47 @@ Tres capas (ver [ADMIN.md](ADMIN.md)):
 | Agente | Mis agentes → máx. simultáneas |
 | DID | Mis agentes → máx. por número |
 
-## Grabación SIP (opcional)
+## Grabación SIP
 
-Variables `RECORDINGS_S3_*` + credenciales LiveKit. El worker inicia Egress al conectar la llamada. Ver [DEPLOYMENT.md](DEPLOYMENT.md).
+LiveKit Cloud **Egress** sube audio OGG a almacenamiento S3-compatible. En producción usamos **MinIO** en el mismo VPS; el worker inicia egress al conectar la llamada, guarda el registro al colgar y adjunta el audio cuando egress termina.
+
+### Setup (VPS)
+
+```bash
+sudo APP_DIR=/opt/callmanagement bash scripts/setup_recordings_minio.sh
+```
+
+Escribe en `.env`:
+
+| Variable | Ejemplo producción |
+|----------|-------------------|
+| `RECORDINGS_S3_BUCKET` | `callmgmt-recordings` |
+| `RECORDINGS_S3_ACCESS_KEY` | `cmegressXXXX` (3–20 chars, sin guiones) |
+| `RECORDINGS_S3_SECRET` | generado por el script |
+| `RECORDINGS_S3_ENDPOINT` | `https://paymercadogo.com` |
+| `RECORDINGS_S3_FORCE_PATH_STYLE` | `true` |
+| `RECORDINGS_S3_PREFIX` | `callmanagement/recordings` |
+
+**nginx** (snippet `scripts/deploy/nginx-minio-s3.conf`): proxy del bucket en path-style **sin** prefijo `/s3/`:
+
+```nginx
+location ^~ /callmgmt-recordings/ {
+    proxy_pass http://127.0.0.1:9000/callmgmt-recordings/;
+    # ... headers, client_max_body_size 0, proxy_buffering off
+}
+```
+
+> **No uses** `RECORDINGS_S3_ENDPOINT=https://dominio/s3` con nginx que elimina `/s3/` — LiveKit firma la URL con el prefijo y MinIO rechaza (`SignatureDoesNotMatch`).
+
+Tras cambios: `sudo nginx -t && sudo systemctl reload nginx` y `sudo systemctl restart callmanagement-worker`.
+
+### Flujo al colgar
+
+1. Worker persiste el registro en CRM (~8 s máx. esperando egress)
+2. Si el audio aún no está listo, espera a que egress complete y **adjunta** `recording_url` (`/api/calls/{id}/recording`)
+3. Copia local en `data/recordings/{tenant_id}/{call_id}.ogg` para reproducción autenticada en el admin
+
+Ver [DEPLOYMENT.md](DEPLOYMENT.md) para MinIO systemd y actualizaciones.
 
 ## Llamadas salientes
 
@@ -170,19 +236,36 @@ Requiere proveedor SIP externo (LiveKit Phone Numbers no soporta outbound aún).
 
 | Síntoma | Causa probable | Acción |
 |---------|----------------|--------|
+| Se corta al instante | Dispatch rule **no asignada** al LiveKit Phone Number | `lk number get --number +15109379101` → SIP Dispatch Rules no debe ser `-` |
 | Ocupa / no conecta | Dispatch rule ausente o número en otro proyecto LiveKit | Verificar proyecto `p_39db3sg0f79`, regla y DID |
 | Suena, sin agente | Worker caído o `LIVEKIT_*` incorrectos | `systemctl status callmanagement-worker`, logs |
 | Agente genérico | DID no en Mis agentes | `+15109379101` en instancia activa |
 | 401 en worker | URL equivocada (SIP subdomain vs WebSocket URL) | Usar `wss://call-management-6g9fmqf0.livekit.cloud` |
 | 403 SIP | Credenciales trunk externo | Revisar usuario/contraseña en proveedor y LiveKit |
+| Registro sin audio | Egress S3 mal configurado o worker murió antes de adjuntar | Ver tabla abajo |
+
+### Grabación — troubleshooting
+
+| Síntoma | Causa | Acción |
+|---------|-------|--------|
+| `SignatureDoesNotMatch` en egress | Endpoint con `/s3/` + nginx que quita el prefijo | `RECORDINGS_S3_ENDPOINT=https://paymercadogo.com` + location `/callmgmt-recordings/` |
+| Registro aparece, sin audio | Egress aún procesando o bug antiguo en poll | `lk egress list`; archivo en `https://dominio/callmgmt-recordings/.../call_*.ogg` |
+| `ImportError` en `store.py` | Import circular admin ↔ recordings | Actualizar repo (`store.py` usa `tenancy.paths`) |
+| Access key inválida MinIO | Guiones en el nombre (`callmgmt-egress`) | Re-ejecutar `setup_recordings_minio.sh` (genera `cmegressXXXX`) |
 
 ```bash
 # Logs worker
 sudo journalctl -u callmanagement-worker -f
 
-# Verificar dispatch vía API (en el servidor)
-uv run python scripts/setup_livekit_inbound.py --phone +15109379101
-# Si existe: "Dispatch rule already exists"
+# Egress recientes
+lk egress list
+
+# Verificar dispatch
+.venv/bin/python scripts/setup_livekit_inbound.py --phone +15109379101
+
+# Probar subida S3 (credenciales egress)
+mc alias set pub https://paymercadogo.com "$RECORDINGS_S3_ACCESS_KEY" "$RECORDINGS_S3_SECRET"
+echo test | mc pipe pub/callmgmt-recordings/callmanagement/recordings/test/probe.ogg
 ```
 
 ## Nicaragua (+505) y otros países

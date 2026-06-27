@@ -10,15 +10,44 @@ DIMENSIONS: dict[str, tuple[str, str]] = {
     "hour": ("CAST(strftime('%H', start_time) AS INTEGER)", "Hora"),
     "weekday": ("strftime('%w', start_time)", "Día semana"),
     "outcome": ("COALESCE(outcome, 'unknown')", "Outcome"),
-    "agent": ("COALESCE(agent_instance_id, 'unassigned')", "Agente"),
+    "agent": ("COALESCE(agent_instance_id, 'unassigned')", "Agente instancia"),
+    "template": ("COALESCE(NULLIF(transferred_to, ''), 'sin_plantilla')", "Plantilla agente"),
+    "channel": ("COALESCE(channel, 'sip')", "Canal"),
     "month": ("strftime('%Y-%m', start_time)", "Mes"),
 }
 
 WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
 
 FILTER_FIELDS = frozenset(
-    {"outcome", "agent_instance_id", "from_number", "to_number", "duration_seconds", "start_time"}
+    {
+        "outcome",
+        "agent_instance_id",
+        "from_number",
+        "to_number",
+        "duration_seconds",
+        "start_time",
+        "channel",
+        "transferred_to",
+    }
 )
+
+CHANNEL_LABELS = {
+    "sip": "Teléfono",
+    "voice_livekit": "Voz LiveKit",
+    "voice_xai": "Voz xAI",
+    "chat": "Chat",
+}
+
+TEMPLATE_LABELS = {
+    "receptionist": "Recepción",
+    "support": "Soporte",
+    "sales": "Ventas",
+    "technical": "Técnico",
+    "escalation": "Escalación",
+    "banking_support": "Soporte bancario",
+    "sin_plantilla": "Sin plantilla",
+    "unassigned": "Sin asignar",
+}
 
 METRIC_SQL = {
     "count": "COUNT(*)",
@@ -40,6 +69,7 @@ class CallReportQuery:
     pivot_row: str | None = None
     pivot_col: str | None = None
     metric: str = "count"
+    channels: list[str] = field(default_factory=list)
     custom_filters: list[dict[str, Any]] = field(default_factory=list)
     detail_limit: int = 100
 
@@ -57,6 +87,10 @@ def _label_key(key: str, dimension: str) -> str:
             return WEEKDAY_LABELS[idx]
     if dimension == "outcome":
         return key.replace("_", " ")
+    if dimension == "channel":
+        return CHANNEL_LABELS.get(key, key)
+    if dimension == "template":
+        return TEMPLATE_LABELS.get(key, key.replace("_", " "))
     return key
 
 
@@ -87,6 +121,10 @@ def build_where(query: CallReportQuery) -> tuple[str, list[Any]]:
     if query.max_duration is not None:
         clauses.append("duration_seconds <= ?")
         params.append(query.max_duration)
+    if query.channels:
+        placeholders = ",".join("?" * len(query.channels))
+        clauses.append(f"COALESCE(channel, 'sip') IN ({placeholders})")
+        params.extend(query.channels)
 
     for flt in query.custom_filters:
         field = str(flt.get("field", ""))

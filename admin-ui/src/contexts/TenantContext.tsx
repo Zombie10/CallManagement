@@ -23,6 +23,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   });
 
   const setTenantId = useCallback((id: string | null) => {
+    api.setTenantHeaders(id);
     setTenantIdState(id);
     if (id) localStorage.setItem(TENANT_STORAGE_KEY, id);
     else localStorage.removeItem(TENANT_STORAGE_KEY);

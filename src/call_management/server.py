@@ -25,6 +25,7 @@ from call_management.agent_store import get_effective_instructions
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
+from call_management.telephony.caller_id import phone_from_participant, refresh_call_ctx_caller, resolve_caller_phone
 from call_management.telephony.sip_tools import SIPManager, make_sip_tools
 from call_management.utils.logging import configure_logging
 from call_management.utils.time import utc_now_iso
@@ -201,24 +202,26 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name}
     logger.info("New call job started — room: %s", ctx.room.name)
 
-    from_number = "unknown"
-    to_number = None
+    overrides = _parse_session_overrides(ctx.job.metadata)
+    department_hint = overrides["department_hint"]  # type: ignore[assignment]
+    metadata_phone = str(overrides["from_number"]) if overrides["from_number"] else None
 
-    for identity, participant in ctx.room.remote_participants.items():
+    from_number = resolve_caller_phone(
+        room_name=ctx.room.name,
+        metadata_phone=metadata_phone,
+        participants=list(ctx.room.remote_participants.values()),
+    )
+    to_number = None
+    for participant in ctx.room.remote_participants.values():
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
             attrs = participant.attributes or {}
-            from_number = attrs.get("sip.phoneNumber", identity)
             to_number = attrs.get("sip.trunkPhoneNumber") or attrs.get("sip.to")
             logger.info(
                 "SIP caller detected: %s (status=%s)",
                 from_number,
                 attrs.get("sip.callStatus"),
             )
-
-    overrides = _parse_session_overrides(ctx.job.metadata)
-    department_hint = overrides["department_hint"]  # type: ignore[assignment]
-    if overrides["from_number"]:
-        from_number = str(overrides["from_number"])
+            break
 
     from call_management.tenancy.context import resolve_crm_for_tenant, resolve_dispatch
 
@@ -412,9 +415,26 @@ async def entrypoint(ctx: JobContext) -> None:
     if route_reason == "vip_support":
         call_ctx.call_notes.append("VIP caller routed directly to support")
 
+    call_ctx.previous_agent_name = getattr(initial_agent, "agent_name", None)
+
     await session.start(agent=initial_agent, room=ctx.room)
     await ctx.connect()
     call_ctx.agent_session = session
+
+    refreshed_from = refresh_call_ctx_caller(call_ctx, ctx.room, metadata_phone=metadata_phone)
+    if refreshed_from != from_number:
+        from_number = refreshed_from
+        for participant in ctx.room.remote_participants.values():
+            if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                attrs = participant.attributes or {}
+                to_number = attrs.get("sip.trunkPhoneNumber") or attrs.get("sip.to") or to_number
+                break
+        if call_ctx.crm:
+            customer = await call_ctx.crm.get_or_create_customer(from_number)
+            call_ctx.customer_name = customer.name
+            call_ctx.is_vip = customer.vip
+            call_ctx.customer_email = customer.email
+            call_ctx.customer_notes = customer.notes
 
     from call_management.recordings.livekit_egress import start_room_audio_recording
 
@@ -482,9 +502,10 @@ async def _handle_participant_connected(
     if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
         return
 
-    attrs = participant.attributes or {}
-    call_ctx.from_number = attrs.get("sip.phoneNumber", call_ctx.from_number)
-    status = attrs.get("sip.callStatus")
+    phone = phone_from_participant(participant)
+    if phone:
+        call_ctx.from_number = phone
+    status = (participant.attributes or {}).get("sip.callStatus")
     logger.info("SIP call status update: %s for %s", status, call_ctx.from_number)
 
     if call_ctx.crm:
@@ -501,6 +522,12 @@ async def _handle_attributes_changed(
     if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
         return
 
+    if "sip.phoneNumber" in changed or "sip.from" in changed or "sip.callerId" in changed:
+        phone = phone_from_participant(participant)
+        if phone:
+            call_ctx.from_number = phone
+            logger.info("SIP caller ID updated: %s", phone)
+
     if "sip.callStatus" in changed:
         new_status = changed["sip.callStatus"]
         logger.info("SIP callStatus changed to: %s", new_status)
@@ -516,7 +543,14 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
     if call_ctx.call_persisted:
         return
 
-    logger.info("Call ending — persisting record for %s", call_ctx.call_id)
+    if call_ctx.sip:
+        refresh_call_ctx_caller(call_ctx, call_ctx.sip.ctx.room)
+
+    logger.info(
+        "Call ending — persisting record for %s (from=%s)",
+        call_ctx.call_id,
+        call_ctx.from_number,
+    )
 
     if call_ctx.tenant_id:
         from call_management.tenancy.queue import release as release_queue_slot
@@ -526,6 +560,11 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
         await unregister_active_call(call_ctx.call_id)
 
     await finalize_interaction(call_ctx, enable_summary=enable_summary)
+
+    if call_ctx.egress_id and not call_ctx.recording_url:
+        from call_management.crm.session_persist import _background_attach_recording
+
+        await _background_attach_recording(call_ctx)
 
 
 def main() -> None:

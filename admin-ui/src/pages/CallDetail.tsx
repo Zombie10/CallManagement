@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Clock, FileText, Headphones, Phone, User } from "lucide-react";
+import { ArrowLeft, Clock, FileText, Phone, User } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { CallRecordingPlayer } from "../components/CallRecordingPlayer";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import { canListenRecordings } from "../lib/permissions";
@@ -11,12 +12,6 @@ const CHANNEL_LABELS: Record<string, string> = {
   voice_xai: "Voz xAI",
   voice_livekit: "Voz LiveKit",
 };
-
-function recordingSrc(callId: string, recordingUrl?: string | null): string | null {
-  if (!recordingUrl) return null;
-  if (recordingUrl.startsWith("http")) return recordingUrl;
-  return api.recordingStreamUrl(callId);
-}
 
 export function CallDetail() {
   const { user } = useAuth();
@@ -43,7 +38,7 @@ export function CallDetail() {
     );
   }
 
-  const audioSrc = canPlay ? recordingSrc(call.call_id, call.recording_url) : null;
+  const showRecording = canPlay && !!call.recording_url;
   const channelLabel = CHANNEL_LABELS[call.channel || "sip"] || call.channel;
 
   return (
@@ -100,23 +95,8 @@ export function CallDetail() {
         )}
       </header>
 
-      {audioSrc && (
-        <section className="glass-card p-5 sm:p-6">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
-            <Headphones className="h-4 w-4 text-cyan-400" />
-            Grabación de audio
-          </h2>
-          <audio controls className="w-full" src={audioSrc} preload="metadata">
-            Tu navegador no reproduce audio.
-          </audio>
-          <a
-            href={audioSrc}
-            download
-            className="mt-2 inline-block text-xs text-cyan-300 hover:text-cyan-200"
-          >
-            Descargar grabación
-          </a>
-        </section>
+      {showRecording && (
+        <CallRecordingPlayer callId={call.call_id} recordingUrl={call.recording_url!} />
       )}
 
       {call.transcript && (

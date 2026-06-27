@@ -4,20 +4,23 @@ let _tenantId: string | null = null;
 let _agentInstanceId: string | null = null;
 
 function buildHeaders(init?: RequestInit): Record<string, string> {
+  const extra = (init?.headers as Record<string, string>) || {};
   const base: Record<string, string> = {
     "Content-Type": "application/json",
-    ...((init?.headers as Record<string, string>) || {}),
+    ...extra,
   };
-  if (_tenantId) base["X-Tenant-Id"] = _tenantId;
-  if (_agentInstanceId) base["X-Agent-Instance-Id"] = _agentInstanceId;
+  if (!extra["X-Tenant-Id"] && _tenantId) base["X-Tenant-Id"] = _tenantId;
+  if (!extra["X-Agent-Instance-Id"] && _agentInstanceId) {
+    base["X-Agent-Instance-Id"] = _agentInstanceId;
+  }
   return base;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
-    headers: buildHeaders(init),
     ...init,
+    headers: buildHeaders(init),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -106,7 +109,10 @@ export const api = {
     }),
   demoCustomers: () => request<{ customers: DemoCustomer[] }>("/demo/customers"),
   health: () => request<{ status: string }>("/health"),
-  dashboard: () => request<DashboardResponse>("/dashboard"),
+  dashboard: (tenantId?: string | null) =>
+    request<DashboardResponse>("/dashboard", {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
   settings: () => request<SettingsResponse>("/settings"),
   saveSettings: (values: Record<string, string>) =>
     request("/settings", { method: "PUT", body: JSON.stringify({ values }) }),
@@ -153,20 +159,50 @@ export const api = {
   voiceConfig: (agent: string) =>
     request<VoiceSessionConfig>(`/voice/config/${encodeURIComponent(agent)}`),
   livekitStatus: () => request<LiveKitStatusResponse>("/livekit/status"),
+  listPlaygroundAgents: (tenantId?: string | null) =>
+    request<PlaygroundAgentsResponse>("/playground/agents", {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
   createLiveKitPlayground: (data: LiveKitPlaygroundInput) =>
     request<LiveKitPlaygroundResponse>("/livekit/playground", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  customers: (limit = 50) => request<ListResponse<Customer>>(`/customers?limit=${limit}`),
-  calls: (limit = 50, offset = 0) =>
-    request<ListResponse<CallRecord>>(`/calls?limit=${limit}&offset=${offset}`),
+  customers: (limit = 500, tenantId?: string | null) =>
+    request<ListResponse<Customer>>(`/customers?limit=${limit}`, {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
+  calls: (limit = 100, offset = 0, tenantId?: string | null) =>
+    request<ListResponse<CallRecord>>(`/calls?limit=${limit}&offset=${offset}`, {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
   getCall: (callId: string) => request<CallRecord>(`/calls/${encodeURIComponent(callId)}`),
-  recordingStreamUrl: (callId: string) =>
-    `${API}/calls/${encodeURIComponent(callId)}/recording`,
-  uploadCallRecording: async (callId: string, blob: Blob) => {
+  recordingStreamUrl: (callId: string, tenantId?: string | null) => {
+    const base = `${API}/calls/${encodeURIComponent(callId)}/recording`;
+    if (!tenantId) return base;
+    return `${base}?tenant_id=${encodeURIComponent(tenantId)}`;
+  },
+  fetchRecordingBlob: async (callId: string, recordingUrl?: string | null, tenantId?: string | null) => {
+    const url =
+      recordingUrl && recordingUrl.startsWith("http")
+        ? recordingUrl
+        : api.recordingStreamUrl(callId, tenantId ?? _tenantId);
+    const headers: Record<string, string> = {};
+    const tid = tenantId ?? _tenantId;
+    if (tid && !(recordingUrl && recordingUrl.startsWith("http"))) {
+      headers["X-Tenant-Id"] = tid;
+    }
+    const res = await fetch(url, { credentials: "include", headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      const detail = err.detail;
+      throw new Error(typeof detail === "string" ? detail : res.statusText || "Error al cargar grabación");
+    }
+    return res.blob();
+  },
+  uploadCallRecording: async (callId: string, blob: Blob, ext = "webm") => {
     const form = new FormData();
-    form.append("file", blob, `${callId}.webm`);
+    form.append("file", blob, `${callId}.${ext}`);
     const headers: Record<string, string> = {};
     if (_tenantId) headers["X-Tenant-Id"] = _tenantId;
     if (_agentInstanceId) headers["X-Agent-Instance-Id"] = _agentInstanceId;
@@ -182,7 +218,10 @@ export const api = {
     }
     return res.json() as Promise<{ saved: boolean; call_id: string; recording_url: string }>;
   },
-  appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
+  appointments: (limit = 200, tenantId?: string | null) =>
+    request<ListResponse<Appointment>>(`/appointments?limit=${limit}`, {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
   createAppointment: (data: AppointmentInput) =>
     request<Appointment>("/appointments", { method: "POST", body: JSON.stringify(data) }),
   updateAppointment: (id: string, data: Partial<AppointmentInput>) =>
@@ -224,7 +263,10 @@ export const api = {
     }),
   deleteTenant: (id: string) =>
     request<{ deleted: string }>(`/tenants/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  listTenantAgents: () => request<TenantAgentsResponse>("/tenant-agents"),
+  listTenantAgents: (tenantId?: string | null) =>
+    request<TenantAgentsResponse>("/tenant-agents", {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
   createTenantAgent: (data: AgentInstanceInput) =>
     request<AgentInstanceRecord>("/tenant-agents", { method: "POST", body: JSON.stringify(data) }),
   updateTenantAgent: (id: string, data: AgentInstanceInput) =>
@@ -246,12 +288,19 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ schedules }),
     }),
-  analytics: () => request<AnalyticsResponse>("/analytics"),
-  reportOptions: () => request<ReportOptionsResponse>("/reports/options"),
-  queryReport: (payload: CallReportPayload) =>
+  analytics: (tenantId?: string | null) =>
+    request<AnalyticsResponse>("/analytics", {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
+  reportOptions: (tenantId?: string | null) =>
+    request<ReportOptionsResponse>("/reports/options", {
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
+    }),
+  queryReport: (payload: CallReportPayload, tenantId?: string | null) =>
     request<CallReportResponse>("/reports/calls", {
       method: "POST",
       body: JSON.stringify(payload),
+      headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
     }),
   listWebhooks: () => request<{ webhooks: WebhookRecord[] }>("/webhooks"),
   createWebhook: (data: WebhookCreateInput) =>
@@ -319,6 +368,7 @@ export interface SupervisorResponse {
     id: string;
     display_name: string;
     status: string;
+    schedule_status?: ScheduleStatus;
     call_count_today: number;
     max_concurrent_calls?: number | null;
     active_calls?: number;
@@ -418,7 +468,15 @@ export interface AnalyticsResponse extends CallAnalytics {
   actionable?: ActionableAnalytics;
 }
 
-export type ReportDimension = "day" | "hour" | "weekday" | "outcome" | "agent" | "month";
+export type ReportDimension =
+  | "day"
+  | "hour"
+  | "weekday"
+  | "outcome"
+  | "agent"
+  | "template"
+  | "channel"
+  | "month";
 
 export interface CustomReportFilter {
   field: string;
@@ -434,6 +492,7 @@ export interface CallReportPayload {
   from_number?: string | null;
   min_duration?: number | null;
   max_duration?: number | null;
+  channels?: string[];
   group_by?: ReportDimension;
   pivot_row?: ReportDimension | null;
   pivot_col?: ReportDimension | null;
@@ -457,6 +516,25 @@ export interface CallReportSummary {
   avg_duration_seconds: number;
   total_duration_seconds: number;
   unique_callers: number;
+  handoffs?: number;
+  channels?: Array<{ key: string; label: string; count: number }>;
+}
+
+export interface CallReportDetailRow {
+  call_id: string;
+  from_number: string;
+  to_number?: string | null;
+  start_time: string;
+  end_time?: string | null;
+  outcome?: string | null;
+  duration_seconds?: number | null;
+  agent_instance_id?: string | null;
+  transferred_to?: string | null;
+  channel?: string | null;
+  summary?: string | null;
+  agent_notes?: string | null;
+  has_transcript?: boolean;
+  has_recording?: boolean;
 }
 
 export interface CallReportSeries {
@@ -483,15 +561,7 @@ export interface CallReportResponse {
   series: CallReportSeries[];
   outcome_breakdown: CallReportSeries[];
   pivot: CallReportPivot | null;
-  detail: Array<{
-    call_id: string;
-    from_number: string;
-    to_number?: string | null;
-    start_time: string;
-    outcome?: string | null;
-    duration_seconds?: number | null;
-    agent_instance_id?: string | null;
-  }>;
+  detail: CallReportDetailRow[];
   group_by: string;
   filters_applied: Record<string, unknown>;
 }
@@ -781,6 +851,42 @@ export interface TenantUpdateInput {
 
 export type ScheduleStatus = "open" | "closed" | "always";
 
+export type TelephonyMode = "playground_only" | "livekit_pstn" | "demo_did";
+
+export interface TelephonyChannel {
+  id: string;
+  label: string;
+  available: boolean;
+  description: string;
+}
+
+export interface TelephonyPhoneDetail {
+  phone_number: string;
+  is_demo: boolean;
+  is_livekit_phone_number: boolean;
+  dispatch_assigned: boolean;
+  dispatch_rule_id?: string | null;
+}
+
+export interface AgentTelephonySummary {
+  mode: TelephonyMode;
+  mode_label: string;
+  channels: TelephonyChannel[];
+  phones: TelephonyPhoneDetail[];
+  livekit_configured: boolean;
+  worker_livekit_ready: boolean;
+  worker_xai_ready: boolean;
+}
+
+export interface TelephonyProvisionResult {
+  phone: string;
+  configured: boolean;
+  auto_setup?: boolean;
+  is_livekit_phone_number?: boolean;
+  dispatch_rule_id?: string;
+  message: string;
+}
+
 export interface AgentInstanceRecord {
   id: string;
   tenant_id: string;
@@ -806,6 +912,8 @@ export interface AgentInstanceRecord {
   phone_routes?: Array<{ phone_number: string; max_concurrent_calls?: number | null }>;
   schedule_status?: ScheduleStatus;
   default_instructions?: string;
+  telephony?: AgentTelephonySummary;
+  telephony_provision?: TelephonyProvisionResult[];
 }
 
 export interface AgentInstanceInput {
@@ -833,6 +941,20 @@ export interface TenantAgentsResponse {
   tenant: TenantRecord;
   agents: AgentInstanceRecord[];
   catalog: AgentsResponse["catalog"];
+  worker?: { livekit_ready: boolean; xai_voice_ready: boolean };
+}
+
+export interface PlaygroundAgentOption {
+  id: string;
+  display_name: string;
+  template_id: string;
+  status: string;
+  phone_number?: string | null;
+}
+
+export interface PlaygroundAgentsResponse {
+  tenant: Pick<TenantRecord, "id" | "name" | "slug">;
+  agents: PlaygroundAgentOption[];
 }
 
 export interface PlatformMetricsResponse {

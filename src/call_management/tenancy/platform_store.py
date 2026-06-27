@@ -682,22 +682,35 @@ class PlatformStore:
         ]
 
     def list_schedules(self, agent_instance_id: str) -> list[AgentSchedule]:
+        return self.list_schedules_for_agents([agent_instance_id]).get(agent_instance_id, [])
+
+    def list_schedules_for_agents(self, agent_instance_ids: list[str]) -> dict[str, list[AgentSchedule]]:
+        if not agent_instance_ids:
+            return {}
+        placeholders = ",".join("?" * len(agent_instance_ids))
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM agent_schedules WHERE agent_instance_id = ? ORDER BY day_of_week, start_time",
-                (agent_instance_id,),
+                f"""
+                SELECT * FROM agent_schedules
+                WHERE agent_instance_id IN ({placeholders})
+                ORDER BY agent_instance_id, day_of_week, start_time
+                """,
+                agent_instance_ids,
             ).fetchall()
-        return [
-            AgentSchedule(
-                id=r["id"],
-                agent_instance_id=r["agent_instance_id"],
-                day_of_week=r["day_of_week"],
-                start_time=r["start_time"],
-                end_time=r["end_time"],
-                timezone=r["timezone"],
+        grouped: dict[str, list[AgentSchedule]] = {aid: [] for aid in agent_instance_ids}
+        for r in rows:
+            aid = r["agent_instance_id"]
+            grouped.setdefault(aid, []).append(
+                AgentSchedule(
+                    id=r["id"],
+                    agent_instance_id=aid,
+                    day_of_week=r["day_of_week"],
+                    start_time=r["start_time"],
+                    end_time=r["end_time"],
+                    timezone=r["timezone"],
+                )
             )
-            for r in rows
-        ]
+        return grouped
 
     def set_schedules(self, agent_instance_id: str, schedules: list[dict[str, Any]]) -> list[AgentSchedule]:
         with self._connect() as conn:

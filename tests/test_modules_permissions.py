@@ -36,3 +36,8 @@ def test_api_recording_requires_recordings_module():
     assert not can_access_api("viewer", "/api/calls/call_1/recording", ["calls"])
     assert can_access_api("viewer", "/api/calls/call_1/recording", ["calls", "recordings"])
     assert not can_access_api("playground", "/api/calls/call_1/recording", ["playground"])
+
+
+def test_playground_role_can_list_company_agents():
+    assert can_access_api("playground", "/api/playground/agents", ["playground"])
+    assert not can_access_api("playground", "/api/tenant-agents", ["playground"])

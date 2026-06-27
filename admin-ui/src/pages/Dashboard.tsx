@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Crown, Phone, Radio, Users, Calendar, Clock, Headphones } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
+import { AgentFleetStatus } from "../components/AgentFleetStatus";
 import { StatCard } from "../components/StatCard";
 import clsx from "clsx";
 
@@ -29,9 +31,14 @@ function CallsByDayChart({ data }: { data: Array<{ day: string; count: number }>
 }
 
 export function Dashboard() {
-  const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard });
+  const { tenantId } = useTenant();
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", tenantId],
+    queryFn: () => api.dashboard(tenantId),
+    enabled: !!tenantId,
+  });
 
-  if (isLoading || !data) {
+  if (!tenantId || isLoading || !data || data.tenant.id !== tenantId) {
     return <div className="glass-card p-8 text-slate-400">Cargando dashboard...</div>;
   }
 
@@ -57,6 +64,8 @@ export function Dashboard() {
         <StatCard title="Citas" value={stats.appointments} icon={Calendar} accent="from-emerald-500/20 to-green-600/10" />
         <StatCard title="VIP" value={stats.vip_customers} icon={Crown} accent="from-amber-500/20 to-orange-600/10" />
       </div>
+
+      <AgentFleetStatus tenantId={tenantId} variant="epic" />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="glass-card p-6 lg:col-span-2">

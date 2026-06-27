@@ -93,6 +93,10 @@ async def resolve_egress_recording_url(egress_id: str, *, timeout_sec: float = 4
                         for f in item.file_results:
                             if f.location:
                                 return f.location
+                        # Room composite egress often populates `file`, not `file_results`.
+                        file_info = getattr(item, "file", None)
+                        if file_info and file_info.location:
+                            return file_info.location
                         return None
                     if item.status in (EgressStatus.EGRESS_FAILED, EgressStatus.EGRESS_ABORTED):
                         logger.warning("Egress %s failed: %s", egress_id, item.error)
@@ -102,3 +106,38 @@ async def resolve_egress_recording_url(egress_id: str, *, timeout_sec: float = 4
                 return None
             await asyncio.sleep(2.0)
     return None
+
+
+async def mirror_egress_recording_locally(
+    egress_url: str,
+    *,
+    tenant_id: str | None,
+    call_id: str,
+) -> str | None:
+    """Download completed egress file to local disk for authenticated admin playback."""
+    import aiohttp
+
+    from call_management.recordings.store import recording_api_url, save_recording_bytes
+
+    if not egress_url.strip():
+        return None
+    try:
+        async with aiohttp.ClientSession() as session, session.get(egress_url) as resp:
+            if resp.status != 200:
+                logger.warning("Egress mirror HTTP %s for %s", resp.status, call_id)
+                return None
+            data = await resp.read()
+            if not data:
+                return None
+            ext = "ogg"
+            lower = egress_url.lower()
+            if lower.endswith(".webm"):
+                ext = "webm"
+            elif lower.endswith(".mp4") or lower.endswith(".m4a"):
+                ext = "m4a"
+            save_recording_bytes(tenant_id, call_id, data, ext=ext)
+            logger.info("Mirrored egress recording locally call_id=%s bytes=%s", call_id, len(data))
+            return recording_api_url(call_id)
+    except Exception:
+        logger.exception("Failed to mirror egress recording for %s", call_id)
+        return None

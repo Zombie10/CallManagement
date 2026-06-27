@@ -52,7 +52,13 @@ MODULES: tuple[ModuleDef, ...] = (
         "category": "Operación",
         "api_prefixes": ("/api/supervisor",),
     },
-    {"id": "playground", "label": "Probar agente", "route": "/playground", "category": "Pruebas", "api_prefixes": ("/api/chat/", "/api/voice/", "/api/livekit/", "/api/demo/")},
+    {
+        "id": "playground",
+        "label": "Probar agente",
+        "route": "/playground",
+        "category": "Pruebas",
+        "api_prefixes": ("/api/chat/", "/api/voice/", "/api/livekit/", "/api/demo/", "/api/playground/"),
+    },
     {
         "id": "settings",
         "label": "Configuración",

@@ -16,6 +16,7 @@ export type ReportFiltersState = {
   fromNumber: string;
   minDuration: string;
   maxDuration: string;
+  channels: string[];
   groupBy: ReportDimension;
   pivotRow: ReportDimension;
   pivotCol: ReportDimension;
@@ -35,6 +36,7 @@ export function defaultFilters(): ReportFiltersState {
     fromNumber: "",
     minDuration: "",
     maxDuration: "",
+    channels: [],
     groupBy: "day",
     pivotRow: "weekday",
     pivotCol: "outcome",
@@ -65,6 +67,7 @@ export function filtersToPayload(f: ReportFiltersState) {
     from_number: f.fromNumber || null,
     min_duration: f.minDuration ? Number(f.minDuration) : null,
     max_duration: f.maxDuration ? Number(f.maxDuration) : null,
+    channels: f.channels,
     group_by: f.groupBy,
     pivot_row: f.pivotRow,
     pivot_col: f.pivotCol,
@@ -74,10 +77,43 @@ export function filtersToPayload(f: ReportFiltersState) {
 }
 
 export function exportDetailCsv(detail: CallReportResponse["detail"]) {
-  const headers = ["call_id", "from_number", "to_number", "start_time", "outcome", "duration_seconds", "agent_instance_id"];
+  const headers = [
+    "id_llamada",
+    "origen",
+    "destino",
+    "inicio",
+    "fin",
+    "canal",
+    "outcome",
+    "duracion_seg",
+    "agente_id",
+    "plantilla",
+    "transcript",
+    "grabacion",
+    "resumen",
+    "notas_agente",
+  ];
+  const keys = [
+    "call_id",
+    "from_number",
+    "to_number",
+    "start_time",
+    "end_time",
+    "channel",
+    "outcome",
+    "duration_seconds",
+    "agent_instance_id",
+    "transferred_to",
+    "has_transcript",
+    "has_recording",
+    "summary",
+    "agent_notes",
+  ] as const;
   const rows = detail.map((r) =>
-    headers.map((h) => {
-      const v = r[h as keyof typeof r];
+    keys.map((k) => {
+      let v: unknown = r[k as keyof typeof r];
+      if (k === "has_transcript") v = r.has_transcript ? "Sí" : "No";
+      if (k === "has_recording") v = r.has_recording ? "Sí" : "No";
       const s = v == null ? "" : String(v);
       return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
     }).join(","),
@@ -94,7 +130,7 @@ export function exportPivotCsv(pivot: NonNullable<CallReportResponse["pivot"]>) 
 }
 
 function downloadCsv(content: string, filename: string) {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["\ufeff", content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -115,6 +151,8 @@ export const FILTER_OPS = [
 export const FILTER_FIELDS = [
   { value: "outcome", label: "Outcome" },
   { value: "agent_instance_id", label: "Agente ID" },
+  { value: "transferred_to", label: "Plantilla agente" },
+  { value: "channel", label: "Canal" },
   { value: "from_number", label: "Teléfono origen" },
   { value: "to_number", label: "Teléfono destino" },
   { value: "duration_seconds", label: "Duración (s)" },

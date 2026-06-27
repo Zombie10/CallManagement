@@ -52,16 +52,21 @@ function AgentPickerSelect({
   disabled?: boolean;
   className?: string;
 }) {
+  if (picker.agentsLoading) {
+    return (
+      <div className={clsx("input-field flex items-center gap-2 text-sm text-slate-500", className)}>
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Cargando agentes…
+      </div>
+    );
+  }
   if (picker.hasInstances) {
     return (
       <Select
         className={className}
         value={picker.agentInstanceId}
         onChange={picker.setAgentInstanceId}
-        options={[
-          { value: "", label: "Agente de empresa…", description: "Instancia configurada" },
-          ...picker.instanceOptions,
-        ]}
+        options={picker.instanceOptions}
         disabled={disabled}
       />
     );
@@ -324,7 +329,7 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in playground-voice-shell flex min-h-0 flex-col overflow-visible">
       <VoiceControls
         picker={picker}
         sessionActive={voice.connected || voice.connecting}
@@ -344,56 +349,78 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
         onDisconnect={() => void voice.stop()}
       />
 
-      {!status?.livekit_ready && (
-        <div className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100">
-          <p className="font-medium">Requiere LiveKit Cloud + worker</p>
-          <ul className="mt-1 list-inside list-disc text-xs text-amber-200/90">
-            {(status?.livekit_issues || []).map((issue) => (
-              <li key={issue}>{issue}</li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs">
-            Terminal: <code className="text-amber-50">uv run -m call_management.server dev</code>
-          </p>
-        </div>
-      )}
-
-      <div className="grid gap-3 border-b border-white/5 p-4 sm:grid-cols-3">
-        <StatusTile
-          icon={voice.connected ? Wifi : WifiOff}
-          label="Sala"
-          value={voice.sessionInfo?.room_name || "—"}
-          active={voice.connected}
-        />
-        <StatusTile
-          icon={Bot}
-          label="Agente"
-          value={voice.agentJoined ? voice.sessionInfo?.initial_agent || "activo" : "esperando…"}
-          active={voice.agentJoined}
-        />
-        <StatusTile
-          icon={Cloud}
-          label="Pipeline"
-          value={voice.sessionInfo?.pipeline || "livekit"}
-          active={voice.connected}
-        />
-      </div>
-
-      {voice.connected && (
-        <div className="border-b border-white/5 px-4 py-3">
-          <p className="text-sm text-cyan-200">
-            {voice.agentJoined ? "Agente en línea — habla con naturalidad" : "Esperando dispatch del worker…"}
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-cyan-500 transition-all duration-150"
-              style={{ width: levelWidth }}
-            />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {!status?.livekit_ready && (
+          <div className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100">
+            <p className="font-medium">Requiere LiveKit Cloud + worker</p>
+            <ul className="mt-1 list-inside list-disc text-xs text-amber-200/90">
+              {(status?.livekit_issues || []).map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs">
+              Terminal: <code className="text-amber-50">uv run -m call_management.server dev</code>
+            </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {voice.error && <p className="p-4 text-sm text-red-400">{voice.error}</p>}
+        <div className="grid gap-3 border-b border-white/5 p-4 sm:grid-cols-3">
+          <StatusTile
+            icon={voice.connected ? Wifi : WifiOff}
+            label="Sala"
+            value={voice.sessionInfo?.room_name || "—"}
+            active={voice.connected}
+          />
+          <StatusTile
+            icon={Bot}
+            label="Agente"
+            value={voice.agentJoined ? voice.sessionInfo?.initial_agent || "activo" : "esperando…"}
+            active={voice.agentJoined}
+          />
+          <StatusTile
+            icon={Cloud}
+            label="Pipeline"
+            value={voice.sessionInfo?.pipeline || "livekit"}
+            active={voice.connected}
+          />
+        </div>
+
+        {voice.connected && (
+          <div className="border-b border-white/5 px-4 py-3">
+            <p className="text-sm text-cyan-200">
+              {voice.agentJoined ? "Agente en línea — habla con naturalidad" : "Esperando dispatch del worker…"}
+            </p>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-cyan-500 transition-all duration-150"
+                style={{ width: levelWidth }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-1 flex-col justify-center p-4 sm:p-6">
+          {!voice.connected && (
+            <div className="mx-auto max-w-lg text-center text-sm text-slate-400">
+              <p>
+                Misma ruta que una llamada PSTN: sala LiveKit → worker → agente con CRM. Elige el agente arriba y
+                pulsa Conectar.
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                También puedes probar en terminal:{" "}
+                <code className="text-slate-300">call-management console -a receptionist</code>
+              </p>
+            </div>
+          )}
+          {voice.connected && voice.agentJoined && (
+            <p className="text-center text-sm text-slate-500">
+              Sesión activa · {agentLabel(voice.sessionInfo?.initial_agent || picker.templateId)}
+            </p>
+          )}
+        </div>
+
+        {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
+      </div>
     </div>
   );
 }
@@ -484,7 +511,7 @@ function VoicePlayground({ picker }: { picker: AgentPicker }) {
   const [backend, setBackend] = useState<VoiceBackend>("xai");
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-visible">
       <div className="grid gap-3 border-b border-white/5 p-4 sm:grid-cols-2">
         <button
           type="button"
@@ -578,7 +605,7 @@ function ChatBubble({ line }: { line: ChatLine }) {
 export function Playground() {
   const [mode, setMode] = useState<"text" | "voice">("voice");
   const picker = useTenantAgentPicker("banking_support");
-  const { tenant } = useTenant();
+  const { tenant, tenantId } = useTenant();
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const brandColor = tenant?.brand_color || "#06b6d4";
 
@@ -611,6 +638,27 @@ export function Playground() {
         <div className="glass-card stagger-2 border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
           Configura <code className="text-amber-100">XAI_API_KEY</code> en Configuración.
         </div>
+      )}
+
+      {picker.agentsError && (
+        <div className="glass-card border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
+          No se pudieron cargar los agentes de la empresa: {picker.agentsError}
+        </div>
+      )}
+
+      {!picker.agentsLoading && !picker.agentsError && !picker.hasInstances && tenantId && (
+        <div className="glass-card border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">
+          <strong>{tenant?.name}</strong> no tiene agentes configurados. Usando plantillas genéricas.
+          Crea agentes en <strong>Mis agentes</strong> o cambia de empresa arriba.
+        </div>
+      )}
+
+      {!picker.agentsLoading && picker.hasInstances && (
+        <p className="text-xs text-slate-500">
+          {picker.instanceOptions.length} agente{picker.instanceOptions.length === 1 ? "" : "s"} de{" "}
+          <span className="text-slate-400">{tenant?.name}</span>
+          {picker.tenantSlug ? ` (${picker.tenantSlug})` : ""}
+        </p>
       )}
 
       <div className="stagger-3 grid grid-cols-2 gap-2 sm:flex sm:w-auto">

@@ -111,7 +111,7 @@
   }
 
   .voice-toolbar {
-    @apply sticky top-0 z-20 border-b border-white/5 bg-surface-900/95 backdrop-blur-xl;
+    @apply sticky top-0 z-30 overflow-visible border-b border-white/5 bg-surface-900/95 backdrop-blur-xl;
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 
@@ -127,6 +127,37 @@
     @apply w-full max-w-full overflow-x-auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+
+  .table-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .table-scroll::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgba(148, 163, 184, 0.35);
+  }
+
+  .data-table {
+    @apply w-full table-fixed text-left text-sm;
+  }
+
+  .data-table th,
+  .data-table td {
+    @apply overflow-hidden text-ellipsis;
+  }
+
+  .data-table-detail th,
+  .data-table-detail td {
+    @apply align-top;
+  }
+
+  .data-table-detail .col-wrap {
+    @apply whitespace-normal break-words text-ellipsis;
+    overflow: visible;
   }
 
   .input-field {
@@ -151,7 +182,7 @@
   }
 
   .select-menu {
-    @apply absolute z-50 mt-1.5 max-h-64 w-full min-w-[12rem] max-w-[min(100vw-2rem,20rem)] overflow-auto rounded-xl border border-white/10 bg-surface-900/95 p-1 shadow-glow-lg backdrop-blur-xl;
+    @apply absolute z-[120] mt-1.5 max-h-72 w-full min-w-[12rem] max-w-[min(100vw-2rem,24rem)] overflow-auto rounded-xl border border-white/10 bg-surface-900/95 p-1 shadow-glow-lg backdrop-blur-xl;
   }
 
   .select-option {

@@ -3,19 +3,31 @@ import {
   Bot,
   Clock,
   Copy,
+  Info,
   Loader2,
   Mic,
   Phone,
   Plus,
+  Radio,
   Save,
+  Terminal,
   Trash2,
+  Wifi,
   X,
+  Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
-import { api, type AgentInstanceInput, type AgentInstanceRecord, type ScheduleStatus } from "../lib/api";
+import {
+  api,
+  type AgentInstanceInput,
+  type AgentInstanceRecord,
+  type ScheduleStatus,
+  type TelephonyProvisionResult,
+} from "../lib/api";
+import { TELEPHONY_MODE_STYLES } from "../lib/telephony";
 import { voiceSelectOptions } from "../lib/voices";
 import clsx from "clsx";
 
@@ -32,6 +44,53 @@ const SCHEDULE_BADGE: Record<ScheduleStatus, { label: string; className: string 
   closed: { label: "Cerrado", className: "bg-red-500/15 text-red-300" },
   always: { label: "24/7", className: "bg-slate-500/15 text-slate-400" },
 };
+
+const CHANNEL_META: Record<string, { icon: typeof Terminal; title: string }> = {
+  console_local: { icon: Terminal, title: "Consola" },
+  playground_xai: { icon: Zap, title: "xAI" },
+  playground_livekit: { icon: Radio, title: "LK prod." },
+  pstn_livekit: { icon: Phone, title: "PSTN" },
+};
+
+function TelephonyChannels({ agent }: { agent: AgentInstanceRecord }) {
+  const telephony = agent.telephony;
+  if (!telephony) return null;
+  const modeStyle = TELEPHONY_MODE_STYLES[telephony.mode];
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-white/5 pt-3">
+      <span
+        className={clsx(
+          "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+          modeStyle.className,
+        )}
+      >
+        {telephony.mode_label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {telephony.channels.map((ch) => {
+          const meta = CHANNEL_META[ch.id];
+          const Icon = meta?.icon || Wifi;
+          return (
+            <span
+              key={ch.id}
+              title={ch.description}
+              className={clsx(
+                "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px]",
+                ch.available
+                  ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/5 bg-white/[0.02] text-slate-600",
+              )}
+            >
+              <Icon className="h-3 w-3 shrink-0" />
+              {meta?.title || ch.label}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function emptyAgent(): AgentInstanceInput {
   return {
@@ -107,14 +166,27 @@ function AgentCard({
       </div>
       {phones.length > 0 && (
         <div className="mt-3 space-y-1">
-          {phones.map((num) => (
-            <p key={num} className="flex items-center gap-1.5 text-sm text-cyan-200/90">
-              <Phone className="h-3.5 w-3.5 shrink-0" />
-              {num}
-            </p>
-          ))}
+          {phones.map((num) => {
+            const detail = agent.telephony?.phones.find((p) => p.phone_number === num);
+            return (
+              <p key={num} className="flex flex-wrap items-center gap-1.5 text-sm text-cyan-200/90">
+                <Phone className="h-3.5 w-3.5 shrink-0" />
+                {num}
+                {detail?.is_demo && (
+                  <span className="rounded bg-violet-500/15 px-1.5 text-[10px] text-violet-300">demo</span>
+                )}
+                {detail?.is_livekit_phone_number && detail.dispatch_assigned && (
+                  <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-300">dispatch OK</span>
+                )}
+                {detail?.is_livekit_phone_number && !detail.dispatch_assigned && (
+                  <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-300">sin dispatch</span>
+                )}
+              </p>
+            );
+          })}
         </div>
       )}
+      <TelephonyChannels agent={agent} />
       <p className="mt-2 text-xs text-slate-500">
         {agent.call_count_today ?? 0} llamadas hoy · {agent.locale.toUpperCase()}
         {agent.max_concurrent_calls != null && (
@@ -141,17 +213,25 @@ export function TenantAgents() {
     () => voiceSelectOptions(agentsCatalog?.catalog.voice_library || []),
     [agentsCatalog?.catalog.voice_library],
   );
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ["tenant-agents", tenantId],
-    queryFn: api.listTenantAgents,
+    queryFn: () => api.listTenantAgents(tenantId),
     enabled: !!tenantId,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    setEditing(null);
+    setIsNew(false);
+    setProvisionNotes(null);
+  }, [tenantId]);
   const [editing, setEditing] = useState<AgentInstanceRecord | null>(null);
   const [draft, setDraft] = useState<AgentInstanceInput>(emptyAgent());
   const [isNew, setIsNew] = useState(false);
   const [schedules, setSchedules] = useState<Array<{ day_of_week: number; start_time: string; end_time: string }>>([]);
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [phoneLimits, setPhoneLimits] = useState<Record<string, string>>({});
+  const [provisionNotes, setProvisionNotes] = useState<TelephonyProvisionResult[] | null>(null);
 
   const buildPayload = (): AgentInstanceInput => {
     const primary = (draft.phone_number || "").trim();
@@ -183,9 +263,14 @@ export function TenantAgents() {
       await api.saveAgentSchedules(editing.id, schedules);
       return saved;
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["tenant-agents"] });
-      setEditing(null);
+      if (saved.telephony_provision?.length) {
+        setProvisionNotes(saved.telephony_provision);
+      }
+      if (!isNew) {
+        setEditing(null);
+      }
       setIsNew(false);
     },
   });
@@ -211,11 +296,13 @@ export function TenantAgents() {
     setSchedules([]);
     setExtraPhones([]);
     setPhoneLimits({});
+    setProvisionNotes(null);
   };
 
   const openEdit = async (agent: AgentInstanceRecord) => {
     setIsNew(false);
     setEditing(agent);
+    setProvisionNotes(null);
     setDraft({
       slug: agent.slug,
       display_name: agent.display_name,
@@ -262,7 +349,11 @@ export function TenantAgents() {
     );
   }
 
-  if (isLoading) {
+  const agentsForTenant =
+    data?.tenant?.id === tenantId ? data.agents : undefined;
+  const showLoading = !tenantId || isLoading || (isFetching && !agentsForTenant);
+
+  if (showLoading && !agentsForTenant?.length) {
     return <div className="glass-card p-8 text-slate-400">Cargando agentes…</div>;
   }
 
@@ -275,6 +366,7 @@ export function TenantAgents() {
           <h1 className="font-display text-3xl font-semibold">Mis agentes</h1>
           <p className="mt-1 text-slate-400">
             {tenant?.name || data?.tenant.name} — cada agente con su voz, teléfono y base de datos aislada
+            {isFetching && <span className="ml-2 text-cyan-400/80">actualizando…</span>}
           </p>
         </div>
         <button type="button" className="btn-primary" onClick={openNew}>
@@ -284,7 +376,7 @@ export function TenantAgents() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {(data?.agents || []).map((agent) => (
+        {(agentsForTenant || []).map((agent) => (
           <AgentCard
             key={agent.id}
             agent={agent}
@@ -361,6 +453,44 @@ export function TenantAgents() {
                 Ej.: banco 8, recepción 4. Vacío = solo aplica el límite global de la empresa.
               </p>
             </label>
+            <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/5 p-3 text-xs text-cyan-100/90">
+              <p className="flex items-center gap-1.5 font-medium text-cyan-200">
+                <Info className="h-3.5 w-3.5" />
+                Canales de prueba vs producción
+              </p>
+              <ul className="mt-2 list-inside list-disc space-y-1 text-slate-400">
+                <li>
+                  <strong className="text-slate-300">Consola local</strong> — terminal, sin LiveKit Cloud
+                </li>
+                <li>
+                  <strong className="text-slate-300">Admin · xAI directo</strong> — solo voz Grok
+                </li>
+                <li>
+                  <strong className="text-slate-300">Admin · LiveKit producción</strong> — misma pipeline que PSTN
+                </li>
+                <li>
+                  <strong className="text-slate-300">Teléfono PSTN</strong> — requiere DID real y worker activo
+                </li>
+              </ul>
+              <p className="mt-2 text-slate-500">
+                Si el número es un <strong className="text-slate-400">LiveKit Phone Number</strong> del proyecto,
+                al guardar se crea y asigna la dispatch rule automáticamente.
+              </p>
+            </div>
+
+            {provisionNotes && provisionNotes.length > 0 && (
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3 text-xs">
+                <p className="font-medium text-emerald-200">Telefonía LiveKit</p>
+                <ul className="mt-1 space-y-1 text-slate-300">
+                  {provisionNotes.map((note) => (
+                    <li key={note.phone}>
+                      <span className="font-mono text-cyan-200">{note.phone}</span>: {note.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <label className="block space-y-1.5">
               <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
                 <Phone className="h-3 w-3" />

@@ -91,4 +91,5 @@ async def stream_call_recording(ctx, call_id: str) -> FileResponse:
         path,
         media_type=guess_media_type(path),
         filename=path.name,
+        headers={"Accept-Ranges": "bytes"},
     )
