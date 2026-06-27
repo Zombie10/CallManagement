@@ -123,6 +123,12 @@
     min-height: min(640px, calc(100dvh - 14rem));
   }
 
+  .table-scroll {
+    @apply w-full max-w-full overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
   .input-field {
     @apply w-full rounded-xl border border-white/10 bg-surface-800/80 px-3 py-2.5 text-sm text-slate-100 outline-none transition-all duration-300 placeholder:text-slate-500 focus:border-cyan-400/50 focus:bg-surface-800 focus:ring-2 focus:ring-cyan-400/20;
   }
@@ -145,7 +151,7 @@
   }
 
   .select-menu {
-    @apply absolute z-50 mt-1.5 max-h-64 w-full min-w-[12rem] overflow-auto rounded-xl border border-white/10 bg-surface-900/95 p-1 shadow-glow-lg backdrop-blur-xl;
+    @apply absolute z-50 mt-1.5 max-h-64 w-full min-w-[12rem] max-w-[min(100vw-2rem,20rem)] overflow-auto rounded-xl border border-white/10 bg-surface-900/95 p-1 shadow-glow-lg backdrop-blur-xl;
   }
 
   .select-option {

@@ -93,7 +93,7 @@ export function Layout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden">
         <nav className="glass-card flex gap-1 overflow-x-auto p-2 md:hidden">
           {nav.map(({ to, label, icon: Icon }) => (
             <NavLink
