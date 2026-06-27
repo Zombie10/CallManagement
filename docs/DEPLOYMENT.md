@@ -83,7 +83,14 @@ LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
 
-# Optional: Postgres CRM (stub — falls back to SQLite per tenant)
+# Optional: SIP recording via LiveKit Egress → S3/MinIO
+# RECORDINGS_S3_BUCKET=your-bucket
+# RECORDINGS_S3_ACCESS_KEY=...
+# RECORDINGS_S3_SECRET=...
+# RECORDINGS_S3_REGION=us-east-1
+# RECORDINGS_S3_PREFIX=callmanagement/recordings
+
+# Optional: Postgres CRM (requires: uv sync --extra postgres)
 # CRM_DATABASE_URL=postgresql://user:pass@host/db
 ```
 
@@ -145,7 +152,10 @@ ssh mercadogo-vps 'cd /opt/callmanagement && git pull origin main'
 cd admin-ui && VITE_BASE=/callmgmt/ npm run build
 rsync -avz admin-ui/dist/ mercadogo-vps:/opt/callmanagement/admin-ui/dist/
 
-# 4. Restart services
+# 4. Sync Python deps on VPS (if pyproject.toml changed)
+ssh mercadogo-vps 'cd /opt/callmanagement && uv sync'
+
+# 5. Restart services
 ssh mercadogo-vps 'sudo systemctl restart callmanagement callmanagement-worker'
 ```
 
@@ -231,7 +241,9 @@ uv run python scripts/init_crm.py
 
 Demo banking customers seed on admin startup (`demo_seed.py`).
 
-**PostgreSQL:** Set `CRM_DATABASE_URL` — current implementation uses SQLite per tenant until asyncpg adapter is completed (`crm/postgres_backend.py` stub).
+**PostgreSQL:** Set `CRM_DATABASE_URL` and install `asyncpg` (`uv sync --extra postgres`). Uses row-level `tenant_id` isolation. Without asyncpg, falls back to SQLite per tenant.
+
+**SIP recordings:** Configure `RECORDINGS_S3_*` + LiveKit creds. Dashboard shows egress status; worker emits `call.started` with `recording: true` when egress starts.
 
 ## Coexistence with other services (paymercadogo VPS)
 
@@ -259,7 +271,9 @@ sudo nginx -t && sudo systemctl reload nginx
 - [ ] Do not commit `.env` or `data/*.db`
 - [ ] Use `playground` role for external testers
 - [ ] Rotate `XAI_API_KEY` if exposed
-- [ ] Webhook secrets optional but recommended for `call.ended`
+- [ ] Webhook secrets recommended for all events (`call.started`, `call.ended`, `appointment.*`, `agent.handoff`)
+- [ ] Rotate API keys after sharing; scopes mínimos (`calls.read`, etc.)
+- [ ] `RECORDINGS_S3_*` only if using LiveKit Egress for SIP audio
 
 ## Troubleshooting
 

@@ -82,7 +82,12 @@ export function CallDetail() {
           </span>
           {call.transferred_to && (
             <span className="rounded-lg bg-violet-500/10 px-3 py-1 text-sm text-violet-200">
-              Agente: {call.transferred_to}
+              Transferido a: {call.transferred_to}
+            </span>
+          )}
+          {call.outcome === "escalated" && (
+            <span className="rounded-lg bg-amber-500/15 px-3 py-1 text-sm text-amber-200">
+              Escalación a humano
             </span>
           )}
         </div>

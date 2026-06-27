@@ -410,14 +410,25 @@ async def report_calls_post(
 async def tenant_analytics(ctx: TenantContext = Depends(require_tenant_context)):
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     analytics = await crm.get_call_analytics()
+    actionable = await crm.get_actionable_analytics()
     metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     from call_management.tenancy.queue import active_count
 
     return {
         **analytics,
+        "actionable": actionable,
         "metrics": metrics,
         "active_calls": active_count(ctx.tenant.id),
     }
+
+
+@router.get("/webhooks/deliveries")
+async def list_webhook_deliveries(
+    limit: int = 50,
+    offset: int = 0,
+    ctx: TenantContext = Depends(require_tenant_context),
+):
+    return get_platform_store().list_webhook_deliveries(ctx.tenant.id, limit=limit, offset=offset)
 
 
 @router.get("/webhooks")

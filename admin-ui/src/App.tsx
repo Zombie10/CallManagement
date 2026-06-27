@@ -15,6 +15,8 @@ import { Profile } from "./pages/Profile";
 import { Users } from "./pages/Users";
 import { SetupWizard } from "./pages/SetupWizard";
 import { Analytics } from "./pages/Analytics";
+import { CustomerDetail } from "./pages/CustomerDetail";
+import { Supervisor } from "./pages/Supervisor";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -30,6 +32,8 @@ export default function App() {
           <Route path="setup" element={<SetupWizard />} />
           <Route path="agents" element={<Agents />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="customers/:phone" element={<CustomerDetail />} />
+          <Route path="supervisor" element={<Supervisor />} />
           <Route path="calls" element={<Calls />} />
           <Route path="calls/:callId" element={<CallDetail />} />
           <Route path="analytics" element={<Analytics />} />

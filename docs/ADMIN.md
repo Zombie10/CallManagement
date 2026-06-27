@@ -42,7 +42,8 @@ Cada empresa tiene:
 - CRM SQLite aislado: `data/tenants/{tenant_id}/crm.db`
 - Límites: `max_agents`, `max_calls_per_day`
 - Branding: `logo_url`, `brand_color` (visible en Playground)
-- Webhooks por tenant (`call.ended`)
+- Webhooks por tenant (`call.started`, `call.ended`, `appointment.*`, `agent.handoff`)
+- API keys para integraciones (`/api/public/v1/*`)
 
 Los agentes son **instancias** (plantilla + config + teléfono(s)), no solo plantillas del sistema (`/agents`).
 
@@ -68,9 +69,11 @@ uv run python scripts/seed_demo_company.py
 | `/playground` | Voz (xAI / LiveKit) + chat texto | super_admin, admin, playground |
 | `/agents` | Plantillas de sistema (globales) | super_admin |
 | `/customers` | CRM clientes | super_admin, admin, viewer |
-| `/calls` | Historial con transcript/grabación | super_admin, admin, viewer |
-| `/appointments` | Citas programadas | super_admin, admin, viewer |
-| `/settings` | `.env` + webhooks del tenant | super_admin, admin |
+| `/customers/:phone` | Ficha cliente unificada (llamadas, chats, citas, notas) | super_admin, admin, viewer |
+| `/calls` | Registros con transcript/grabación | super_admin, admin, viewer |
+| `/appointments` | Citas — crear, editar, eliminar | super_admin, admin (viewer solo lectura) |
+| `/supervisor` | Panel tiempo real: activas, cola, alertas | super_admin, admin, viewer |
+| `/settings` | `.env`, webhooks, auditoría, API keys (super_admin) | super_admin, admin |
 | `/users` | Usuarios, empresa y **permisos por módulo** | super_admin, admin |
 | `/profile` | Contraseña, passkeys | all |
 
@@ -152,6 +155,10 @@ Si la empresa tiene `logo_url` y `brand_color`, el playground muestra branding d
 
 Sesión multi-agente con handoffs y log de herramientas.
 
+### Persistencia móvil (iOS/Safari)
+
+El playground de texto guarda borrador en `localStorage` (autosave cada ~800 ms). Si cierras la pestaña con conversación sin guardar en servidor, el navegador muestra aviso. Al iniciar sesión nueva se limpia el borrador.
+
 ## API overview
 
 All routes under `/api/` unless noted. Tenant-scoped routes require session + `X-Tenant-Id` (o tenant del usuario).
@@ -169,8 +176,15 @@ All routes under `/api/` unless noted. Tenant-scoped routes require session + `X
 | `/api/webhooks` | * | Webhooks del tenant |
 | `/api/agents` | GET/POST/DELETE | Plantillas globales |
 | `/api/customers` | GET/POST/PATCH | CRM |
-| `/api/calls` | GET | Call log (con transcript) |
-| `/api/appointments` | GET | Appointments |
+| `/api/customers/{phone}/profile` | GET | Ficha cliente unificada |
+| `/api/calls` | GET | Registros (transcript, grabación) |
+| `/api/appointments` | GET/POST/PATCH/DELETE | Citas CRUD |
+| `/api/supervisor` | GET | Llamadas activas, alertas, agentes |
+| `/api/export/calls.csv` | GET | Export CSV (módulo `export`) |
+| `/api/webhooks/deliveries` | GET | Auditoría de entregas webhook |
+| `/api/webhooks/events` | GET | Catálogo de eventos |
+| `/api/api-keys` | GET/POST/DELETE | API keys (super_admin) |
+| `/api/public/v1/*` | * | API pública (header `X-Api-Key`) |
 | `/api/chat/*` | * | Text playground |
 | `/api/voice/*` | * | xAI voice session + tools |
 | `/api/livekit/*` | * | LiveKit playground |
@@ -183,7 +197,7 @@ Session cookie: `cm_admin_session` (httpOnly, path `/`).
 
 | Path | Purpose |
 |------|---------|
-| `data/platform.db` | Empresas, agentes, rutas teléfono, horarios, webhooks |
+| `data/platform.db` | Empresas, agentes, rutas, webhooks, API keys, auditoría webhook |
 | `data/tenants/{id}/crm.db` | CRM por empresa |
 | `data/admin_auth.db` | Usuarios, sesiones, passkeys |
 | `data/crm.db` | Legacy / tenant default (migración automática) |

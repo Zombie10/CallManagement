@@ -8,7 +8,13 @@ export function WebhooksPanel() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenant();
   const [url, setUrl] = useState("");
+  const [events, setEvents] = useState<string[]>(["call.ended", "call.started", "appointment.created"]);
   const [error, setError] = useState<string | null>(null);
+
+  const { data: eventCatalog } = useQuery({
+    queryKey: ["webhook-events"],
+    queryFn: api.webhookEvents,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["webhooks", tenantId],
@@ -17,7 +23,7 @@ export function WebhooksPanel() {
   });
 
   const create = useMutation({
-    mutationFn: () => api.createWebhook({ url, events: ["call.ended"] }),
+    mutationFn: () => api.createWebhook({ url, events }),
     onSuccess: async () => {
       setUrl("");
       setError(null);
@@ -42,8 +48,24 @@ export function WebhooksPanel() {
         <h2 className="font-display text-lg font-semibold">Webhooks</h2>
       </div>
       <p className="mb-4 text-sm text-slate-400">
-        Recibe notificaciones POST cuando termina una llamada (<code className="text-slate-300">call.ended</code>).
+        Eventos: call.started, call.ended, appointment.*, agent.handoff (con reintentos y auditoría).
       </p>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(eventCatalog?.events || ["call.ended"]).map((ev) => (
+          <button
+            key={ev}
+            type="button"
+            onClick={() =>
+              setEvents((prev) => (prev.includes(ev) ? prev.filter((x) => x !== ev) : [...prev, ev]))
+            }
+            className={`rounded-lg px-2 py-1 font-mono text-xs ${
+              events.includes(ev) ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-slate-500"
+            }`}
+          >
+            {ev}
+          </button>
+        ))}
+      </div>
 
       {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
 

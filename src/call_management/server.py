@@ -403,6 +403,33 @@ async def entrypoint(ctx: JobContext) -> None:
         tenant_id=call_ctx.tenant_id,
     )
 
+    from call_management.recordings.livekit_egress import egress_configured
+    from call_management.tenancy.queue import register_active_call
+    from call_management.tenancy.webhooks import emit_event
+
+    await register_active_call(
+        call_ctx.call_id,
+        tenant_id=tenant.id,
+        from_number=from_number,
+        channel=call_ctx.channel,
+        agent_instance_id=call_ctx.agent_instance_id,
+        started_at=call_ctx.start_time,
+        queued=not queued_ok,
+        recording=bool(call_ctx.egress_id) or egress_configured(),
+    )
+    await emit_event(
+        tenant.id,
+        "call.started",
+        {
+            "call_id": call_ctx.call_id,
+            "from_number": from_number,
+            "to_number": to_number,
+            "channel": call_ctx.channel,
+            "agent_instance_id": call_ctx.agent_instance_id,
+            "recording": bool(call_ctx.egress_id),
+        },
+    )
+
     logger.info("Agent session started. Initial agent: %s", initial_agent.agent_name)
 
     def on_participant_connected(participant: rtc.RemoteParticipant):
@@ -470,8 +497,10 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
 
     if call_ctx.tenant_id:
         from call_management.tenancy.queue import release as release_queue_slot
+        from call_management.tenancy.queue import unregister_active_call
 
         await release_queue_slot(call_ctx.tenant_id)
+        await unregister_active_call(call_ctx.call_id)
 
     await finalize_interaction(call_ctx, enable_summary=enable_summary)
 

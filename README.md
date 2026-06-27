@@ -22,16 +22,19 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 | Natural phone style | Agents listen first, one question at a time — no robotic intake forms |
 | BAC banking support | Account/card verification, temporary blocks, CRM lookup by phone |
 | Admin web console | Dashboard, CRM, agentes, análisis, webhooks, guía de inicio |
-| **Análisis / reportes** | Filtros interactivos, pivot, presets, export CSV — [docs/ANALYTICS.md](docs/ANALYTICS.md) |
+| **Análisis / reportes** | SLA, sentimiento, comparación agentes, pivot, export CSV — [docs/ANALYTICS.md](docs/ANALYTICS.md) |
+| **Supervisor** | Panel en tiempo real: llamadas activas, cola, alertas worker |
+| **Ficha cliente** | Historial unificado: llamadas, chats, citas, notas, escalaciones |
 | Voice playground | **xAI direct** (WebSocket) or **LiveKit production** (white-label por empresa) |
-| Text playground | Multi-agent chat with tool-call log and handoff events |
+| Text playground | Multi-agent chat con autosave móvil (`localStorage` + aviso al cerrar pestaña) |
 | xAI tools | Built-in web search, MCP, code interpreter + custom CRM/SIP function tools |
-| Auth & RBAC | Password + WebAuthn; roles: `super_admin`, `admin`, `playground`, `viewer` |
-| Telephony | SIP inbound por DID, varios números por agente, horarios de atención |
-| CRM | SQLite por tenant: customers, calls (transcript/grabación), appointments |
+| Auth & RBAC | Password + WebAuthn; roles + módulos: `supervisor`, `export`, `audit`, `api_keys` |
+| Telephony | SIP inbound por DID, grabación Egress→S3, varios números por agente |
+| CRM | SQLite por tenant (Postgres opcional con `asyncpg`): customers, calls, appointments |
 | Cola y límites | Llamadas concurrentes y máximo por día por empresa |
-| Webhooks | `call.ended` por tenant (configurables en Settings) |
-| Observability | Post-call summaries, dashboard worker LiveKit, analytics |
+| Webhooks | `call.started`, `call.ended`, `appointment.*`, `agent.handoff` + auditoría y reintentos |
+| **API pública** | API keys por tenant (`/api/public/v1/*`) con scopes |
+| Observability | Post-call summaries, dashboard worker LiveKit, analytics accionables |
 
 ## Architecture
 

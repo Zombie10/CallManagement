@@ -45,8 +45,42 @@ MODULES: tuple[ModuleDef, ...] = (
         "api_prefixes": ("/api/calls/",),
     },
     {"id": "appointments", "label": "Citas", "route": "/appointments", "category": "CRM", "api_prefixes": ("/api/appointments",)},
+    {
+        "id": "supervisor",
+        "label": "Supervisor",
+        "route": "/supervisor",
+        "category": "Operación",
+        "api_prefixes": ("/api/supervisor",),
+    },
     {"id": "playground", "label": "Probar agente", "route": "/playground", "category": "Pruebas", "api_prefixes": ("/api/chat/", "/api/voice/", "/api/livekit/", "/api/demo/")},
-    {"id": "settings", "label": "Configuración", "route": "/settings", "category": "Sistema", "api_prefixes": ("/api/settings", "/api/webhooks")},
+    {
+        "id": "settings",
+        "label": "Configuración",
+        "route": "/settings",
+        "category": "Sistema",
+        "api_prefixes": ("/api/settings", "/api/webhooks", "/api/api-keys", "/api/webhooks/deliveries"),
+    },
+    {
+        "id": "audit",
+        "label": "Auditoría webhooks",
+        "route": "/settings",
+        "category": "Sistema",
+        "api_prefixes": ("/api/webhooks/deliveries",),
+    },
+    {
+        "id": "export",
+        "label": "Exportar datos",
+        "route": "/analytics",
+        "category": "Reportes",
+        "api_prefixes": ("/api/export/",),
+    },
+    {
+        "id": "api_keys",
+        "label": "API pública",
+        "route": "/settings",
+        "category": "Sistema",
+        "api_prefixes": ("/api/api-keys",),
+    },
     {"id": "agents", "label": "Plantillas sistema", "route": "/agents", "category": "Sistema", "api_prefixes": ("/api/agents",)},
     {"id": "users", "label": "Usuarios", "route": "/users", "category": "Sistema", "api_prefixes": ("/api/auth/users", "/api/auth/roles", "/api/auth/modules")},
 )
@@ -57,11 +91,11 @@ ROUTE_TO_MODULE: dict[str, str] = {m["route"]: m["id"] for m in MODULES}
 _ROLE_MODULE_CEILING: dict[str, frozenset[str]] = {
     "super_admin": frozenset(m["id"] for m in MODULES),
     "admin": frozenset(
-        m["id"] for m in MODULES if m["id"] not in ("tenants", "agents")
+        m["id"] for m in MODULES if m["id"] not in ("tenants", "agents", "audit", "api_keys")
     ),
     "playground": frozenset({"playground"}),
     "viewer": frozenset(
-        {"dashboard", "analytics", "customers", "calls", "recordings", "appointments"}
+        {"dashboard", "analytics", "customers", "calls", "recordings", "appointments", "supervisor"}
     ),
 }
 

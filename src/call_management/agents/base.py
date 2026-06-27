@@ -213,6 +213,20 @@ class BaseAgent(Agent):
         ctx.handoff_reason = reason or f"Transferred to {agent_name}"
         ctx.call_notes.append(f"Handoff to {agent_name}: {ctx.handoff_reason}")
 
+        from call_management.tenancy.events import schedule_event
+
+        schedule_event(
+            ctx.tenant_id,
+            "agent.handoff",
+            {
+                "call_id": ctx.call_id,
+                "from_agent": self.agent_name,
+                "to_agent": agent_name,
+                "reason": ctx.handoff_reason,
+                "channel": getattr(ctx, "channel", "sip"),
+            },
+        )
+
         logger.info("Handoff: %s -> %s (%s)", self.agent_name, agent_name, reason)
         return next_agent, f"Transferring you to our {agent_name} team now."
 

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crown, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 import { TableScroll } from "../components/TableScroll";
 import { api } from "../lib/api";
 
@@ -29,7 +30,12 @@ export function Customers() {
           <article key={c.phone_number} className="glass-card space-y-3 p-4">
             <div>
               <p className="font-mono text-sm text-cyan-200">{c.phone_number}</p>
-              <p className="mt-1 font-medium text-slate-100">{c.name || "Sin nombre"}</p>
+              <Link
+                to={`/customers/${encodeURIComponent(c.phone_number)}`}
+                className="mt-1 block font-medium text-slate-100 hover:text-cyan-200"
+              >
+                {c.name || "Sin nombre"}
+              </Link>
               <p className="text-sm text-slate-400">{c.email || "Sin email"}</p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -68,7 +74,14 @@ export function Customers() {
               {data.items.map((c) => (
                 <tr key={c.phone_number} className="border-b border-white/5 hover:bg-white/5">
                   <td className="px-4 py-3 font-mono text-cyan-200">{c.phone_number}</td>
-                  <td className="px-4 py-3">{c.name || "—"}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      to={`/customers/${encodeURIComponent(c.phone_number)}`}
+                      className="hover:text-cyan-200"
+                    >
+                      {c.name || "Ver ficha"}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-slate-400">{c.email || "—"}</td>
                   <td className="px-4 py-3">
                     <button

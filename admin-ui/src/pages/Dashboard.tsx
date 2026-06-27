@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Crown, Phone, Radio, Users, Calendar, Clock } from "lucide-react";
+import { Activity, Crown, Phone, Radio, Users, Calendar, Clock, Headphones } from "lucide-react";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { StatCard } from "../components/StatCard";
 import clsx from "clsx";
@@ -34,7 +35,7 @@ export function Dashboard() {
     return <div className="glass-card p-8 text-slate-400">Cargando dashboard...</div>;
   }
 
-  const { stats, runtime, worker, analytics, tenant } = data;
+  const { stats, runtime, worker, analytics, tenant, recordings, actionable } = data;
 
   return (
     <div className="space-y-6">
@@ -142,7 +143,59 @@ export function Dashboard() {
             )}
           </div>
         </div>
+
+        {recordings && (
+          <div className="glass-card p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Headphones className="h-5 w-5 text-emerald-400" />
+              <h2 className="font-display text-lg font-semibold">Grabación SIP</h2>
+            </div>
+            <p className="text-sm text-slate-300">
+              {recordings.egress_configured
+                ? `Egress S3 activo${recordings.s3_bucket ? ` (${recordings.s3_bucket})` : ""}`
+                : "S3 no configurado — solo grabaciones locales/playground"}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Grabaciones activas: {recordings.active_recordings}
+            </p>
+          </div>
+        )}
       </div>
+
+      {actionable && (
+        <div className="glass-card p-6">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">Métricas accionables</h2>
+            <Link to="/analytics" className="text-xs text-cyan-300 hover:text-cyan-200">
+              Ver análisis completo →
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl bg-white/5 p-3">
+              <p className="text-xs text-slate-500">SLA ≤{actionable.sla_seconds}s</p>
+              <p className="text-xl font-semibold text-emerald-300">{actionable.sla_compliance_pct}%</p>
+            </div>
+            <div className="rounded-xl bg-white/5 p-3">
+              <p className="text-xs text-slate-500">Transferencias</p>
+              <p className="text-xl font-semibold">{actionable.handoffs}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 p-3">
+              <p className="text-xs text-slate-500">Escalaciones</p>
+              <p className="text-xl font-semibold text-amber-200">{actionable.escalations}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 p-3">
+              <p className="text-xs text-slate-500">Sentimiento</p>
+              <p className="text-xl font-semibold capitalize">{actionable.sentiment_label}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="text-center text-sm text-slate-500">
+        <Link to="/supervisor" className="text-cyan-300 hover:text-cyan-200">
+          Abrir panel supervisor en tiempo real
+        </Link>
+      </p>
     </div>
   );
 }

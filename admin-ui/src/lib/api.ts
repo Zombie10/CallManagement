@@ -183,6 +183,26 @@ export const api = {
     return res.json() as Promise<{ saved: boolean; call_id: string; recording_url: string }>;
   },
   appointments: (limit = 50) => request<ListResponse<Appointment>>(`/appointments?limit=${limit}`),
+  createAppointment: (data: AppointmentInput) =>
+    request<Appointment>("/appointments", { method: "POST", body: JSON.stringify(data) }),
+  updateAppointment: (id: string, data: Partial<AppointmentInput>) =>
+    request<Appointment>(`/appointments/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteAppointment: (id: string) =>
+    request<{ deleted: string }>(`/appointments/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  customerProfile: (phone: string) =>
+    request<CustomerProfileResponse>(`/customers/${encodeURIComponent(phone)}/profile`),
+  supervisor: () => request<SupervisorResponse>("/supervisor"),
+  webhookDeliveries: (limit = 50) =>
+    request<ListResponse<WebhookDelivery>>(`/webhooks/deliveries?limit=${limit}`),
+  exportCallsCsvUrl: () => `${API}/export/calls.csv`,
+  listApiKeys: () => request<{ api_keys: ApiKeyRecord[] }>("/api-keys"),
+  createApiKey: (data: { name: string; scopes: string[] }) =>
+    request<ApiKeyCreated>("/api-keys", { method: "POST", body: JSON.stringify(data) }),
+  revokeApiKey: (id: string) =>
+    request<{ revoked: string }>(`/api-keys/${encodeURIComponent(id)}`, { method: "DELETE" }),
   updateCustomer: (phone: string, data: Partial<Customer>) =>
     request(`/customers/${encodeURIComponent(phone)}`, {
       method: "PATCH",
@@ -238,7 +258,81 @@ export const api = {
     request<WebhookRecord>("/webhooks", { method: "POST", body: JSON.stringify(data) }),
   deleteWebhook: (id: string) =>
     request<{ deleted: string }>(`/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  webhookEvents: () => request<{ events: string[] }>("/webhooks/events"),
 };
+
+export interface AppointmentInput {
+  customer_phone: string;
+  scheduled_time: string;
+  purpose: string;
+  notes?: string | null;
+}
+
+export interface CustomerProfileResponse {
+  customer: Customer;
+  calls: CallRecord[];
+  chat_sessions: Array<{
+    session_id: string;
+    customer_phone: string;
+    started_at: string;
+    message_count: number;
+  }>;
+  appointments: Appointment[];
+  stats: {
+    total_calls: number;
+    handoffs: number;
+    escalations: number;
+    appointments: number;
+  };
+}
+
+export interface SupervisorResponse {
+  active_calls: number;
+  queued_calls: number;
+  recording_calls: number;
+  at_capacity: boolean;
+  calls: Array<{
+    call_id: string;
+    from_number: string;
+    channel: string;
+    started_at: string;
+    queued?: boolean;
+    recording?: boolean;
+  }>;
+  tenant_metrics?: TenantMetrics;
+  agents?: Array<{
+    id: string;
+    display_name: string;
+    status: string;
+    call_count_today: number;
+  }>;
+  recordings?: { egress_configured: boolean };
+  alerts: Array<{ level: string; message: string }>;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event: string;
+  url: string;
+  status_code: number | null;
+  success: boolean;
+  attempts: number;
+  error: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface ApiKeyCreated extends ApiKeyRecord {
+  api_key: string;
+}
 
 export interface DashboardResponse {
   stats: {
@@ -270,6 +364,28 @@ export interface DashboardResponse {
     active_calls_tenant: number;
     active_calls_global: number;
   };
+  recordings?: {
+    egress_configured: boolean;
+    s3_bucket?: string;
+    active_recordings: number;
+  };
+  actionable?: ActionableAnalytics;
+}
+
+export interface ActionableAnalytics {
+  sla_seconds: number;
+  sla_compliance_pct: number;
+  handoffs: number;
+  escalations: number;
+  sentiment_score: number;
+  sentiment_label: string;
+  topic_keywords: Record<string, number>;
+  agent_comparison: Array<{
+    agent_instance_id: string;
+    call_count: number;
+    avg_duration_seconds: number;
+    escalations: number;
+  }>;
 }
 
 export interface CallAnalytics {
@@ -281,6 +397,7 @@ export interface CallAnalytics {
 export interface AnalyticsResponse extends CallAnalytics {
   metrics: TenantMetrics;
   active_calls: number;
+  actionable?: ActionableAnalytics;
 }
 
 export type ReportDimension = "day" | "hour" | "weekday" | "outcome" | "agent" | "month";
@@ -503,6 +620,8 @@ export interface Appointment {
   customer_phone: string;
   scheduled_time: string;
   purpose: string;
+  notes?: string | null;
+  created_at?: string;
 }
 
 export interface ListResponse<T> {

@@ -52,4 +52,18 @@ async def schedule_appointment(
         notes=notes,
     )
     details = {"id": appt_id, "time": when, "purpose": purpose}
+    tenant_id = getattr(crm, "tenant_id", None)
+    if tenant_id:
+        from call_management.tenancy.events import schedule_event
+
+        schedule_event(
+            tenant_id,
+            "appointment.created",
+            {
+                "id": appt_id,
+                "customer_phone": phone_number,
+                "scheduled_time": when,
+                "purpose": purpose,
+            },
+        )
     return appt_id, details

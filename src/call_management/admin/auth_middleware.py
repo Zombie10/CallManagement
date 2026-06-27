@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from call_management.admin.auth_permissions import can_access_api, is_read_only_role
-from call_management.admin.auth_routes import PUBLIC_PATHS
+from call_management.admin.auth_routes import PUBLIC_API_PREFIX, PUBLIC_PATHS
 from call_management.admin.auth_store import SESSION_COOKIE, get_session_user
 
 _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -25,7 +25,7 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if not path.startswith("/api/") or path in PUBLIC_PATHS:
+        if not path.startswith("/api/") or path in PUBLIC_PATHS or path.startswith(PUBLIC_API_PREFIX):
             return await call_next(request)
 
         user = get_session_user(request.cookies.get(SESSION_COOKIE))

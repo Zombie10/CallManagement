@@ -3,6 +3,8 @@ import { Save, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { Select } from "../components/Select";
 import { api, type SettingField } from "../lib/api";
+import { ApiKeysPanel } from "../components/ApiKeysPanel";
+import { WebhookAuditPanel } from "../components/WebhookAuditPanel";
 import { WebhooksPanel } from "../components/WebhooksPanel";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -110,7 +112,13 @@ export function Settings() {
         </button>
       </header>
 
-      {(user?.role === "super_admin" || user?.role === "admin") && <WebhooksPanel />}
+      {(user?.role === "super_admin" || user?.role === "admin") && (
+        <>
+          <WebhooksPanel />
+          <WebhookAuditPanel />
+        </>
+      )}
+      {user?.role === "super_admin" && <ApiKeysPanel />}
 
       {Object.entries(data.sections).map(([sectionId, fields]) => (
         <section key={sectionId} className="glass-card p-6">

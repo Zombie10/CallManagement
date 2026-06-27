@@ -15,7 +15,7 @@ from call_management.utils.time import utc_now_iso
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 @dataclass
@@ -123,6 +123,7 @@ class CRMDatabase:
             )
             await self._migrate_v2(db)
             await self._migrate_v3(db)
+            await self._migrate_v4(db)
             await db.commit()
 
     async def _migrate_v2(self, db: aiosqlite.Connection) -> None:
@@ -158,6 +159,31 @@ class CRMDatabase:
         await db.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (3, utc_now_iso()),
+        )
+
+    async def _migrate_v4(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT MAX(version) AS v FROM schema_migrations") as cur:
+            row = await cur.fetchone()
+            current = row["v"] if row and row["v"] else 1
+        if current >= 4:
+            return
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                session_id TEXT PRIMARY KEY,
+                customer_phone TEXT,
+                customer_name TEXT,
+                agent_instance_id TEXT,
+                started_at TEXT,
+                ended_at TEXT,
+                transcript TEXT,
+                message_count INTEGER DEFAULT 0
+            )
+            """
+        )
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (4, utc_now_iso()),
         )
 
     @asynccontextmanager
@@ -599,6 +625,45 @@ class CRMDatabase:
                 avg_duration = int(row["avg_dur"] or 0) if row else 0
         return {"calls_by_day": by_day, "outcomes": outcomes, "avg_duration_seconds": avg_duration}
 
+    async def get_appointment(self, appt_id: str) -> Appointment | None:
+        async with self._connect() as db:
+            async with db.execute("SELECT * FROM appointments WHERE id = ?", (appt_id,)) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+            return Appointment(
+                id=row["id"],
+                customer_phone=row["customer_phone"],
+                scheduled_time=row["scheduled_time"],
+                purpose=row["purpose"],
+                notes=row["notes"],
+                created_at=row["created_at"],
+            )
+
+    async def update_appointment(self, appt: Appointment) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                UPDATE appointments SET
+                    customer_phone = ?, scheduled_time = ?, purpose = ?, notes = ?
+                WHERE id = ?
+                """,
+                (
+                    appt.customer_phone,
+                    appt.scheduled_time,
+                    appt.purpose,
+                    appt.notes,
+                    appt.id,
+                ),
+            )
+            await db.commit()
+
+    async def delete_appointment(self, appt_id: str) -> bool:
+        async with self._connect() as db:
+            cursor = await db.execute("DELETE FROM appointments WHERE id = ?", (appt_id,))
+            await db.commit()
+            return cursor.rowcount > 0
+
     async def list_appointments(self, limit: int = 50, offset: int = 0) -> dict:
         async with self._connect() as db:
             async with db.execute("SELECT COUNT(*) AS c FROM appointments") as cursor:
@@ -669,6 +734,196 @@ class CRMDatabase:
                 )
                 for r in rows
             ]
+
+    async def list_calls_for_customer(self, phone_number: str, *, limit: int = 20) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT * FROM call_records WHERE from_number = ?
+                ORDER BY start_time DESC LIMIT ?
+                """,
+                (phone_number, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def list_appointments_for_customer(self, phone_number: str, *, limit: int = 20) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT * FROM appointments WHERE customer_phone = ?
+                ORDER BY scheduled_time DESC LIMIT ?
+                """,
+                (phone_number, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def save_chat_session(
+        self,
+        *,
+        session_id: str,
+        customer_phone: str,
+        customer_name: str | None,
+        agent_instance_id: str | None,
+        started_at: str,
+        ended_at: str,
+        transcript: str | None,
+        message_count: int,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO chat_sessions
+                (session_id, customer_phone, customer_name, agent_instance_id,
+                 started_at, ended_at, transcript, message_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    customer_phone,
+                    customer_name,
+                    agent_instance_id,
+                    started_at,
+                    ended_at,
+                    transcript,
+                    message_count,
+                ),
+            )
+            await db.commit()
+
+    async def list_chat_sessions_for_customer(self, phone_number: str, *, limit: int = 20) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT * FROM chat_sessions WHERE customer_phone = ?
+                ORDER BY started_at DESC LIMIT ?
+                """,
+                (phone_number, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def get_customer_profile(self, phone_number: str) -> dict | None:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT * FROM customers WHERE phone_number = ?", (phone_number,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+        customer = {
+            "phone_number": row["phone_number"],
+            "name": row["name"],
+            "email": row["email"],
+            "notes": row["notes"],
+            "vip": bool(row["vip"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+        calls = await self.list_calls_for_customer(phone_number)
+        chats = await self.list_chat_sessions_for_customer(phone_number)
+        chat_calls = [
+            c
+            for c in calls
+            if (c.get("channel") or "sip") in ("chat", "voice_xai", "voice_livekit")
+        ]
+        appointments = await self.list_appointments_for_customer(phone_number)
+        handoffs = sum(1 for c in calls if c.get("transferred_to"))
+        escalations = sum(1 for c in calls if c.get("outcome") == "escalated")
+        return {
+            "customer": customer,
+            "calls": calls,
+            "chat_sessions": chats,
+            "playground_interactions": chat_calls,
+            "appointments": appointments,
+            "stats": {
+                "total_calls": len(calls),
+                "handoffs": handoffs,
+                "escalations": escalations,
+                "appointments": len(appointments),
+            },
+        }
+
+    async def get_actionable_analytics(self, *, sla_seconds: int = 30) -> dict:
+        """SLA proxy, sentiment keywords, agent comparison, handoff metrics."""
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN duration_seconds IS NOT NULL AND duration_seconds <= ? THEN 1 ELSE 0 END) AS within_sla,
+                    SUM(CASE WHEN outcome = 'escalated' THEN 1 ELSE 0 END) AS escalated,
+                    SUM(CASE WHEN transferred_to IS NOT NULL AND transferred_to != '' THEN 1 ELSE 0 END) AS handoffs
+                FROM call_records
+                """,
+                (sla_seconds,),
+            ) as cursor:
+                sla_row = await cursor.fetchone()
+            total = sla_row["total"] or 0
+            within = sla_row["within_sla"] or 0
+            async with db.execute(
+                """
+                SELECT COALESCE(agent_instance_id, 'unassigned') AS agent_id,
+                       COUNT(*) AS cnt,
+                       COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur,
+                       SUM(CASE WHEN outcome = 'escalated' THEN 1 ELSE 0 END) AS escalations
+                FROM call_records
+                GROUP BY agent_id ORDER BY cnt DESC
+                """
+            ) as cursor:
+                agent_rows = await cursor.fetchall()
+            async with db.execute(
+                "SELECT transcript, summary, agent_notes FROM call_records WHERE transcript IS NOT NULL OR summary IS NOT NULL"
+            ) as cursor:
+                text_rows = await cursor.fetchall()
+
+        keywords = {
+            "queja": 0,
+            "problema": 0,
+            "urgente": 0,
+            "cancelar": 0,
+            "gracias": 0,
+            "satisfecho": 0,
+        }
+        for row in text_rows:
+            blob = " ".join(
+                filter(None, [row["transcript"], row["summary"], row["agent_notes"]])
+            ).lower()
+            for kw in keywords:
+                if kw in blob:
+                    keywords[kw] += blob.count(kw)
+
+        negative = keywords["queja"] + keywords["problema"] + keywords["urgente"] + keywords["cancelar"]
+        positive = keywords["gracias"] + keywords["satisfecho"]
+        sentiment_score = positive - negative
+
+        return {
+            "sla_seconds": sla_seconds,
+            "sla_compliance_pct": round((within / total) * 100, 1) if total else 0.0,
+            "calls_within_sla": within,
+            "total_calls": total,
+            "handoffs": sla_row["handoffs"] or 0,
+            "escalations": sla_row["escalated"] or 0,
+            "agent_comparison": [
+                {
+                    "agent_instance_id": r["agent_id"],
+                    "call_count": r["cnt"],
+                    "avg_duration_seconds": r["avg_dur"],
+                    "escalations": r["escalations"],
+                }
+                for r in agent_rows
+            ],
+            "topic_keywords": keywords,
+            "sentiment_score": sentiment_score,
+            "sentiment_label": (
+                "positive" if sentiment_score > 2 else "negative" if sentiment_score < -2 else "neutral"
+            ),
+        }
+
+    async def export_calls_csv_rows(self, *, limit: int = 5000) -> list[dict]:
+        data = await self.list_call_records(limit=limit, offset=0)
+        return data["items"]
 
     async def close(self) -> None:
         pass

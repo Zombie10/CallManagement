@@ -14,6 +14,7 @@ import {
   Network,
   Rocket,
   BarChart3,
+  Eye,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,6 +33,7 @@ const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; 
   { to: "/customers", label: "Clientes", icon: Users, module: "customers" },
   { to: "/calls", label: "Registros", icon: Phone, module: "calls" },
   { to: "/analytics", label: "Análisis", icon: BarChart3, module: "analytics" },
+  { to: "/supervisor", label: "Supervisor", icon: Eye, module: "supervisor" },
   { to: "/appointments", label: "Citas", icon: Headphones, module: "appointments" },
   { to: "/users", label: "Usuarios", icon: Users, module: "users" },
 ];

@@ -89,6 +89,12 @@ export function Analytics() {
     enabled: !!tenantId,
   });
 
+  const { data: analyticsData } = useQuery({
+    queryKey: ["analytics", tenantId],
+    queryFn: api.analytics,
+    enabled: !!tenantId,
+  });
+
   const {
     data,
     isLoading: reportLoading,
@@ -214,6 +220,51 @@ export function Analytics() {
           Ejecutar reporte
         </button>
       </header>
+
+      {analyticsData?.actionable && (
+        <section className="glass-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-xs text-slate-500">SLA</p>
+            <p className="text-2xl font-semibold text-emerald-300">
+              {analyticsData.actionable.sla_compliance_pct}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Escalaciones</p>
+            <p className="text-2xl font-semibold text-amber-200">
+              {analyticsData.actionable.escalations}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Sentimiento</p>
+            <p className="text-2xl font-semibold capitalize">
+              {analyticsData.actionable.sentiment_label}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Exportar</p>
+            <a href={api.exportCallsCsvUrl()} className="text-sm text-cyan-300 hover:text-cyan-200">
+              Descargar CSV de llamadas
+            </a>
+          </div>
+          {analyticsData.actionable.agent_comparison.length > 0 && (
+            <div className="sm:col-span-2 lg:col-span-4">
+              <p className="mb-2 text-xs font-medium uppercase text-slate-500">Comparación agentes</p>
+              <div className="flex flex-wrap gap-2">
+                {analyticsData.actionable.agent_comparison.map((a) => (
+                  <span
+                    key={a.agent_instance_id}
+                    className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300"
+                  >
+                    {a.agent_instance_id}: {a.call_count} llamadas · {a.avg_duration_seconds}s avg
+                    {a.escalations > 0 && ` · ${a.escalations} escal.`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
         <aside className="glass-card space-y-5 p-5 xl:sticky xl:top-4 xl:self-start">

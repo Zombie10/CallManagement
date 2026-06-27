@@ -74,6 +74,25 @@ class VoiceSessionComplete(BaseModel):
     transcript: str
 
 
+class AppointmentCreate(BaseModel):
+    customer_phone: str
+    scheduled_time: str
+    purpose: str
+    notes: str | None = None
+
+
+class AppointmentUpdate(BaseModel):
+    customer_phone: str | None = None
+    scheduled_time: str | None = None
+    purpose: str | None = None
+    notes: str | None = None
+
+
+class ApiKeyCreate(BaseModel):
+    name: str
+    scopes: list[str] = Field(default_factory=lambda: ["calls.read", "customers.read"])
+
+
 class AgentProfilePayload(BaseModel):
     name: str
     display_name: str | None = None

@@ -1,6 +1,6 @@
 # Análisis y reportes
 
-La sección **Análisis** (`/analytics`) ofrece reportes interactivos por empresa (tenant), con filtros, agrupaciones, tabla pivot y exportación CSV.
+La sección **Análisis** (`/analytics`) ofrece reportes interactivos por empresa (tenant), con filtros, agrupaciones, tabla pivot, **métricas accionables** y exportación CSV.
 
 ## Acceso
 
@@ -130,6 +130,21 @@ Los reportes leen `call_records` del CRM SQLite del tenant activo (`data/tenants
 - `from_number`, `to_number`
 - `agent_instance_id`, `transcript`, `recording_url`
 
+## Métricas accionables
+
+Disponibles en `/analytics` y en el Dashboard (`actionable`):
+
+| Métrica | Descripción |
+|---------|-------------|
+| **SLA** | % de llamadas con duración ≤ 30 s (proxy de tiempo de atención) |
+| **Escalaciones** | Llamadas con `outcome = escalated` |
+| **Transferencias** | Llamadas con `transferred_to` |
+| **Sentimiento** | Score por keywords en transcript/resumen (`gracias`, `problema`, `urgente`, etc.) |
+| **Comparación agentes** | Volumen, duración promedio y escalaciones por `agent_instance_id` |
+
+API: `GET /api/analytics` incluye `actionable`. También en `GET /api/dashboard`.
+
 ## Exportación
 
-Desde la UI: botones **Exportar CSV** en pestañas Pivot y Detalle. Los archivos se descargan en el navegador (`pivot-llamadas.csv`, `llamadas-detalle.csv`).
+- **Pivot / Detalle:** botones en la UI (`pivot-llamadas.csv`, `llamadas-detalle.csv`)
+- **Export masivo:** `GET /api/export/calls.csv` (requiere módulo `export` o rol admin)

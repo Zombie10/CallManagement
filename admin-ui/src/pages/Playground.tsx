@@ -14,7 +14,8 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useSessionDraft } from "../hooks/useSessionDraft";
 import { Select } from "../components/Select";
 import { ToolCallLog, type ToolCallEntry } from "../components/ToolCallLog";
 import { useChatAutoScroll } from "../hooks/useChatAutoScroll";
@@ -77,11 +78,38 @@ function AgentPickerSelect({
 }
 
 function TextPlayground({ picker }: { picker: AgentPicker }) {
+  const draftKey = `playground-chat-${picker.sessionContext.tenant_id || "default"}`;
+  const { loadDraft, saveDraft, clearDraft, setDirty, restoredRef } = useSessionDraft(draftKey);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [toolLog, setToolLog] = useState<ToolCallEntry[]>([]);
   const [input, setInput] = useState("");
   const chatScrollRef = useChatAutoScroll(lines);
+  const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (restoredRef.current) return;
+    const draft = loadDraft();
+    if (draft?.lines?.length) {
+      setLines(draft.lines as ChatLine[]);
+      setInput(draft.input || "");
+      setSessionId(draft.sessionId || null);
+      setDirty(true);
+    }
+    restoredRef.current = true;
+  }, [loadDraft, setDirty, restoredRef]);
+
+  useEffect(() => {
+    if (autosaveRef.current) clearTimeout(autosaveRef.current);
+    autosaveRef.current = setTimeout(() => {
+      if (lines.length || input) {
+        saveDraft({ lines, input, sessionId, mode: "chat" });
+      }
+    }, 800);
+    return () => {
+      if (autosaveRef.current) clearTimeout(autosaveRef.current);
+    };
+  }, [lines, input, sessionId, saveDraft]);
 
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
 
@@ -94,6 +122,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
         agent_instance_id: picker.sessionContext.agent_instance_id,
       }),
     onSuccess: (data) => {
+      clearDraft();
       setSessionId(data.session_id);
       setLines([
         {
@@ -102,6 +131,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
           text: `Sesión texto · ${data.initial_agent} · ${data.provider} / ${data.model}`,
         },
       ]);
+      setDirty(false);
     },
   });
 

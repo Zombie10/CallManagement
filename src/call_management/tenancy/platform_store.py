@@ -182,6 +182,35 @@ class PlatformStore:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    webhook_id TEXT,
+                    event TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    status_code INTEGER,
+                    success INTEGER NOT NULL DEFAULT 0,
+                    attempts INTEGER NOT NULL DEFAULT 1,
+                    error TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS tenant_api_keys (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    key_hash TEXT NOT NULL,
+                    key_prefix TEXT NOT NULL,
+                    scopes_json TEXT NOT NULL DEFAULT '[]',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    last_used_at TEXT,
+                    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_tenant ON webhook_deliveries(tenant_id);
+                CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON tenant_api_keys(tenant_id);
                 """
             )
             cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_instances)").fetchall()}
@@ -699,6 +728,174 @@ class PlatformStore:
         with self._connect() as conn:
             conn.execute("DELETE FROM tenant_webhooks WHERE id = ?", (webhook_id,))
             conn.commit()
+
+    def log_webhook_delivery(
+        self,
+        *,
+        tenant_id: str,
+        webhook_id: str | None,
+        event: str,
+        url: str,
+        status_code: int | None,
+        success: bool,
+        attempts: int,
+        error: str | None,
+    ) -> dict[str, Any]:
+        did = _new_id("whd")
+        now = _utc_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO webhook_deliveries
+                (id, tenant_id, webhook_id, event, url, status_code, success, attempts, error, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    did,
+                    tenant_id,
+                    webhook_id,
+                    event,
+                    url,
+                    status_code,
+                    int(success),
+                    attempts,
+                    error,
+                    now,
+                ),
+            )
+            conn.commit()
+        return {
+            "id": did,
+            "tenant_id": tenant_id,
+            "webhook_id": webhook_id,
+            "event": event,
+            "url": url,
+            "status_code": status_code,
+            "success": success,
+            "attempts": attempts,
+            "error": error,
+            "created_at": now,
+        }
+
+    def list_webhook_deliveries(
+        self, tenant_id: str, *, limit: int = 50, offset: int = 0
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            total = conn.execute(
+                "SELECT COUNT(*) AS c FROM webhook_deliveries WHERE tenant_id = ?",
+                (tenant_id,),
+            ).fetchone()["c"]
+            rows = conn.execute(
+                """
+                SELECT * FROM webhook_deliveries WHERE tenant_id = ?
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+                """,
+                (tenant_id, limit, offset),
+            ).fetchall()
+        items = [
+            {
+                "id": r["id"],
+                "webhook_id": r["webhook_id"],
+                "event": r["event"],
+                "url": r["url"],
+                "status_code": r["status_code"],
+                "success": bool(r["success"]),
+                "attempts": r["attempts"],
+                "error": r["error"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    def create_api_key(
+        self,
+        tenant_id: str,
+        *,
+        name: str,
+        scopes: list[str],
+        raw_key: str,
+        key_hash: str,
+    ) -> dict[str, Any]:
+        kid = _new_id("key")
+        prefix = raw_key[:12]
+        now = _utc_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_api_keys
+                (id, tenant_id, name, key_hash, key_prefix, scopes_json, enabled, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (kid, tenant_id, name.strip(), key_hash, prefix, json.dumps(scopes), now),
+            )
+            conn.commit()
+        return {
+            "id": kid,
+            "tenant_id": tenant_id,
+            "name": name.strip(),
+            "key_prefix": prefix,
+            "scopes": scopes,
+            "enabled": True,
+            "created_at": now,
+            "api_key": raw_key,
+        }
+
+    def list_api_keys(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tenant_api_keys WHERE tenant_id = ? ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "tenant_id": r["tenant_id"],
+                "name": r["name"],
+                "key_prefix": r["key_prefix"],
+                "scopes": json.loads(r["scopes_json"] or "[]"),
+                "enabled": bool(r["enabled"]),
+                "created_at": r["created_at"],
+                "last_used_at": r["last_used_at"],
+            }
+            for r in rows
+        ]
+
+    def get_api_key_by_hash(self, key_hash: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM tenant_api_keys WHERE key_hash = ? AND enabled = 1",
+                (key_hash,),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "tenant_id": row["tenant_id"],
+            "name": row["name"],
+            "key_prefix": row["key_prefix"],
+            "scopes": json.loads(row["scopes_json"] or "[]"),
+            "enabled": bool(row["enabled"]),
+            "key_hash": row["key_hash"],
+        }
+
+    def touch_api_key(self, key_id: str) -> None:
+        now = _utc_iso()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE tenant_api_keys SET last_used_at = ? WHERE id = ?",
+                (now, key_id),
+            )
+            conn.commit()
+
+    def revoke_api_key(self, key_id: str, tenant_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE tenant_api_keys SET enabled = 0 WHERE id = ? AND tenant_id = ?",
+                (key_id, tenant_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
 
 
 _store: PlatformStore | None = None

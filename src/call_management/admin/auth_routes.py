@@ -69,6 +69,8 @@ PUBLIC_PATHS = frozenset(
     }
 )
 
+PUBLIC_API_PREFIX = "/api/public/"
+
 
 def _rp_id() -> str:
     return os.getenv("ADMIN_RP_ID", "localhost").strip()
