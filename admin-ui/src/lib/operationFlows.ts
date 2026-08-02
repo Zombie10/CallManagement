@@ -1006,3 +1006,86 @@ export function getFlowById(id: string): FlowSection | undefined {
 export function stepsById(flow: FlowSection): Map<string, FlowStep> {
   return new Map(flow.steps.map((s) => [s.id, s]));
 }
+
+/** Primary interactive flow for each system template. */
+export const TEMPLATE_PRIMARY_FLOW: Record<string, string> = {
+  receptionist: "handoffs",
+  banking_support: "banking",
+  support: "dialogo",
+  sales: "dialogo",
+  technical: "dialogo",
+  escalation: "handoffs",
+};
+
+/** Extra related flows suggested next to an agent. */
+export const TEMPLATE_RELATED_FLOWS: Record<string, string[]> = {
+  receptionist: ["handoffs", "dialogo", "cola", "pstn", "did"],
+  banking_support: ["banking", "dialogo", "tools", "pstn", "fin-llamada"],
+  support: ["dialogo", "handoffs", "tools", "cola", "fin-llamada"],
+  sales: ["dialogo", "handoffs", "tools", "pstn"],
+  technical: ["dialogo", "tools", "handoffs"],
+  escalation: ["handoffs", "dialogo", "fin-llamada"],
+};
+
+export type AgentFlowContext = {
+  id: string;
+  display_name: string;
+  template_id: string;
+  status: string;
+  voice?: string;
+  locale?: string;
+  phone_numbers?: string[];
+  schedule_status?: string;
+  max_concurrent_calls?: number | null;
+};
+
+/**
+ * Build a personalized copy of a catalog flow for a company agent instance.
+ */
+export function flowForAgent(
+  agent: AgentFlowContext,
+  baseFlowId?: string,
+): FlowSection {
+  const template = agent.template_id || "receptionist";
+  const flowId = baseFlowId || TEMPLATE_PRIMARY_FLOW[template] || "dialogo";
+  const base = getFlowById(flowId) || OPERATION_FLOWS[0]!;
+  const phones =
+    agent.phone_numbers?.filter(Boolean).join(", ") || "Sin DID configurado";
+  const intro: FlowStep = {
+    id: `agent-${agent.id}-intro`,
+    title: agent.display_name,
+    description: `Instancia de la empresa · plantilla ${template}`,
+    kind: "start",
+    actor: agent.display_name,
+    next: base.steps[0]?.id,
+    tags: [agent.status, agent.voice || "voz xAI", agent.locale || "locale"].filter(Boolean) as string[],
+    details: [
+      `Plantilla: ${template}`,
+      `Voz xAI: ${agent.voice || "—"}`,
+      `Idioma: ${agent.locale || "—"}`,
+      `Teléfonos: ${phones}`,
+      agent.max_concurrent_calls
+        ? `Máx. simultáneas: ${agent.max_concurrent_calls}`
+        : "Máx. simultáneas: límite de empresa",
+      agent.schedule_status ? `Horario: ${agent.schedule_status}` : undefined,
+    ].filter(Boolean) as string[],
+  };
+
+  return {
+    ...base,
+    id: `agent-flow-${agent.id}-${flowId}`,
+    title: `${agent.display_name} · ${base.title}`,
+    summary: `Flujo de atención para el agente configurado “${agent.display_name}” (${template}). ${base.summary}`,
+    category: "agentes",
+    durationHint: agent.status,
+    steps: [intro, ...base.steps],
+  };
+}
+
+export function relatedFlowsForTemplate(templateId: string): FlowSection[] {
+  const ids = TEMPLATE_RELATED_FLOWS[templateId] || ["dialogo", "pstn", "cola"];
+  return ids
+    .map((id) => getFlowById(id))
+    .filter((f): f is FlowSection => Boolean(f));
+}
+
