@@ -185,19 +185,28 @@
     @apply border-cyan-400/40 ring-2 ring-cyan-400/15;
   }
 
-  .select-menu {
-    @apply absolute z-[120] mt-1.5 max-h-72 w-full min-w-[12rem] max-w-[min(100vw-2rem,24rem)] overflow-auto rounded-xl border border-white/10 bg-surface-950/95 p-1.5 shadow-glow-lg backdrop-blur-xl;
+  /* Portaled menus (fixed to viewport — never clipped by overflow parents) */
+  .floating-portal-menu {
+    @apply overflow-auto rounded-xl border border-white/10 bg-surface-950/95 p-1.5 shadow-glow-lg backdrop-blur-xl;
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
   }
 
-  .select-menu::-webkit-scrollbar {
+  .floating-portal-menu::-webkit-scrollbar {
     width: 6px;
   }
 
-  .select-menu::-webkit-scrollbar-thumb {
+  .floating-portal-menu::-webkit-scrollbar-thumb {
     border-radius: 9999px;
     background: rgba(148, 163, 184, 0.35);
+  }
+
+  .select-menu-portal {
+    @apply p-1.5;
+  }
+
+  .date-picker-portal {
+    @apply p-2;
   }
 
   .select-option {
@@ -219,10 +228,6 @@
 
   .date-field-value {
     @apply w-full min-w-0 py-2.5 pl-7 pr-1 text-sm text-slate-100;
-  }
-
-  .date-picker-pop {
-    @apply absolute left-0 z-[130] mt-1.5 w-[18.5rem] rounded-2xl border border-white/10 bg-surface-950/95 p-3 shadow-glow-lg backdrop-blur-xl;
   }
 
   .date-picker-nav {

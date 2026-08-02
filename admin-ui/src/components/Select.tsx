@@ -1,6 +1,7 @@
 import { ChevronDown, Check, Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import { FloatingPortal } from "./FloatingPortal";
 
 export type SelectOption = {
   value: string;
@@ -33,6 +34,8 @@ export function Select({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const selected = options.find((o) => o.value === value);
@@ -54,27 +57,15 @@ export function Select({
       setQuery("");
       return;
     }
-    const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    // Focus search when opening long lists
     if (showSearch) {
       window.setTimeout(() => searchRef.current?.focus(), 0);
     }
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
   }, [open, showSearch]);
 
   return (
     <div ref={rootRef} className={clsx("relative", className)}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
@@ -99,55 +90,63 @@ export function Select({
         />
       </button>
 
-      {open && (
-        <div className="select-menu animate-fade-in">
-          {showSearch && (
-            <div className="sticky top-0 z-10 mb-1 border-b border-white/5 bg-surface-950/95 p-1.5 backdrop-blur">
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
-                <input
-                  ref={searchRef}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 pl-8 pr-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
-                  placeholder="Buscar…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                />
-              </label>
-            </div>
+      <FloatingPortal
+        open={open}
+        anchorRef={triggerRef}
+        menuRef={menuRef}
+        id={listId}
+        role="listbox"
+        className="select-menu-portal"
+        maxWidth={420}
+        maxPanelHeight={320}
+        onClose={() => setOpen(false)}
+      >
+        {showSearch && (
+          <div className="sticky top-0 z-10 mb-1 border-b border-white/5 bg-surface-950/95 p-1.5 backdrop-blur">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <input
+                ref={searchRef}
+                className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 pl-8 pr-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                placeholder="Buscar…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+              />
+            </label>
+          </div>
+        )}
+        <ul className="max-h-[inherit] space-y-0.5 overflow-y-auto">
+          {filtered.map((opt) => {
+            const active = opt.value === value;
+            return (
+              <li key={opt.value} role="option" aria-selected={active}>
+                <button
+                  type="button"
+                  className={clsx("select-option", active && "select-option-active")}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{opt.label}</span>
+                    {opt.description && (
+                      <span className="mt-0.5 block truncate text-xs text-slate-500">
+                        {opt.description}
+                      </span>
+                    )}
+                  </span>
+                  {active && <Check className="h-4 w-4 shrink-0 text-cyan-400" />}
+                </button>
+              </li>
+            );
+          })}
+          {filtered.length === 0 && (
+            <li className="px-3 py-4 text-center text-xs text-slate-500">Sin resultados</li>
           )}
-          <ul id={listId} role="listbox" className="max-h-60 space-y-0.5 overflow-y-auto">
-            {filtered.map((opt) => {
-              const active = opt.value === value;
-              return (
-                <li key={opt.value} role="option" aria-selected={active}>
-                  <button
-                    type="button"
-                    className={clsx("select-option", active && "select-option-active")}
-                    onClick={() => {
-                      onChange(opt.value);
-                      setOpen(false);
-                    }}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{opt.label}</span>
-                      {opt.description && (
-                        <span className="mt-0.5 block truncate text-xs text-slate-500">
-                          {opt.description}
-                        </span>
-                      )}
-                    </span>
-                    {active && <Check className="h-4 w-4 shrink-0 text-cyan-400" />}
-                  </button>
-                </li>
-              );
-            })}
-            {filtered.length === 0 && (
-              <li className="px-3 py-4 text-center text-xs text-slate-500">Sin resultados</li>
-            )}
-          </ul>
-        </div>
-      )}
+        </ul>
+      </FloatingPortal>
     </div>
   );
 }

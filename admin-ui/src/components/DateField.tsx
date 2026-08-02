@@ -1,6 +1,7 @@
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import { FloatingPortal } from "./FloatingPortal";
 import { Select } from "./Select";
 
 type CommonProps = {
@@ -105,6 +106,8 @@ export function DateField({
 }: CommonProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const selected = parseYmd(value);
   const today = new Date();
@@ -117,22 +120,6 @@ export function DateField({
       setViewM(selected.m);
     }
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   const cells = useMemo(() => startOfMonthGrid(viewY, viewM), [viewY, viewM]);
   const minP = parseYmd(min || "");
@@ -171,6 +158,7 @@ export function DateField({
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
       )}
       <button
+        ref={triggerRef}
         id={id}
         type="button"
         disabled={disabled}
@@ -190,12 +178,19 @@ export function DateField({
         </span>
       </button>
 
-      {open && (
-        <div
-          id={listId}
-          role="dialog"
-          className="date-picker-pop animate-fade-in"
-        >
+      <FloatingPortal
+        open={open}
+        anchorRef={triggerRef}
+        menuRef={menuRef}
+        id={listId}
+        role="dialog"
+        className="date-picker-portal"
+        minWidth={296}
+        maxWidth={320}
+        maxPanelHeight={380}
+        onClose={() => setOpen(false)}
+      >
+        <div className="p-1">
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
               type="button"
@@ -219,7 +214,10 @@ export function DateField({
           </div>
           <div className="mb-1 grid grid-cols-7 gap-1">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="py-1 text-center text-[10px] font-medium uppercase text-slate-500">
+              <div
+                key={w}
+                className="py-1 text-center text-[10px] font-medium uppercase text-slate-500"
+              >
                 {w}
               </div>
             ))}
@@ -270,7 +268,11 @@ export function DateField({
               type="button"
               className="text-xs font-medium text-cyan-300 hover:text-cyan-200"
               onClick={() => {
-                const ymd = toYmd(today.getFullYear(), today.getMonth() + 1, today.getDate());
+                const ymd = toYmd(
+                  today.getFullYear(),
+                  today.getMonth() + 1,
+                  today.getDate(),
+                );
                 onChange(ymd);
                 setOpen(false);
               }}
@@ -279,7 +281,7 @@ export function DateField({
             </button>
           </div>
         </div>
-      )}
+      </FloatingPortal>
     </div>
   );
 }
