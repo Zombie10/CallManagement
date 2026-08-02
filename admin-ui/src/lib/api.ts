@@ -173,13 +173,29 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       const detail = err.detail;
-      const message =
+      let message =
         typeof detail === "string"
           ? detail
           : Array.isArray(detail)
             ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ")
             : res.statusText;
-      throw new Error(message || "Voice preview failed");
+      if (res.status === 405) {
+        message =
+          "Method Not Allowed: el servidor no tiene POST /api/voice/preview (reinicia callmanagement). Voces xAI TTS.";
+      } else if (res.status === 401) {
+        message = "Sesión expirada — vuelve a iniciar sesión para probar voces xAI.";
+      } else if (!message) {
+        message = `Voice preview failed (${res.status})`;
+      }
+      throw new Error(message);
+    }
+    const type = res.headers.get("content-type") || "";
+    if (!type.includes("audio") && !type.includes("octet-stream") && !type.includes("mpeg")) {
+      // Defensive: sometimes errors come as text/html with 200 from wrong route.
+      const text = await res.clone().text().catch(() => "");
+      if (text.trim().startsWith("{") || text.trim().startsWith("<")) {
+        throw new Error("Respuesta inválida del preview de voz xAI");
+      }
     }
     return res.blob();
   },

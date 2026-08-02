@@ -110,7 +110,7 @@ function AgentEditor({
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [langFilter, setLangFilter] = useState("");
-  const [showDefaultInstructions, setShowDefaultInstructions] = useState(false);
+  const [showDefaultInstructions, setShowDefaultInstructions] = useState(true);
 
   const filteredVoices = useMemo(
     () => filterVoices(catalog.voice_library || [], genderFilter, ageFilter, langFilter),
@@ -237,10 +237,10 @@ function AgentEditor({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-                <Mic className="h-4 w-4 text-cyan-400" /> Biblioteca de voces xAI
+                <Mic className="h-4 w-4 text-cyan-400" /> Voces xAI (Speech / TTS)
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                26 voces (flagship + clásicas mejoradas). Selecciona una y pruébala en el idioma de voz.
+                Voces oficiales de xAI (Grok Voice). Selecciona una y escucha una muestra TTS en el idioma elegido.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">

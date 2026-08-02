@@ -234,6 +234,13 @@ export function TenantAgents() {
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [phoneLimits, setPhoneLimits] = useState<Record<string, string>>({});
   const [provisionNotes, setProvisionNotes] = useState<TelephonyProvisionResult[] | null>(null);
+  const [showDefaultInstructions, setShowDefaultInstructions] = useState(true);
+
+  const templateDefaultInstructions = useMemo(() => {
+    const tid = draft.template_id || "receptionist";
+    const profile = agentsCatalog?.profiles?.find((p) => p.name === tid);
+    return (profile?.default_instructions || "").trim();
+  }, [agentsCatalog?.profiles, draft.template_id]);
 
   const buildPayload = (): AgentInstanceInput => {
     const primary = (draft.phone_number || "").trim();
@@ -447,6 +454,7 @@ export function TenantAgents() {
               value={draft.status || "draft"}
               onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
               options={STATUS_OPTIONS}
+              searchableFrom={0}
             />
             <label className="block space-y-1.5 sm:col-span-2">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -596,10 +604,10 @@ export function TenantAgents() {
                 <div>
                   <p className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
                     <Mic className="h-4 w-4 text-cyan-400" />
-                    Voz del agente
+                    Voz xAI del agente
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Selecciona una voz y escúchala en el idioma configurado
+                    Voces oficiales de xAI · muestra TTS en el idioma configurado
                   </p>
                 </div>
                 <VoicePreviewButton
@@ -652,12 +660,42 @@ export function TenantAgents() {
                 </div>
               </div>
             </div>
-            <textarea
-              className="input-field min-h-[140px] w-full font-mono text-sm leading-relaxed"
-              placeholder="Instrucciones personalizadas (opcional)"
-              value={draft.custom_instructions || ""}
-              onChange={(e) => setDraft((d) => ({ ...d, custom_instructions: e.target.value }))}
-            />
+            <div className="space-y-3 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Instrucciones
+                </p>
+                <button
+                  type="button"
+                  className="btn-ghost px-2 py-1 text-xs"
+                  onClick={() => setShowDefaultInstructions((v) => !v)}
+                >
+                  {showDefaultInstructions ? "Ocultar plantilla" : "Ver plantilla por defecto"}
+                </button>
+              </div>
+              {showDefaultInstructions && (
+                <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-cyan-300/80">
+                    Instrucciones por defecto · {agentLabel(draft.template_id || "receptionist")}
+                  </p>
+                  <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-400">
+                    {templateDefaultInstructions ||
+                      "Sin instrucciones por defecto para esta plantilla."}
+                  </pre>
+                </div>
+              )}
+              <textarea
+                className="input-field min-h-[140px] w-full font-mono text-sm leading-relaxed"
+                placeholder="Instrucciones personalizadas (opcional). Vacío = usar las de la plantilla."
+                value={draft.custom_instructions || ""}
+                onChange={(e) => setDraft((d) => ({ ...d, custom_instructions: e.target.value }))}
+              />
+              <p className="text-xs text-slate-500">
+                {(draft.custom_instructions || "").trim()
+                  ? "Usando instrucciones personalizadas (se combinan con estilo de llamada e idioma)."
+                  : "Usando las instrucciones por defecto de la plantilla seleccionada."}
+              </p>
+            </div>
 
             {!isNew && (
               <div>

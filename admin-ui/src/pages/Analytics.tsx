@@ -403,28 +403,22 @@ export function Analytics() {
             <div className="space-y-2">
               {filters.customFilters.map((cf, i) => (
                 <div key={i} className="flex flex-wrap gap-1 rounded-lg bg-white/[0.03] p-2">
-                  <select
-                    className="input-field w-24 text-xs"
+                  <Select
+                    className="w-28"
+                    size="sm"
+                    searchableFrom={0}
                     value={cf.field}
-                    onChange={(e) => updateCustomFilter(i, { field: e.target.value })}
-                  >
-                    {FILTER_FIELDS.map((f) => (
-                      <option key={f.value} value={f.value}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="input-field w-20 text-xs"
+                    onChange={(field) => updateCustomFilter(i, { field })}
+                    options={FILTER_FIELDS.map((f) => ({ value: f.value, label: f.label }))}
+                  />
+                  <Select
+                    className="w-24"
+                    size="sm"
+                    searchableFrom={0}
                     value={cf.op}
-                    onChange={(e) => updateCustomFilter(i, { op: e.target.value })}
-                  >
-                    {FILTER_OPS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(op) => updateCustomFilter(i, { op })}
+                    options={FILTER_OPS.map((o) => ({ value: o.value, label: o.label }))}
+                  />
                   <input
                     className="input-field min-w-0 flex-1 text-xs"
                     placeholder="valor"

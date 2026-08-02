@@ -3,6 +3,7 @@ import { Crown, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ListFilterBar } from "../components/ListFilterBar";
+import { Select } from "../components/Select";
 import { TableScroll } from "../components/TableScroll";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
@@ -63,18 +64,17 @@ export function Customers() {
         totalCount={data?.items.length ?? 0}
         onClear={clearFilters}
       >
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          <span className="shrink-0">VIP</span>
-          <select
-            className="input-field w-full sm:w-36"
-            value={vipFilter}
-            onChange={(e) => setVipFilter(e.target.value as VipFilter)}
-          >
-            <option value="all">Todos</option>
-            <option value="vip">Solo VIP</option>
-            <option value="normal">Sin VIP</option>
-          </select>
-        </label>
+        <Select
+          className="w-full sm:w-40"
+          value={vipFilter}
+          searchableFrom={0}
+          onChange={(v) => setVipFilter(v as VipFilter)}
+          options={[
+            { value: "all", label: "Todos" },
+            { value: "vip", label: "Solo VIP" },
+            { value: "normal", label: "Sin VIP" },
+          ]}
+        />
       </ListFilterBar>
 
       <div className="space-y-3 md:hidden">

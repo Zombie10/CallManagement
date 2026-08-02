@@ -261,41 +261,38 @@ export function Users() {
         totalCount={data?.users.length ?? 0}
         onClear={clearUserFilters}
       >
-        <select
-          className="input-field w-full sm:w-40"
+        <Select
+          className="w-full sm:w-44"
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-        >
-          <option value="all">Todos los roles</option>
-          {roles.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input-field w-full sm:w-36"
+          searchableFrom={0}
+          onChange={setRoleFilter}
+          options={[
+            { value: "all", label: "Todos los roles" },
+            ...roles.map((r) => ({ value: r.id, label: r.label })),
+          ]}
+        />
+        <Select
+          className="w-full sm:w-40"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-        >
-          <option value="all">Todos</option>
-          <option value="enabled">Activos</option>
-          <option value="disabled">Desactivados</option>
-        </select>
+          searchableFrom={0}
+          onChange={(v) => setStatusFilter(v as typeof statusFilter)}
+          options={[
+            { value: "all", label: "Todos" },
+            { value: "enabled", label: "Activos" },
+            { value: "disabled", label: "Desactivados" },
+          ]}
+        />
         {isSuperAdmin && (
-          <select
-            className="input-field w-full sm:w-44"
+          <Select
+            className="w-full sm:w-48"
             value={tenantFilter}
-            onChange={(e) => setTenantFilter(e.target.value)}
-          >
-            <option value="all">Todas las empresas</option>
-            <option value="none">Sin empresa</option>
-            {tenantOptions.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            onChange={setTenantFilter}
+            options={[
+              { value: "all", label: "Todas las empresas" },
+              { value: "none", label: "Sin empresa" },
+              ...tenantOptions.map((t) => ({ value: t.value, label: t.label })),
+            ]}
+          />
         )}
       </ListFilterBar>
 
