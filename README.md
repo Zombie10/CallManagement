@@ -8,6 +8,7 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 
 | Guide | Contents |
 |-------|----------|
+| [**Flujogramas operativos**](docs/FLUJOS_OPERATIVOS.md) | Mapas de negocio, llamada PSTN, handoffs, cola, playgrounds |
 | [Admin console](docs/ADMIN.md) | Web UI, auth, roles, multi-tenant, playground |
 | [Análisis y reportes](docs/ANALYTICS.md) | Filtros, pivot, export CSV, API `/api/reports/*` |
 | [Agents & tools](docs/AGENTS.md) | All agents, phone-call behavior, banking tools, handoffs |
