@@ -1,19 +1,70 @@
+# Call Management — LiveKit agent worker (SIP / room voice)
+# Install: sudo bash scripts/deploy/install.sh
+# Manage:  sudo bash scripts/deploy/manage.sh status
+# Docs:    docs/DEPLOYMENT.md · docs/TELEPHONY.md
+
 [Unit]
 Description=Call Management LiveKit Agent Worker
-After=network-online.target
+Documentation=file:///opt/callmanagement/docs/DEPLOYMENT.md
+Documentation=file:///opt/callmanagement/docs/TELEPHONY.md
+After=network-online.target callmanagement.service
 Wants=network-online.target
+# Admin is optional for the worker, but ordering helps shared .env/data readiness.
+Wants=callmanagement.service
+PartOf=callmanagement.target
+StartLimitIntervalSec=90
+StartLimitBurst=10
 
 [Service]
-Type=simple
+Type=exec
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/callmanagement
+
 EnvironmentFile=/opt/callmanagement/.env
-ExecStart=/home/ubuntu/.local/bin/uv run -m call_management.server start
-Restart=on-failure
+
+Environment=PATH=/opt/callmanagement/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# LiveKit Agents / plugins expect a writable cache for models (VAD, turn detector, etc.)
+Environment=XDG_CACHE_HOME=/opt/callmanagement/data/.cache
+Environment=HOME=/opt/callmanagement/data
+
+ExecStartPre=/usr/bin/mkdir -p /opt/callmanagement/data /opt/callmanagement/data/.cache
+# Production entry: long-running worker (not `dev` hot-reload).
+ExecStart=/opt/callmanagement/.venv/bin/python -m call_management.server start
+
+Restart=always
 RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=45
+KillMode=mixed
+KillSignal=SIGTERM
+
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=callmanagement-worker
+
+# Voice workers open many WS connections and may load models into memory.
+LimitNOFILE=131072
+TasksMax=8192
+# Uncomment on small VPS if needed:
+# MemoryMax=2G
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/callmanagement/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+UMask=0027
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target callmanagement.target

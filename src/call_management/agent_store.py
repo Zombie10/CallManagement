@@ -31,7 +31,7 @@ PROFILES_PATH = Path(os.getenv("AGENT_PROFILES_PATH", PROJECT_ROOT / "data" / "a
 AVAILABLE_TOOLS: list[str] = ["web_search", "x_search", "file_search", "code_interpreter"]
 AVAILABLE_LOCALES: list[str] = list(LANGUAGE_INSTRUCTIONS.keys())
 AVAILABLE_PROVIDERS: list[str] = ["xai", "inference", "direct"]
-AVAILABLE_XAI_VOICES: list[str] = ["eve", "ara", "rex", "sal", "leo"]
+AVAILABLE_XAI_VOICES: list[str] = [v["id"] for v in VOICE_LIBRARY]
 PROTECTED_AGENTS: frozenset[str] = frozenset({"receptionist"})
 AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 

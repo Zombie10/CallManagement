@@ -605,6 +605,8 @@ export interface VoiceLibraryEntry {
   tone: string;
   description: string;
   languages: string[];
+  use_cases?: string[];
+  generation?: "classic" | "flagship" | string;
 }
 
 export interface VoiceLanguageOption {
@@ -669,6 +671,11 @@ export interface VoiceSessionConfig {
   tools: Array<Record<string, unknown>>;
   turn_detection: Record<string, unknown>;
   reasoning_effort?: string | null;
+  keyterms?: string[] | null;
+  replace?: Record<string, string> | null;
+  output_speed?: number | null;
+  resumption_enabled?: boolean | null;
+  recording_disclosure?: string | null;
 }
 
 export interface AgentsResponse {
@@ -1090,6 +1097,11 @@ export interface VoiceSessionResponse {
   tools: Array<Record<string, unknown>>;
   turn_detection: Record<string, unknown>;
   reasoning_effort?: string | null;
+  keyterms?: string[] | null;
+  replace?: Record<string, string> | null;
+  output_speed?: number | null;
+  resumption_enabled?: boolean | null;
+  recording_disclosure?: string | null;
 }
 
 export interface ChatSessionCreate {

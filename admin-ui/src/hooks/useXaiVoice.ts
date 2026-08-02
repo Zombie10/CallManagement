@@ -164,6 +164,17 @@ export function useXaiVoice() {
   }, []);
 
   const sendSessionUpdate = useCallback((ws: WebSocket, cfg: SessionLike, sampleRate: number) => {
+    const transcription: Record<string, unknown> = {};
+    if (cfg.language_hint) transcription.language_hint = cfg.language_hint;
+    if (cfg.keyterms?.length) transcription.keyterms = cfg.keyterms;
+
+    const output: Record<string, unknown> = {
+      format: { type: "audio/pcm", rate: sampleRate },
+    };
+    if (typeof cfg.output_speed === "number" && cfg.output_speed > 0) {
+      output.speed = cfg.output_speed;
+    }
+
     const session: Record<string, unknown> = {
       instructions: cfg.instructions,
       voice: cfg.voice,
@@ -171,16 +182,20 @@ export function useXaiVoice() {
       audio: {
         input: {
           format: { type: "audio/pcm", rate: sampleRate },
-          ...(cfg.language_hint
-            ? { transcription: { language_hint: cfg.language_hint } }
-            : {}),
+          ...(Object.keys(transcription).length ? { transcription } : {}),
         },
-        output: { format: { type: "audio/pcm", rate: sampleRate } },
+        output,
       },
     };
     if (cfg.tools?.length) session.tools = cfg.tools;
     if ("reasoning_effort" in cfg && cfg.reasoning_effort) {
       session.reasoning = { effort: cfg.reasoning_effort };
+    }
+    if (cfg.replace && Object.keys(cfg.replace).length) {
+      session.replace = cfg.replace;
+    }
+    if (cfg.resumption_enabled) {
+      session.resumption = { enabled: true };
     }
     ws.send(JSON.stringify({ type: "session.update", session }));
   }, []);
@@ -203,6 +218,22 @@ export function useXaiVoice() {
     [sendSessionUpdate],
   );
 
+  const waitForPlaybackComplete = useCallback(async (timeoutMs = 20000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (
+        !playingRef.current &&
+        playbackQueueRef.current.length === 0 &&
+        !assistantSpeakingRef.current
+      ) {
+        return;
+      }
+      await new Promise((r) => window.setTimeout(r, 40));
+    }
+  }, []);
+
+  const inflightToolsRef = useRef(0);
+
   const handleFunctionCall = useCallback(
     async (message: XaiMessage) => {
       const ws = wsRef.current;
@@ -211,6 +242,8 @@ export function useXaiVoice() {
       const callId = message.call_id as string | undefined;
       const name = message.name as string | undefined;
       if (!callId || !name) return;
+
+      inflightToolsRef.current += 1;
 
       let args: Record<string, unknown> = {};
       const rawArgs = message.arguments;
@@ -225,7 +258,7 @@ export function useXaiVoice() {
       }
 
       const ctx = callContextRef.current;
-      const pendingId = `tool-${Date.now()}`;
+      const pendingId = `tool-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       setToolCalls((prev) => [
         ...prev,
         {
@@ -302,19 +335,29 @@ export function useXaiVoice() {
         await applyAgentConfig(handoffAgent);
       }
 
-      ws.send(
-        JSON.stringify({
-          type: "conversation.item.create",
-          item: {
-            type: "function_call_output",
-            call_id: callId,
-            output,
-          },
-        }),
-      );
-      ws.send(JSON.stringify({ type: "response.create" }));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+              type: "function_call_output",
+              call_id: callId,
+              output,
+            },
+          }),
+        );
+      }
+
+      inflightToolsRef.current = Math.max(0, inflightToolsRef.current - 1);
+      // Docs: wait until current-turn audio finishes, then response.create once all tools resolve.
+      if (inflightToolsRef.current === 0 && ws.readyState === WebSocket.OPEN) {
+        await waitForPlaybackComplete();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "response.create" }));
+        }
+      }
     },
-    [applyAgentConfig, appendSystem],
+    [applyAgentConfig, appendSystem, waitForPlaybackComplete],
   );
 
   const handleServerMessage = useCallback(
@@ -548,6 +591,21 @@ export function useXaiVoice() {
             if (message.type === "session.updated" && !configuredRef.current) {
               configuredRef.current = true;
               setConnected(true);
+              // Verbatim TTS line (compliance / IVR) without involving the model.
+              const disclosure = voiceSession.recording_disclosure?.trim();
+              if (disclosure) {
+                ws.send(
+                  JSON.stringify({
+                    type: "conversation.item.create",
+                    item: {
+                      type: "force_message",
+                      role: "assistant",
+                      interruptible: false,
+                      content: [{ type: "output_text", text: disclosure }],
+                    },
+                  }),
+                );
+              }
             }
             handleServerMessage(message);
           } catch {

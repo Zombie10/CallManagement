@@ -1,16 +1,65 @@
+# Call Management — Admin API + SPA
+# Install: sudo bash scripts/deploy/install.sh
+# Manage:  sudo bash scripts/deploy/manage.sh status
+# Docs:    docs/DEPLOYMENT.md
+
 [Unit]
-Description=Call Management Admin Web
-After=network.target
+Description=Call Management Admin (FastAPI + React SPA)
+Documentation=file:///opt/callmanagement/docs/DEPLOYMENT.md
+After=network-online.target
+Wants=network-online.target
+PartOf=callmanagement.target
+StartLimitIntervalSec=60
+StartLimitBurst=8
 
 [Service]
+Type=exec
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/callmanagement
+
+# Secrets + runtime config (required).
 EnvironmentFile=/opt/callmanagement/.env
-Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/home/ubuntu/.local/bin/uv run call-management-admin
+
+# Prefer project venv from `uv sync` (no $HOME/.local dependency).
+Environment=PATH=/opt/callmanagement/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=ADMIN_HOST=127.0.0.1
+Environment=ADMIN_PORT=8080
+
+ExecStartPre=/usr/bin/mkdir -p /opt/callmanagement/data
+ExecStart=/opt/callmanagement/.venv/bin/call-management-admin
+
 Restart=always
-RestartSec=5
+RestartSec=3
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=callmanagement-admin
+
+LimitNOFILE=65536
+TasksMax=4096
+
+# Hardening — app only writes under data/ and may update .env from Settings UI
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/callmanagement/data /opt/callmanagement/.env
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+UMask=0027
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target callmanagement.target

@@ -49,8 +49,14 @@ else
 fi
 
 echo "==> Restart services"
-sudo systemctl restart callmanagement callmanagement-worker
+if systemctl cat callmanagement.target &>/dev/null; then
+  sudo systemctl restart callmanagement.target
+else
+  sudo systemctl restart callmanagement callmanagement-worker
+fi
 sleep 2
-systemctl is-active callmanagement callmanagement-worker minio 2>/dev/null || systemctl is-active callmanagement callmanagement-worker
+systemctl is-active callmanagement callmanagement-worker minio 2>/dev/null \
+  || systemctl is-active callmanagement.target callmanagement callmanagement-worker 2>/dev/null \
+  || true
 
 echo "Done. Place a test call and check Registros in the admin panel."

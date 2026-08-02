@@ -53,7 +53,7 @@ function emptyDraft(): AgentProfileInput {
     name: "",
     display_name: "",
     provider: "xai",
-    voice: "ara",
+    voice: "carina",
     locale: "es",
     voice_language: "",
     custom_instructions: "",
@@ -310,6 +310,26 @@ function AgentEditor({
                   </div>
                   <p className="mt-1 text-xs text-cyan-300/80">{v.tone}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-slate-500">{v.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {v.generation === "flagship" && (
+                      <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-200">
+                        Flagship
+                      </span>
+                    )}
+                    {v.generation === "classic" && (
+                      <span className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-200">
+                        Upgraded
+                      </span>
+                    )}
+                    {(v.use_cases || []).slice(0, 2).map((uc) => (
+                      <span
+                        key={uc}
+                        className="rounded-full border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-slate-400"
+                      >
+                        {uc}
+                      </span>
+                    ))}
+                  </div>
                 </button>
               );
             })}

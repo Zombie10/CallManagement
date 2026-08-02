@@ -126,11 +126,15 @@ Requires real `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Then use *
 XAI_API_KEY=xai-...
 MODEL_PROVIDER=xai
 USE_GROK_REALTIME=true
-GROK_REALTIME_MODEL=grok-voice-latest
-GROK_REALTIME_VOICE=ara
+GROK_REALTIME_MODEL=grok-voice-think-fast-2.0
+GROK_REALTIME_VOICE=carina
+# Optional Speech-to-Speech extras: idle re-engage, ASR keyterms, pronunciation replace
+# GROK_VOICE_IDLE_TIMEOUT_MS=10000
+# GROK_VOICE_KEYTERMS=LiveKit,SIP,CRM
+# GROK_VOICE_REPLACE={"API":"A P I"}
 ```
 
-Built-in tools and per-agent profiles are configured in `.env` and the **Agents** page in the admin UI. See [Agents & tools](docs/AGENTS.md).
+Built-in tools and per-agent profiles (including the full **26-voice** xAI library) are configured in `.env` and the **Agents** page in the admin UI. See [Agents & tools](docs/AGENTS.md).
 
 ## Project structure
 
@@ -176,7 +180,8 @@ Voice agents **do not identify callers automatically** — they greet naturally 
 
 ## Production deployment
 
-- **Admin web (VPS):** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — nginx reverse proxy, systemd, SQLite data dir.
+- **Admin web (VPS):** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — nginx reverse proxy, systemd stack (`callmanagement.target`), SQLite data dir.
+- **Services:** `scripts/deploy/install.sh` · `scripts/deploy/manage.sh status|restart|logs|health`
 - **LiveKit agent worker:** `uv run -m call_management.server start` or Docker.
 - **Live URL (current):** https://paymercadogo.com/callmgmt/
 - **Análisis:** https://paymercadogo.com/callmgmt/analytics

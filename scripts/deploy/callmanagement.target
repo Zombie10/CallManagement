@@ -1,0 +1,18 @@
+# Call Management stack — start/stop/restart admin + worker together
+#
+#   sudo systemctl enable --now callmanagement.target
+#   sudo systemctl restart callmanagement.target
+#   sudo systemctl status callmanagement.target
+#
+# Individual units remain available:
+#   callmanagement.service          → admin API + UI
+#   callmanagement-worker.service   → LiveKit voice worker
+
+[Unit]
+Description=Call Management stack (admin + LiveKit worker)
+Documentation=file:///opt/callmanagement/docs/DEPLOYMENT.md
+Wants=callmanagement.service callmanagement-worker.service
+After=network-online.target callmanagement.service callmanagement-worker.service
+
+[Install]
+WantedBy=multi-user.target

@@ -40,12 +40,22 @@ cd admin-ui && npm ci && VITE_BASE=/callmgmt/ npm run build
 sudo bash scripts/deploy/install.sh
 ```
 
-Install worker service (if not done by install.sh):
+`install.sh` installs **both** units plus a stack target:
+
+| Unit | Role |
+|------|------|
+| `callmanagement.service` | Admin API + SPA (`call-management-admin`) |
+| `callmanagement-worker.service` | LiveKit agent worker (`python -m call_management.server start`) |
+| `callmanagement.target` | Start/stop/restart **both** together |
 
 ```bash
-sudo cp scripts/deploy/callmanagement-worker.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now callmanagement-worker
+# Stack (recommended)
+sudo systemctl enable --now callmanagement.target
+sudo bash scripts/deploy/manage.sh status
+sudo bash scripts/deploy/manage.sh restart
+sudo bash scripts/deploy/manage.sh logs        # both
+sudo bash scripts/deploy/manage.sh logs worker
+sudo bash scripts/deploy/manage.sh health
 ```
 
 ### Production `.env` example
@@ -56,8 +66,10 @@ XAI_API_KEY=xai-...
 
 MODEL_PROVIDER=xai
 USE_GROK_REALTIME=true
-GROK_REALTIME_MODEL=grok-voice-latest
-GROK_REALTIME_VOICE=ara
+GROK_REALTIME_MODEL=grok-voice-think-fast-2.0
+GROK_REALTIME_VOICE=carina
+GROK_VOICE_IDLE_TIMEOUT_MS=10000
+GROK_VOICE_RESUMPTION=true
 
 # Admin server
 ADMIN_HOST=127.0.0.1
@@ -150,16 +162,32 @@ sudo APP_DIR=/opt/callmanagement PHONE=+15109379101 bash scripts/bootstrap_telep
 
 ### systemd
 
-| Service | Unit file | Purpose |
-|---------|-----------|---------|
-| Admin API + UI | `scripts/deploy/callmanagement.service` | `uv run call-management-admin` |
-| LiveKit worker | `scripts/deploy/callmanagement-worker.service` | `uv run -m call_management.server start` |
+| Unit | Unit file | Command |
+|------|-----------|---------|
+| Admin API + UI | `scripts/deploy/callmanagement.service` | `.venv/bin/call-management-admin` |
+| LiveKit worker | `scripts/deploy/callmanagement-worker.service` | `.venv/bin/python -m call_management.server start` |
+| **Stack** | `scripts/deploy/callmanagement.target` | starts both (`PartOf` / `Wants`) |
+
+Modern units use the project **venv** (not `~/.local/bin/uv run`), `Type=exec`, journal logging, restart limits, and sandboxing (`ProtectSystem=strict`, `PrivateTmp`, `NoNewPrivileges`). Writable paths: `data/` (+ `.env` for admin Settings UI).
 
 ```bash
-sudo systemctl status callmanagement callmanagement-worker
+# Preferred
+sudo systemctl status callmanagement.target
+sudo systemctl restart callmanagement.target
+sudo bash /opt/callmanagement/scripts/deploy/manage.sh logs
+
+# Or per-service
 sudo systemctl restart callmanagement callmanagement-worker
-sudo journalctl -u callmanagement -f
-sudo journalctl -u callmanagement-worker -f
+sudo journalctl -u callmanagement-admin -u callmanagement-worker -f
+# (SyslogIdentifier: callmanagement-admin / callmanagement-worker)
+sudo journalctl -u callmanagement -u callmanagement-worker -f
+```
+
+After pulling unit file changes:
+
+```bash
+sudo bash /opt/callmanagement/scripts/deploy/manage.sh reload-units
+# or: sudo bash scripts/deploy/install.sh --skip-nginx
 ```
 
 ### Updates (recommended workflow)
@@ -180,8 +208,9 @@ rsync -avz admin-ui/dist/ mercadogo-vps:/opt/callmanagement/admin-ui/dist/
 # 4. Sync Python deps on VPS (if pyproject.toml changed)
 ssh mercadogo-vps 'cd /opt/callmanagement && uv sync'
 
-# 5. Restart services
-ssh mercadogo-vps 'sudo systemctl restart callmanagement callmanagement-worker'
+# 5. Restart stack
+ssh mercadogo-vps 'sudo systemctl restart callmanagement.target'
+# or: ssh mercadogo-vps 'sudo bash /opt/callmanagement/scripts/deploy/manage.sh restart'
 ```
 
 **On VPS only** (if npm installed):
@@ -190,7 +219,7 @@ ssh mercadogo-vps 'sudo systemctl restart callmanagement callmanagement-worker'
 cd /opt/callmanagement
 git pull origin main
 cd admin-ui && VITE_BASE=/callmgmt/ npm run build
-sudo systemctl restart callmanagement callmanagement-worker
+sudo systemctl restart callmanagement.target
 ```
 
 ### Health check
@@ -205,7 +234,7 @@ curl -s https://paymercadogo.com/callmgmt/api/health
 ```bash
 cd /opt/callmanagement
 uv run python scripts/seed_demo_company.py
-sudo systemctl restart callmanagement
+sudo systemctl restart callmanagement.target
 ```
 
 Creates **Café Central** (`cafe-central`) with 3 agentes de demo.
@@ -317,10 +346,10 @@ sudo nginx -t && sudo systemctl reload nginx
 
 | Symptom | Check |
 |---------|-------|
-| 502 on `/callmgmt/` | `systemctl status callmanagement`, port 8080 |
+| 502 on `/callmgmt/` | `systemctl status callmanagement.target`, port 8080, `manage.sh health` |
 | UI blank / assets 404 | Rebuild with `VITE_BASE=/callmgmt/`, rsync `dist/` |
 | Voice won't connect | `XAI_API_KEY`, `/api/chat/status` → `xai_voice_ready` |
-| LiveKit / SIP fails | `systemctl status callmanagement-worker`, `LIVEKIT_*` (WebSocket URL, not SIP subdomain) |
+| LiveKit / SIP fails | `systemctl status callmanagement-worker`, `manage.sh logs worker`, `LIVEKIT_*` (WebSocket URL, not SIP subdomain) |
 | Call rings, no agent | Dispatch rule → `call-management`; worker Connected in LiveKit Agents |
 | Wrong agent / no CRM route | DID en E.164 en **Mis agentes** (ej. `+15109379101`) |
 | No calls in analytics | Tenant context (`X-Tenant-Id`), data in `data/tenants/*/crm.db` |

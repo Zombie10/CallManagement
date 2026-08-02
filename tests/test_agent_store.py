@@ -47,7 +47,8 @@ def test_delete_custom_agent():
 def test_catalog_includes_voice_library_and_function_tools():
     catalog = get_catalog()
     assert "voice_library" in catalog
-    assert len(catalog["voice_library"]) >= 5
+    assert len(catalog["voice_library"]) >= 26
+    assert "carina" in catalog["available_xai_voices"]
     assert "function_tool_catalog" in catalog
     assert any(t["id"] == "to_support" for t in catalog["function_tool_catalog"])
 

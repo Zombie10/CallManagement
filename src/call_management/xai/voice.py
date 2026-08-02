@@ -1,12 +1,16 @@
-"""xAI Voice Agent API helpers (model, voices, session tools)."""
+"""xAI Voice Agent API helpers (model, voices, session tools).
+
+Aligned with Speech-to-Speech docs:
+https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech
+"""
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
 from call_management.config import (
-    get_language_instruction_for_agent,
     get_model_config,
     normalize_xai_voice,
 )
@@ -15,11 +19,33 @@ from call_management.xai.tools import get_xai_tools_config
 
 XAI_REALTIME_WS = "wss://api.x.ai/v1/realtime"
 XAI_CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets"
-DEFAULT_REALTIME_MODEL = "grok-voice-latest"
+# Flagship speech-to-speech model (docs.x.ai Speech to Speech).
+# grok-voice-latest moves from think-fast-1.0 → think-fast-2.0 on 2026-08-05.
+DEFAULT_REALTIME_MODEL = "grok-voice-think-fast-2.0"
+THINK_FAST_MODELS = frozenset(
+    {
+        "grok-voice-latest",
+        "grok-voice-think-fast-1.0",
+        "grok-voice-think-fast-2.0",
+    }
+)
 
+# Locale → BCP-47 language_hint. Spanish/Portuguese must be regional variants.
 _LOCALE_LANGUAGE_HINTS = {
     "en": "en",
     "es": "es-MX",
+    "es-mx": "es-MX",
+    "es-es": "es-ES",
+    "pt": "pt-BR",
+    "pt-br": "pt-BR",
+    "pt-pt": "pt-PT",
+    "fr": "fr",
+    "de": "de",
+    "it": "it",
+    "ja": "ja",
+    "ko": "ko",
+    "zh": "zh",
+    "hi": "hi",
     "multi": None,
 }
 
@@ -27,7 +53,14 @@ _LOCALE_LANGUAGE_HINTS = {
 def language_hint_for_locale(locale: str | None) -> str | None:
     if not locale:
         return None
-    return _LOCALE_LANGUAGE_HINTS.get(locale)
+    code = locale.strip()
+    if not code or code.lower() == "multi":
+        return None
+    mapped = _LOCALE_LANGUAGE_HINTS.get(code.lower())
+    if mapped is not None or code.lower() in _LOCALE_LANGUAGE_HINTS:
+        return mapped
+    # Already a BCP-47 tag from voice_language options (e.g. es-MX, ar-SA).
+    return code
 
 
 def language_hint_for_agent(agent_name: str) -> str | None:
@@ -93,6 +126,55 @@ def get_agent_instructions(agent_name: str) -> str:
     return get_effective_instructions(agent_name, for_voice=True)
 
 
+def parse_voice_keyterms() -> list[str]:
+    """Domain terms to bias ASR (max 100, each ≤50 chars). Comma-separated env."""
+    raw = os.getenv("GROK_VOICE_KEYTERMS", "").strip()
+    if not raw:
+        return []
+    terms: list[str] = []
+    for part in raw.split(","):
+        term = part.strip()[:50]
+        if term and term not in terms:
+            terms.append(term)
+        if len(terms) >= 100:
+            break
+    return terms
+
+
+def parse_voice_replace() -> dict[str, str]:
+    """Pronunciation map applied before TTS (spoken audio only). JSON object env."""
+    raw = os.getenv("GROK_VOICE_REPLACE", "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items() if str(k).strip() and str(v).strip()}
+
+
+def _env_int(name: str, default: int | None) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw.strip())
+    except ValueError:
+        return default
+
+
 async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[str, Any]:
     import aiohttp
 
@@ -120,6 +202,7 @@ async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[st
 
 
 def build_voice_session_payload(agent_name: str = "receptionist") -> dict[str, Any]:
+    """Browser/API session config for Grok Speech-to-Speech (Think Fast 2.0)."""
     from call_management.agent_store import get_profile
 
     cfg = get_model_config()
@@ -128,18 +211,48 @@ def build_voice_session_payload(agent_name: str = "receptionist") -> dict[str, A
     model = cfg.grok_realtime_model or DEFAULT_REALTIME_MODEL
     language_hint = language_hint_for_agent(agent_name)
 
-    return {
+    threshold = _env_float("GROK_VOICE_VAD_THRESHOLD", 0.85)
+    threshold = max(0.1, min(0.9, threshold))
+    silence_ms = _env_int("GROK_VOICE_SILENCE_MS", 700) or 700
+    silence_ms = max(0, min(10_000, silence_ms))
+    prefix_ms = _env_int("GROK_VOICE_PREFIX_PADDING_MS", 333) or 333
+    prefix_ms = max(0, min(10_000, prefix_ms))
+    # Re-engage silent callers after assistant finishes (call-center default 10s).
+    idle_ms = _env_int("GROK_VOICE_IDLE_TIMEOUT_MS", 10_000)
+    if idle_ms is not None and idle_ms <= 0:
+        idle_ms = None
+
+    speed = _env_float("GROK_VOICE_OUTPUT_SPEED", 1.0)
+    speed = max(0.7, min(1.5, speed))
+
+    resumption = os.getenv("GROK_VOICE_RESUMPTION", "true").lower() == "true"
+    keyterms = parse_voice_keyterms()
+    replace = parse_voice_replace()
+    disclosure = os.getenv("GROK_VOICE_RECORDING_DISCLOSURE", "").strip()
+
+    turn_detection: dict[str, Any] = {
+        "type": "server_vad",
+        "threshold": threshold,
+        "silence_duration_ms": silence_ms,
+        "prefix_padding_ms": prefix_ms,
+    }
+    if idle_ms is not None:
+        turn_detection["idle_timeout_ms"] = idle_ms
+
+    payload: dict[str, Any] = {
         "model": model,
         "voice": voice,
         "agent": agent_name,
         "instructions": get_agent_instructions(agent_name),
         "language_hint": language_hint,
         "tools": build_voice_tools(agent_name),
-        "turn_detection": {
-            "type": "server_vad",
-            "threshold": 0.85,
-            "silence_duration_ms": 700,
-            "prefix_padding_ms": 333,
-        },
-        "reasoning_effort": "high" if model in {DEFAULT_REALTIME_MODEL, "grok-voice-think-fast-1.0"} else None,
+        "turn_detection": turn_detection,
+        # session.update uses reasoning.effort (high | none); default high for Think Fast.
+        "reasoning_effort": "high" if model in THINK_FAST_MODELS else None,
+        "keyterms": keyterms or None,
+        "replace": replace or None,
+        "output_speed": speed,
+        "resumption_enabled": resumption,
+        "recording_disclosure": disclosure or None,
     }
+    return payload

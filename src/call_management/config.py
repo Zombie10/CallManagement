@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from typing import Literal
 
 from dotenv import load_dotenv
+
+from call_management.xai.voice_catalog import BUILTIN_VOICE_IDS
 
 load_dotenv()
 
@@ -21,8 +24,8 @@ class ModelConfig:
 
     # --- xAI / Grok settings (when provider == "xai") ---
     use_grok_realtime: bool = True
-    grok_realtime_model: str = "grok-voice-latest"
-    grok_realtime_voice: str = "ara"
+    grok_realtime_model: str = "grok-voice-think-fast-2.0"
+    grok_realtime_voice: str = "carina"
 
     xai_stt_model: str = "grok-stt"
     xai_llm_model: str = "grok-3"
@@ -76,7 +79,7 @@ def get_model_config() -> ModelConfig:
     return cfg
 
 
-BUILTIN_XAI_VOICES = ("eve", "ara", "rex", "sal", "leo")
+BUILTIN_XAI_VOICES: tuple[str, ...] = BUILTIN_VOICE_IDS
 
 _LEGACY_VOICE_MAP = {
     "grok": "rex",
@@ -87,19 +90,35 @@ _LEGACY_VOICE_MAP = {
     "leo": "leo",
 }
 
+# Custom voice IDs from xAI Custom Voices API are 8-char lowercase alphanumeric.
+_CUSTOM_VOICE_RE = re.compile(r"^[a-z0-9]{6,16}$")
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
+
 
 def normalize_xai_voice(voice: str | None, *, fallback: str = "ara") -> str:
-    raw = (voice or fallback).strip().lower()
-    return _LEGACY_VOICE_MAP.get(raw, raw if raw in BUILTIN_XAI_VOICES else fallback)
+    """Normalize built-in voice names; pass through custom / future voice IDs."""
+    raw = (voice or fallback).strip()
+    if not raw:
+        return fallback
+    lower = raw.lower()
+    if lower in _LEGACY_VOICE_MAP:
+        return _LEGACY_VOICE_MAP[lower]
+    if lower in BUILTIN_XAI_VOICES:
+        return lower
+    # Custom voice IDs and forward-compatible names (docs: case-insensitive for built-ins).
+    if _CUSTOM_VOICE_RE.match(lower) or _VOICE_ID_RE.match(raw):
+        return lower
+    return fallback
 
 
+# Role defaults: prefer Jul-2026 flagship voices cast for call-center jobs.
 XAI_VOICES = {
-    "receptionist": "ara",
-    "support": "ara",
-    "sales": "rex",
-    "technical": "leo",
-    "escalation": "ara",
-    "banking_support": "sal",
+    "receptionist": "carina",  # soft, empathetic support
+    "support": "celeste",  # compassionate, reassuring
+    "sales": "castor",  # charismatic, easygoing
+    "technical": "rigel",  # precise, professional
+    "escalation": "lux",  # calm, quietly wise
+    "banking_support": "naksh",  # warm, thoughtful
 }
 
 VOICE_PRESETS = {
