@@ -8,6 +8,8 @@ from call_management.xai.voice import (
     build_voice_session_payload,
     build_voice_tools,
     language_hint_for_locale,
+    preview_sample_text,
+    resolve_tts_language,
 )
 from call_management.xai.voice_catalog import BUILTIN_VOICE_IDS, VOICE_LIBRARY
 
@@ -39,6 +41,14 @@ def test_language_hint_spanish():
     assert language_hint_for_locale("en") == "en"
     assert language_hint_for_locale("multi") is None
     assert language_hint_for_locale("es-ES") == "es-ES"
+
+
+def test_tts_language_and_preview_sample():
+    assert resolve_tts_language("es") == "es-MX"
+    assert resolve_tts_language("multi") == "auto"
+    assert resolve_tts_language(None) == "auto"
+    assert "Call Management" in preview_sample_text("es-MX")
+    assert "Hello" in preview_sample_text("en")
 
 
 def test_build_voice_session_payload_think_fast_2(monkeypatch):

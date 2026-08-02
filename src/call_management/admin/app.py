@@ -39,6 +39,7 @@ from call_management.admin.schemas import (
     VoiceSessionCreate,
     VoiceSessionComplete,
     VoiceToolExecute,
+    VoicePreviewPayload,
     LiveKitPlaygroundCreate,
     CustomerCreate,
     CustomerUpdate,
@@ -200,6 +201,34 @@ async def get_voice_agent_config(agent_name: str):
         return build_voice_session_payload(agent_name)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/voice/preview")
+async def post_voice_preview(payload: VoicePreviewPayload):
+    """Synthesize a short MP3 sample so admins can hear a voice + language."""
+    from fastapi.responses import Response
+
+    from call_management.xai.voice import synthesize_voice_preview
+
+    try:
+        audio = await synthesize_voice_preview(
+            voice_id=payload.voice_id,
+            language=payload.language,
+            text=payload.text,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Voice preview failed: {exc}") from exc
+
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": 'inline; filename="voice-preview.mp3"',
+        },
+    )
 
 
 @app.get("/api/agents")

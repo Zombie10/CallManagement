@@ -17,7 +17,9 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
+import { VoicePreviewButton } from "../components/VoicePreviewButton";
 import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import {
@@ -99,7 +101,7 @@ function emptyAgent(): AgentInstanceInput {
     template_id: "receptionist",
     status: "draft",
     provider: "xai",
-    voice: "ara",
+    voice: "carina",
     locale: "es",
     phone_number: "",
     phone_numbers: [],
@@ -396,24 +398,38 @@ export function TenantAgents() {
       </div>
 
       {showEditor && (
-        <div className="glass-card fixed inset-x-4 bottom-4 top-auto z-40 max-h-[85vh] overflow-y-auto p-6 shadow-2xl md:inset-x-auto md:right-6 md:top-20 md:w-[480px]">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-xl font-semibold">{isNew ? "Nuevo agente" : "Editar agente"}</h2>
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/55 p-3 backdrop-blur-sm sm:items-center sm:p-6">
+          <div
+            className="glass-card flex max-h-[min(94vh,920px)] w-full max-w-3xl flex-col overflow-hidden shadow-2xl ring-1 ring-white/10"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tenant-agent-editor-title"
+          >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/5 px-5 py-4 sm:px-7 sm:py-5">
+            <div>
+              <h2 id="tenant-agent-editor-title" className="font-display text-xl font-semibold sm:text-2xl">
+                {isNew ? "Nuevo agente" : "Editar agente"}
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-400">
+                Voz, telefonía y límites · panel ampliado
+              </p>
+            </div>
             <button type="button" className="btn-ghost" onClick={() => { setEditing(null); setIsNew(false); }}>
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
+            <div className="grid gap-4 sm:grid-cols-2">
             <input
-              className="input-field w-full"
+              className="input-field w-full sm:col-span-2"
               placeholder="Nombre visible"
               value={draft.display_name}
               onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))}
             />
             {isNew && (
               <input
-                className="input-field w-full"
+                className="input-field w-full sm:col-span-2"
                 placeholder="slug-interno"
                 value={draft.slug}
                 onChange={(e) => setDraft((d) => ({ ...d, slug: e.target.value }))}
@@ -432,7 +448,7 @@ export function TenantAgents() {
               onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
               options={STATUS_OPTIONS}
             />
-            <label className="block space-y-1.5">
+            <label className="block space-y-1.5 sm:col-span-2">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Máx. llamadas simultáneas (agente)
               </span>
@@ -453,6 +469,7 @@ export function TenantAgents() {
                 Ej.: banco 8, recepción 4. Vacío = solo aplica el límite global de la empresa.
               </p>
             </label>
+            </div>
             <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/5 p-3 text-xs text-cyan-100/90">
               <p className="flex items-center gap-1.5 font-medium text-cyan-200">
                 <Info className="h-3.5 w-3.5" />
@@ -574,21 +591,69 @@ export function TenantAgents() {
                 + Otro número
               </button>
             </div>
-            <label className="block space-y-1.5">
-              <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                <Mic className="h-3 w-3" />
-                Voz
-              </span>
-              <Select
-                className="w-full"
-                value={draft.voice || "ara"}
-                onChange={(v) => setDraft((d) => ({ ...d, voice: v }))}
-                options={voiceOptions}
-                placeholder="Seleccionar voz…"
-              />
-            </label>
+            <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.04] p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
+                    <Mic className="h-4 w-4 text-cyan-400" />
+                    Voz del agente
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Selecciona una voz y escúchala en el idioma configurado
+                  </p>
+                </div>
+                <VoicePreviewButton
+                  voiceId={draft.voice || "carina"}
+                  language={draft.voice_language || draft.locale || "es"}
+                  label="Probar voz"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-1.5 sm:col-span-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Voz xAI
+                  </span>
+                  <Select
+                    className="w-full"
+                    value={draft.voice || "carina"}
+                    onChange={(v) => setDraft((d) => ({ ...d, voice: v }))}
+                    options={voiceOptions}
+                    placeholder="Seleccionar voz…"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Idioma de muestra / ASR
+                  </span>
+                  <Select
+                    className="w-full"
+                    value={draft.voice_language || ""}
+                    onChange={(voice_language) =>
+                      setDraft((d) => ({ ...d, voice_language }))
+                    }
+                    options={[
+                      {
+                        value: "",
+                        label: `Heredar locale (${draft.locale || "es"})`,
+                      },
+                      ...(agentsCatalog?.catalog.voice_language_options || []).map(
+                        (opt) => ({ value: opt.code, label: opt.label }),
+                      ),
+                    ]}
+                  />
+                </label>
+                <div className="flex items-end">
+                  <VoicePreviewButton
+                    className="w-full [&_button]:w-full [&_button]:justify-center"
+                    voiceId={draft.voice || "carina"}
+                    language={draft.voice_language || draft.locale || "es"}
+                    label={`Escuchar ${(draft.voice || "carina").replace(/^./, (c) => c.toUpperCase())}`}
+                  />
+                </div>
+              </div>
+            </div>
             <textarea
-              className="input-field min-h-[100px] w-full font-mono text-xs"
+              className="input-field min-h-[140px] w-full font-mono text-sm leading-relaxed"
               placeholder="Instrucciones personalizadas (opcional)"
               value={draft.custom_instructions || ""}
               onChange={(e) => setDraft((d) => ({ ...d, custom_instructions: e.target.value }))}
@@ -600,30 +665,40 @@ export function TenantAgents() {
                 <div className="space-y-2">
                   {schedules.map((s, i) => (
                     <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-                      <select
-                        className="input-field w-20"
-                        value={s.day_of_week}
-                        onChange={(e) => {
+                      <Select
+                        className="w-24"
+                        size="sm"
+                        value={String(s.day_of_week)}
+                        searchableFrom={0}
+                        onChange={(v) => {
                           const next = [...schedules];
-                          next[i] = { ...s, day_of_week: Number(e.target.value) };
+                          next[i] = { ...s, day_of_week: Number(v) };
                           setSchedules(next);
                         }}
-                      >
-                        {DAY_LABELS.map((l, di) => (
-                          <option key={di} value={di}>{l}</option>
-                        ))}
-                      </select>
-                      <input className="input-field w-24" value={s.start_time} onChange={(e) => {
-                        const next = [...schedules];
-                        next[i] = { ...s, start_time: e.target.value };
-                        setSchedules(next);
-                      }} />
+                        options={DAY_LABELS.map((l, di) => ({
+                          value: String(di),
+                          label: l,
+                        }))}
+                      />
+                      <TimeField
+                        className="w-32"
+                        value={s.start_time}
+                        onChange={(start_time) => {
+                          const next = [...schedules];
+                          next[i] = { ...s, start_time };
+                          setSchedules(next);
+                        }}
+                      />
                       <span className="text-slate-500">—</span>
-                      <input className="input-field w-24" value={s.end_time} onChange={(e) => {
-                        const next = [...schedules];
-                        next[i] = { ...s, end_time: e.target.value };
-                        setSchedules(next);
-                      }} />
+                      <TimeField
+                        className="w-32"
+                        value={s.end_time}
+                        onChange={(end_time) => {
+                          const next = [...schedules];
+                          next[i] = { ...s, end_time };
+                          setSchedules(next);
+                        }}
+                      />
                     </div>
                   ))}
                   <button
@@ -637,15 +712,18 @@ export function TenantAgents() {
               </div>
             )}
 
-            <button
-              type="button"
-              className="btn-primary w-full"
-              disabled={save.isPending || !draft.display_name || (isNew && !draft.slug)}
-              onClick={() => save.mutate()}
-            >
-              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Guardar
-            </button>
+            <div className="sticky bottom-0 -mx-5 border-t border-white/5 bg-surface-950/90 px-5 py-4 backdrop-blur sm:-mx-7 sm:px-7">
+              <button
+                type="button"
+                className="btn-primary w-full py-3 text-sm"
+                disabled={save.isPending || !draft.display_name || (isNew && !draft.slug)}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Guardar agente
+              </button>
+            </div>
+          </div>
           </div>
         </div>
       )}

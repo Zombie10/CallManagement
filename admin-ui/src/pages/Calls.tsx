@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronRight,
   FileText,
-  Filter,
   Headphones,
   Phone,
-  Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ListFilterBar } from "../components/ListFilterBar";
+import { Select } from "../components/Select";
 import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type CallRecord } from "../lib/api";
@@ -20,6 +20,14 @@ const CHANNEL_LABELS: Record<string, string> = {
   voice_xai: "Voz xAI",
   voice_livekit: "Voz LiveKit",
 };
+
+const CHANNEL_OPTIONS = [
+  { value: "all", label: "Todos los canales" },
+  { value: "sip", label: "Teléfono" },
+  { value: "chat", label: "Chat" },
+  { value: "voice_xai", label: "Voz xAI" },
+  { value: "voice_livekit", label: "Voz LiveKit" },
+];
 
 function channelLabel(channel?: string) {
   if (!channel) return "Teléfono";
@@ -48,7 +56,9 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
             {call.from_number}
           </p>
           {call.start_time && (
-            <p className="mt-0.5 text-xs text-slate-500">{new Date(call.start_time).toLocaleString()}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {new Date(call.start_time).toLocaleString()}
+            </p>
           )}
           {call.summary && (
             <p className="mt-2 line-clamp-2 text-sm text-slate-400">{call.summary}</p>
@@ -99,7 +109,12 @@ export function Calls() {
     for (const call of data?.items || []) {
       if (call.outcome) set.add(call.outcome);
     }
-    return Array.from(set).sort();
+    return [
+      { value: "all", label: "Todos los outcomes" },
+      ...Array.from(set)
+        .sort()
+        .map((o) => ({ value: o, label: o.replaceAll("_", " ") })),
+    ];
   }, [data?.items]);
 
   const filtered = useMemo(() => {
@@ -123,64 +138,54 @@ export function Calls() {
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-xl font-semibold sm:text-3xl">Registros de interacciones</h1>
+    <div className="flex max-h-[calc(100dvh-7.5rem)] flex-col gap-4 sm:max-h-[calc(100dvh-6rem)]">
+      <header className="shrink-0">
+        <h1 className="font-display text-xl font-semibold sm:text-3xl">
+          Registros de interacciones
+        </h1>
         <p className="mt-1 text-sm text-slate-400 sm:text-base">
           {data?.total ?? 0} registros · Transcripts, resúmenes
           {canPlay ? " y grabaciones de audio" : ""}
         </p>
       </header>
 
-      <div className="glass-card space-y-3 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              className="input-field pl-9"
-              placeholder="Buscar por teléfono, ID o texto…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            <Filter className="h-4 w-4 shrink-0" />
-            <select
-              className="input-field w-full sm:w-40"
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-            >
-              <option value="all">Todos los canales</option>
-              <option value="sip">Teléfono</option>
-              <option value="chat">Chat</option>
-              <option value="voice_xai">Voz xAI</option>
-              <option value="voice_livekit">Voz LiveKit</option>
-            </select>
-          </label>
-          <select
-            className="input-field w-full sm:w-40"
+      <div className="shrink-0">
+        <ListFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Buscar por teléfono, ID o texto…"
+          resultCount={filtered.length}
+          totalCount={data?.items.length ?? 0}
+          onClear={() => {
+            setChannel("all");
+            setOutcome("all");
+          }}
+        >
+          <Select
+            className="w-full sm:w-44"
+            value={channel}
+            onChange={setChannel}
+            options={CHANNEL_OPTIONS}
+            searchableFrom={0}
+          />
+          <Select
+            className="w-full sm:w-48"
             value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-          >
-            <option value="all">Todos los outcomes</option>
-            {outcomeOptions.map((o) => (
-              <option key={o} value={o}>
-                {o.replaceAll("_", " ")}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p className="text-xs text-slate-500">
-          Mostrando {filtered.length} de {data?.items.length ?? 0} registros
-        </p>
+            onChange={setOutcome}
+            options={outcomeOptions}
+            searchableFrom={6}
+          />
+        </ListFilterBar>
       </div>
 
-      <div className="space-y-3">
+      <div className="list-scroll-panel">
         {filtered.map((call) => (
           <CallRow key={call.call_id} call={call} canPlay={canPlay} />
         ))}
         {filtered.length === 0 && (
-          <div className="glass-card py-12 text-center text-slate-500">Sin registros que coincidan</div>
+          <div className="glass-card py-12 text-center text-slate-500">
+            Sin registros que coincidan
+          </div>
         )}
       </div>
     </div>

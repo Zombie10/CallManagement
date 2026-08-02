@@ -158,6 +158,31 @@ export const api = {
     }),
   voiceConfig: (agent: string) =>
     request<VoiceSessionConfig>(`/voice/config/${encodeURIComponent(agent)}`),
+  /** Short MP3 sample via xAI TTS for the selected voice + language. */
+  previewVoice: async (body: {
+    voice_id: string;
+    language?: string;
+    text?: string;
+  }): Promise<Blob> => {
+    const res = await fetch(`${API}/voice/preview`, {
+      method: "POST",
+      credentials: "include",
+      headers: buildHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      const detail = err.detail;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ")
+            : res.statusText;
+      throw new Error(message || "Voice preview failed");
+    }
+    return res.blob();
+  },
   livekitStatus: () => request<LiveKitStatusResponse>("/livekit/status"),
   listPlaygroundAgents: (tenantId?: string | null) =>
     request<PlaygroundAgentsResponse>("/playground/agents", {

@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Filter, Loader2, RefreshCw, X } from "lucide-react";
+import { DateField } from "../DateField";
 import { Select } from "../Select";
 import type { CustomReportFilter } from "../../lib/api";
 import { CHANNEL_FILTER_OPTIONS } from "../../lib/reportDisplay";
@@ -100,24 +101,18 @@ export function ReportTabFilterBar({
   return (
     <div className="glass-card space-y-3 p-3 sm:p-4">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="space-y-1">
-          <span className="text-[10px] text-slate-500">Desde</span>
-          <input
-            type="date"
-            className="input-field w-[9.5rem] text-xs"
-            value={filters.dateFrom}
-            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] text-slate-500">Hasta</span>
-          <input
-            type="date"
-            className="input-field w-[9.5rem] text-xs"
-            value={filters.dateTo}
-            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          />
-        </label>
+        <DateField
+          className="w-[10.5rem]"
+          label="Desde"
+          value={filters.dateFrom}
+          onChange={(dateFrom) => setFilters((f) => ({ ...f, dateFrom }))}
+        />
+        <DateField
+          className="w-[10.5rem]"
+          label="Hasta"
+          value={filters.dateTo}
+          onChange={(dateTo) => setFilters((f) => ({ ...f, dateTo }))}
+        />
         <label className="min-w-[8rem] flex-1 space-y-1">
           <span className="text-[10px] text-slate-500">Teléfono origen</span>
           <input

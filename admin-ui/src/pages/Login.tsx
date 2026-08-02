@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Fingerprint, KeyRound, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -12,6 +12,7 @@ import {
 } from "../lib/webauthn";
 import clsx from "clsx";
 import { normalizeAppPath } from "../lib/paths";
+import { AppLogoMark } from "../components/AppLogo";
 
 export function Login() {
   const navigate = useNavigate();
@@ -69,8 +70,8 @@ export function Login() {
 
       <div className="animate-fade-in-up relative z-10 w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-indigo-600 shadow-glow-lg">
-            <ShieldCheck className="h-7 w-7 text-white" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <AppLogoMark size="xl" className="shadow-glow-lg" />
           </div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Call Management</h1>
           <p className="mt-2 text-sm text-slate-400">Acceso seguro al panel de administración</p>

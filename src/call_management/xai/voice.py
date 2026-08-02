@@ -175,6 +175,90 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+# Sample phrases for admin voice preview (keyed by language prefix / code).
+_PREVIEW_SAMPLES: dict[str, str] = {
+    "es": "Hola, soy tu agente de Call Management. Así suena mi voz en este idioma.",
+    "es-MX": "Hola, soy tu agente de Call Management. Así suena mi voz en español de México.",
+    "es-ES": "Hola, soy tu agente de Call Management. Así suena mi voz en español de España.",
+    "en": "Hello, I'm your Call Management agent. This is how my voice sounds in this language.",
+    "pt": "Olá, sou o seu agente de Call Management. Assim soa a minha voz neste idioma.",
+    "pt-BR": "Olá, sou seu agente de Call Management. Assim soa minha voz em português do Brasil.",
+    "fr": "Bonjour, je suis votre agent Call Management. Voici comment ma voix sonne dans cette langue.",
+    "de": "Hallo, ich bin Ihr Call-Management-Agent. So klingt meine Stimme in dieser Sprache.",
+    "it": "Ciao, sono il tuo agente Call Management. Così suona la mia voce in questa lingua.",
+    "ja": "こんにちは。コールマネジメントのエージェントです。この言語での私の声はこのように聞こえます。",
+    "multi": "Hello. Hola. This is a multilingual voice sample from Call Management.",
+    "auto": "Hello. Hola. This is a multilingual voice sample from Call Management.",
+}
+
+
+def resolve_tts_language(language: str | None) -> str:
+    """Map app locale / voice_language to a TTS BCP-47 code (or auto)."""
+    if not language or not language.strip():
+        return "auto"
+    code = language.strip()
+    lower = code.lower()
+    if lower in {"multi", "auto"}:
+        return "auto"
+    if lower == "es":
+        return "es-MX"
+    if lower == "pt":
+        return "pt-BR"
+    return code
+
+
+def preview_sample_text(language: str | None) -> str:
+    resolved = resolve_tts_language(language)
+    if resolved in _PREVIEW_SAMPLES:
+        return _PREVIEW_SAMPLES[resolved]
+    prefix = resolved.split("-", 1)[0].lower()
+    return _PREVIEW_SAMPLES.get(prefix, _PREVIEW_SAMPLES["en"])
+
+
+async def synthesize_voice_preview(
+    *,
+    voice_id: str,
+    language: str | None = None,
+    text: str | None = None,
+) -> bytes:
+    """Unary TTS sample for the admin voice picker (MP3 bytes)."""
+    import aiohttp
+
+    api_key = os.getenv("XAI_API_KEY")
+    if not api_key:
+        raise ValueError("XAI_API_KEY is required for voice preview")
+
+    voice = normalize_xai_voice(voice_id)
+    lang = resolve_tts_language(language)
+    sample = (text or "").strip() or preview_sample_text(language)
+    # Keep previews short for snappy UI + cost control.
+    if len(sample) > 280:
+        sample = sample[:280]
+
+    payload = {
+        "text": sample,
+        "voice_id": voice,
+        "language": lang,
+        "output_format": {"codec": "mp3", "sample_rate": 24000, "bit_rate": 128000},
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            "https://api.x.ai/v1/tts",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as response:
+            body = await response.read()
+            if response.status != 200:
+                detail = body.decode("utf-8", errors="replace")[:300]
+                raise ValueError(f"xAI TTS failed ({response.status}): {detail}")
+            return body
+
+
 async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[str, Any]:
     import aiohttp
 

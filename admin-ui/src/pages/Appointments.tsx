@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DateTimeField } from "../components/DateField";
 import { ListFilterBar } from "../components/ListFilterBar";
+import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type AppointmentInput } from "../lib/api";
 
@@ -103,46 +105,59 @@ export function Appointments() {
         totalCount={data?.items.length ?? 0}
         onClear={() => setWhenFilter("all")}
       >
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          <span className="shrink-0">Cuándo</span>
-          <select
-            className="input-field w-full sm:w-40"
-            value={whenFilter}
-            onChange={(e) => setWhenFilter(e.target.value as WhenFilter)}
-          >
-            <option value="all">Todas</option>
-            <option value="upcoming">Próximas</option>
-            <option value="past">Pasadas</option>
-          </select>
-        </label>
+        <Select
+          className="w-full sm:w-44"
+          value={whenFilter}
+          onChange={(v) => setWhenFilter(v as WhenFilter)}
+          searchableFrom={0}
+          options={[
+            { value: "all", label: "Todas" },
+            { value: "upcoming", label: "Próximas" },
+            { value: "past", label: "Pasadas" },
+          ]}
+        />
       </ListFilterBar>
 
       {form && (
-        <div className="glass-card grid gap-3 p-5 sm:grid-cols-2">
-          <input
-            className="input-field"
-            placeholder="Teléfono cliente"
-            value={form.customer_phone}
-            onChange={(e) => setForm({ ...form, customer_phone: e.target.value })}
-          />
-          <input
-            className="input-field"
-            placeholder="Fecha/hora (ej. 2026-06-27 15:00)"
+        <div className="glass-card grid gap-4 p-5 sm:grid-cols-2">
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Teléfono cliente
+            </span>
+            <input
+              className="input-field"
+              placeholder="+50255551234"
+              value={form.customer_phone}
+              onChange={(e) => setForm({ ...form, customer_phone: e.target.value })}
+            />
+          </label>
+          <DateTimeField
+            label="Fecha y hora"
             value={form.scheduled_time}
-            onChange={(e) => setForm({ ...form, scheduled_time: e.target.value })}
+            onChange={(scheduled_time) => setForm({ ...form, scheduled_time })}
           />
-          <input
-            className="input-field sm:col-span-2"
-            placeholder="Propósito"
-            value={form.purpose}
-            onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-          />
-          <textarea
-            className="input-field min-h-[80px] sm:col-span-2"
-            placeholder="Notas"
-            value={form.notes || ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
+          <label className="block space-y-1.5 sm:col-span-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Propósito
+            </span>
+            <input
+              className="input-field"
+              placeholder="Motivo de la cita"
+              value={form.purpose}
+              onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1.5 sm:col-span-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Notas
+            </span>
+            <textarea
+              className="input-field min-h-[80px]"
+              placeholder="Notas opcionales"
+              value={form.notes || ""}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </label>
           <div className="flex gap-2 sm:col-span-2">
             <button
               type="button"

@@ -54,6 +54,15 @@ class VoiceToolExecute(BaseModel):
     tenant_id: str | None = None
 
 
+class VoicePreviewPayload(BaseModel):
+    """Preview a built-in / custom xAI voice via TTS (admin UI sample playback)."""
+
+    voice_id: str = "carina"
+    language: str | None = None  # BCP-47 or auto; es → es-MX
+    text: str | None = None
+
+
+
 class LiveKitPlaygroundCreate(BaseModel):
     initial_agent: str = "receptionist"
     phone_number: str = "+15551234567"

@@ -10,7 +10,6 @@ import {
   Users,
   MessageSquare,
   UserCircle,
-  Wrench,
   Network,
   Rocket,
   BarChart3,
@@ -21,6 +20,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { moduleAllowed } from "../lib/permissions";
+import { AppLogo } from "./AppLogo";
 
 const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; module: string }> = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
@@ -50,15 +50,7 @@ export function Layout() {
     <div className="mx-auto flex min-h-dvh max-w-[1600px] gap-4 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:gap-6 md:p-6">
       <aside className="glass-card animate-fade-in hidden w-64 shrink-0 flex-col p-4 md:flex">
         <div className="mb-8 px-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-glow">
-              <Wrench className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold">Call Management</p>
-              <p className="text-xs text-slate-400">Admin Console</p>
-            </div>
-          </div>
+          <AppLogo size="md" subtitle="Admin Console" />
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {nav.map(({ to, label, icon: Icon }) => (

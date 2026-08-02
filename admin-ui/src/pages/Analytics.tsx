@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DateField } from "../components/DateField";
 import { Select } from "../components/Select";
 import { PivotTable } from "../components/reports/PivotTable";
 import { ReportDetailGrid } from "../components/reports/ReportDetailGrid";
@@ -326,24 +327,16 @@ export function Analytics() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <label className="space-y-1">
-              <span className="text-xs text-slate-500">Desde</span>
-              <input
-                type="date"
-                className="input-field w-full"
-                value={filters.dateFrom}
-                onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs text-slate-500">Hasta</span>
-              <input
-                type="date"
-                className="input-field w-full"
-                value={filters.dateTo}
-                onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-              />
-            </label>
+            <DateField
+              label="Desde"
+              value={filters.dateFrom}
+              onChange={(dateFrom) => setFilters((f) => ({ ...f, dateFrom }))}
+            />
+            <DateField
+              label="Hasta"
+              value={filters.dateTo}
+              onChange={(dateTo) => setFilters((f) => ({ ...f, dateTo }))}
+            />
           </div>
 
           <MultiCheck
