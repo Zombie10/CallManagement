@@ -54,7 +54,8 @@ TasksMax=8192
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+# uv-managed CPython lives under $HOME/.local/share/uv — must stay readable.
+ProtectHome=read-only
 ReadWritePaths=/opt/callmanagement/data
 ProtectKernelTunables=true
 ProtectKernelModules=true
