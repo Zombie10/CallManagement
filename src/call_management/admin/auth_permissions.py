@@ -28,6 +28,13 @@ MODULES: tuple[ModuleDef, ...] = (
     {"id": "tenants", "label": "Empresas", "route": "/tenants", "category": "Orquestador", "api_prefixes": ("/api/tenants", "/api/platform/")},
     {"id": "my_agents", "label": "Mis agentes", "route": "/my-agents", "category": "Operación", "api_prefixes": ("/api/tenant-agents",)},
     {"id": "setup", "label": "Guía inicio", "route": "/setup", "category": "Operación", "api_prefixes": ()},
+    {
+        "id": "operations",
+        "label": "Flujos / Operación",
+        "route": "/operations",
+        "category": "Operación",
+        "api_prefixes": (),
+    },
     {"id": "analytics", "label": "Análisis", "route": "/analytics", "category": "Reportes", "api_prefixes": ("/api/reports/", "/api/analytics")},
     {"id": "customers", "label": "Clientes", "route": "/customers", "category": "CRM", "api_prefixes": ("/api/customers",)},
     {
@@ -101,7 +108,17 @@ _ROLE_MODULE_CEILING: dict[str, frozenset[str]] = {
     ),
     "playground": frozenset({"playground"}),
     "viewer": frozenset(
-        {"dashboard", "analytics", "customers", "calls", "recordings", "appointments", "supervisor"}
+        {
+            "dashboard",
+            "analytics",
+            "customers",
+            "calls",
+            "recordings",
+            "appointments",
+            "supervisor",
+            "operations",
+            "setup",
+        }
     ),
 }
 

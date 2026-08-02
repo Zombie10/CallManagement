@@ -14,6 +14,7 @@ import {
   Rocket,
   BarChart3,
   Eye,
+  GitBranch,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -27,6 +28,7 @@ const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; 
   { to: "/tenants", label: "Empresas", icon: Building2, module: "tenants" },
   { to: "/my-agents", label: "Mis agentes", icon: Network, module: "my_agents" },
   { to: "/setup", label: "Guía inicio", icon: Rocket, module: "setup" },
+  { to: "/operations", label: "Flujos / Operación", icon: GitBranch, module: "operations" },
   { to: "/settings", label: "Configuración", icon: Settings2, module: "settings" },
   { to: "/playground", label: "Probar agente", icon: MessageSquare, module: "playground" },
   { to: "/agents", label: "Plantillas sistema", icon: Bot, module: "agents" },

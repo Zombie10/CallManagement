@@ -16,6 +16,8 @@ const ROUTE_LABELS: Record<string, string> = {
   profile: "Mi perfil",
   users: "Usuarios",
   setup: "Guía de inicio",
+  operations: "Flujos / Operación",
+  supervisor: "Supervisor",
 };
 
 export function Breadcrumbs() {
