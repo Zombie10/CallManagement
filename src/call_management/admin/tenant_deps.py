@@ -43,6 +43,34 @@ async def require_tenant_context(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def scoped_playground_context(
+    request: Request,
+    *,
+    tenant_id: str | None,
+    agent_instance_id: str | None,
+) -> TenantContext:
+    """Resolve tenant for playground/voice/chat using the session user, not the raw body."""
+    from call_management.admin.auth_middleware import auth_disabled
+
+    user = getattr(request.state, "user", None)
+    if not user and not auth_disabled():
+        try:
+            user = get_current_user(request)
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="No autenticado") from exc
+    try:
+        return get_tenant_context(
+            tenant_id=tenant_id,
+            agent_instance_id=agent_instance_id,
+            user_tenant_id=user.get("tenant_id") if user else None,
+            is_super_admin=_is_super_admin(user) if user else auth_disabled(),
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 def require_super_admin(request: Request) -> dict:
     from call_management.admin.auth_middleware import auth_disabled
 

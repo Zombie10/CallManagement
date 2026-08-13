@@ -12,13 +12,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from call_management.agent_store import get_default_function_tools
+from call_management.agents.catalog import TEMPLATE_IDS
 from call_management.tenancy.paths import platform_db_path, tenant_dir
 
 SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]{0,47}$")
 AGENT_STATUSES = frozenset({"draft", "active", "paused"})
-TEMPLATE_IDS = frozenset(
-    {"receptionist", "banking_support", "support", "sales", "technical", "escalation"}
-)
 
 
 def _utc_iso() -> str:
@@ -67,6 +65,7 @@ class AgentInstance:
     phone_numbers: list[str] = field(default_factory=list)
     max_concurrent_calls: int | None = None
     call_count_today: int = 0
+    call_count_date: str | None = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -225,6 +224,8 @@ class PlatformStore:
             route_cols = {r[1] for r in conn.execute("PRAGMA table_info(phone_routes)").fetchall()}
             if "max_concurrent_calls" not in route_cols:
                 conn.execute("ALTER TABLE phone_routes ADD COLUMN max_concurrent_calls INTEGER")
+            if "call_count_date" not in cols:
+                conn.execute("ALTER TABLE agent_instances ADD COLUMN call_count_date TEXT")
             conn.commit()
         self.ensure_default_tenant()
 
@@ -283,6 +284,7 @@ class PlatformStore:
             if "max_concurrent_calls" in keys
             else None,
             call_count_today=row["call_count_today"],
+            call_count_date=row["call_count_date"] if "call_count_date" in keys else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -491,6 +493,7 @@ class PlatformStore:
             "phone_limits",
         }
         updates: dict[str, Any] = {}
+        phone_limits_payload: Any = ...
         for k, v in fields.items():
             if k not in allowed:
                 continue
@@ -502,33 +505,39 @@ class PlatformStore:
                 updates["phone_number"] = nums[0] if nums else None
                 continue
             if k == "phone_limits":
-                updates["_phone_limits"] = v
+                phone_limits_payload = v
                 continue
             updates[k] = v
-        if not updates:
+        if not updates and phone_limits_payload is ...:
             return agent
 
         now = _utc_iso()
         json_cols = {"tools": "tools_json", "function_tools": "function_tools_json", "mcp_servers": "mcp_servers_json"}
-        sets: list[str] = []
-        values: list[Any] = []
-        for k, v in updates.items():
-            col = json_cols.get(k, k)
-            sets.append(f"{col} = ?")
-            values.append(json.dumps(v) if k in json_cols else v)
-        sets.append("updated_at = ?")
-        values.append(now)
-        values.append(agent_id)
+        if updates:
+            sets: list[str] = []
+            values: list[Any] = []
+            for k, v in updates.items():
+                col = json_cols.get(k, k)
+                sets.append(f"{col} = ?")
+                values.append(json.dumps(v) if k in json_cols else v)
+            sets.append("updated_at = ?")
+            values.append(now)
+            values.append(agent_id)
 
-        with self._connect() as conn:
-            conn.execute(f"UPDATE agent_instances SET {', '.join(sets)} WHERE id = ?", values)
-            conn.commit()
+            with self._connect() as conn:
+                conn.execute(f"UPDATE agent_instances SET {', '.join(sets)} WHERE id = ?", values)
+                conn.commit()
         updated = self.get_agent(agent_id)
         if not updated:
             raise ValueError("Agente no encontrado")
-        phone_limits = updates.pop("_phone_limits", None)
-        if any(k in updates for k in ("phone_number", "phone_numbers_json", "sip_trunk_id")) or phone_limits is not None:
-            self._sync_phone_routes(updated, phone_limits=phone_limits)
+        if (
+            any(k in updates for k in ("phone_number", "phone_numbers_json", "sip_trunk_id"))
+            or phone_limits_payload is not ...
+        ):
+            self._sync_phone_routes(
+                updated,
+                phone_limits=None if phone_limits_payload is ... else phone_limits_payload,
+            )
         return updated
 
     def duplicate_agent(self, agent_id: str, *, slug: str, display_name: str) -> AgentInstance:
@@ -742,7 +751,9 @@ class PlatformStore:
             "active_agents": sum(1 for a in agents if a.status == "active"),
             "paused_agents": sum(1 for a in agents if a.status == "paused"),
             "draft_agents": sum(1 for a in agents if a.status == "draft"),
-            "calls_today": sum(a.call_count_today for a in agents),
+            "calls_today": sum(
+                a.call_count_today for a in agents if a.call_count_date == _utc_iso()[:10]
+            ),
             "max_agents": tenant.max_agents if tenant else 0,
             "max_calls_per_day": tenant.max_calls_per_day if tenant else 0,
         }
@@ -757,10 +768,20 @@ class PlatformStore:
         }
 
     def increment_agent_calls(self, agent_id: str) -> None:
+        today = _utc_iso()[:10]
         with self._connect() as conn:
-            conn.execute(
-                "UPDATE agent_instances SET call_count_today = call_count_today + 1 WHERE id = ?",
+            row = conn.execute(
+                "SELECT call_count_today, call_count_date FROM agent_instances WHERE id = ?",
                 (agent_id,),
+            ).fetchone()
+            if not row:
+                return
+            keys = row.keys()
+            current_date = row["call_count_date"] if "call_count_date" in keys else None
+            next_count = 1 if current_date != today else int(row["call_count_today"] or 0) + 1
+            conn.execute(
+                "UPDATE agent_instances SET call_count_today = ?, call_count_date = ? WHERE id = ?",
+                (next_count, today, agent_id),
             )
             conn.commit()
 

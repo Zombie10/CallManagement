@@ -74,7 +74,9 @@ class CallContext:
     is_vip: bool = False
 
     call_purpose: str | None = None
+    current_agent_name: str | None = None
     previous_agent_name: str | None = None
+    transferred_to: str | None = None
     handoff_reason: str | None = None
     start_time: str = field(default_factory=utc_now_iso)
 
@@ -116,7 +118,9 @@ class CallContext:
             },
             "state": {
                 "purpose": self.call_purpose,
+                "current_agent": self.current_agent_name,
                 "previous_agent": self.previous_agent_name,
+                "transferred_to": self.transferred_to,
                 "handoff_reason": self.handoff_reason,
                 "notes": self.call_notes[-5:] if self.call_notes else [],
                 "appointment": self.appointment_details or None,
@@ -164,7 +168,7 @@ class BaseAgent(Agent):
         await self._apply_agent_voice()
 
         chat_ctx = self.chat_ctx.copy()
-        if ctx.previous_agent_name:
+        if ctx.transferred_to:
             recent = [item for item in self.chat_ctx.items if item.type == "message"][-4:]
             for item in recent:
                 chat_ctx.items.append(item)
@@ -213,6 +217,8 @@ class BaseAgent(Agent):
             return self, f"I'm sorry, I cannot transfer you to {agent_name} right now."
 
         ctx.previous_agent_name = self.agent_name
+        ctx.transferred_to = agent_name
+        ctx.current_agent_name = agent_name
         ctx.handoff_reason = reason or f"Transferred to {agent_name}"
         ctx.call_notes.append(f"Handoff to {agent_name}: {ctx.handoff_reason}")
 
@@ -266,13 +272,17 @@ class BaseAgent(Agent):
         return "Note recorded. Thank you."
 
     @function_tool
-    async def lookup_customer(self, context: RunContextT) -> str:
-        """Look up the current caller in our CRM and refresh context."""
+    async def lookup_customer(self, context: RunContextT, phone_number: str = "") -> str:
+        """Look up a caller in CRM. Use the number they just said, or the line caller ID."""
         ctx = context.userdata
-        if not ctx.from_number or not ctx.crm:
+        if not ctx.crm:
+            return "No CRM available for lookup."
+        phone = (phone_number or "").strip() or ctx.from_number
+        if not phone:
             return "No caller phone number available for lookup."
+        ctx.from_number = phone
 
-        customer = await ctx.crm.get_or_create_customer(ctx.from_number)
+        customer = await ctx.crm.get_or_create_customer(phone)
         ctx.customer_name = customer.name
         ctx.customer_email = customer.email
         ctx.customer_notes = customer.notes

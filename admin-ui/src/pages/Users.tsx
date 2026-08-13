@@ -110,7 +110,7 @@ export function Users() {
     return <Navigate to="/" replace />;
   }
 
-  const roles = rolesData?.roles || [];
+  const roles = (rolesData?.roles || []).filter((r) => isSuperAdmin || r.id !== "super_admin");
   const catalog = modulesData?.modules || [];
   const roleDefaults = modulesData?.role_defaults || {};
   const roleCeilings = modulesData?.role_ceilings || {};
@@ -211,14 +211,17 @@ export function Users() {
             </label>
             {isSuperAdmin && (
               <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm text-slate-400">Empresa (opcional)</span>
+                <span className="text-sm text-slate-400">
+                  Empresa {form.role === "super_admin" ? "(solo orquestador)" : "(requerida)"}
+                </span>
                 <Select
                   value={form.tenant_id}
                   onChange={(v) => setForm((f) => ({ ...f, tenant_id: v }))}
-                  options={[
-                    { value: "", label: "Sin empresa (global)" },
-                    ...tenantOptions,
-                  ]}
+                  options={
+                    form.role === "super_admin"
+                      ? [{ value: "", label: "Sin empresa (orquestador)" }, ...tenantOptions]
+                      : tenantOptions
+                  }
                 />
               </label>
             )}

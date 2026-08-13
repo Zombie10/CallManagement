@@ -572,19 +572,26 @@ async def list_webhook_deliveries(
     return get_platform_store().list_webhook_deliveries(ctx.tenant.id, limit=limit, offset=offset)
 
 
+def _public_webhook(hook: dict[str, Any], *, include_secret: bool = False) -> dict[str, Any]:
+    out = dict(hook)
+    out["has_secret"] = bool(hook.get("secret"))
+    if not include_secret:
+        out["secret"] = None
+    return out
+
+
 @router.get("/webhooks")
 async def list_webhooks(ctx: TenantContext = Depends(require_tenant_context)):
-    return {"webhooks": get_platform_store().list_webhooks(ctx.tenant.id)}
+    hooks = get_platform_store().list_webhooks(ctx.tenant.id)
+    return {"webhooks": [_public_webhook(h) for h in hooks]}
 
 
 @router.post("/webhooks")
 async def create_webhook(payload: WebhookCreatePayload, ctx: TenantContext = Depends(require_tenant_context)):
-    store = get_platform_store()
-    hooks_before = len(store.list_webhooks(ctx.tenant.id))
-    store.create_webhook(ctx.tenant.id, url=payload.url, events=payload.events, secret=payload.secret)
-    hooks = store.list_webhooks(ctx.tenant.id)
-    created = hooks[0] if len(hooks) > hooks_before else hooks[-1] if hooks else {}
-    return created
+    created = get_platform_store().create_webhook(
+        ctx.tenant.id, url=payload.url, events=payload.events, secret=payload.secret
+    )
+    return _public_webhook(created, include_secret=True)
 
 
 @router.delete("/webhooks/{webhook_id}")
@@ -597,7 +604,7 @@ async def delete_webhook(webhook_id: str, ctx: TenantContext = Depends(require_t
 
 
 @router.get("/phone-routes/resolve")
-async def resolve_phone_route(phone: str):
+async def resolve_phone_route(phone: str, _admin: dict = Depends(require_super_admin)):
     route = get_platform_store().resolve_phone(phone)
     if not route:
         raise HTTPException(status_code=404, detail="Sin ruta para este número")
@@ -607,4 +614,33 @@ async def resolve_phone_route(phone: str):
         "agent_instance_id": route.agent_instance_id,
         "phone_number": route.phone_number,
         "template_id": agent.template_id if agent else None,
+    }
+
+
+@router.get("/operations/agents")
+async def operations_agents(ctx: TenantContext = Depends(require_tenant_context)):
+    """Read-only company agents for the Flujos / Operación page."""
+    store = get_platform_store()
+    agents = store.list_agents(ctx.tenant.id)
+    return {
+        "tenant": {"id": ctx.tenant.id, "name": ctx.tenant.name},
+        "agents": [
+            {
+                "id": a.id,
+                "display_name": a.display_name,
+                "slug": a.slug,
+                "template_id": a.template_id,
+                "status": a.status,
+                "voice": a.voice,
+                "locale": a.locale,
+                "voice_language": a.voice_language,
+                "phone_number": a.phone_number,
+                "phone_numbers": a.phone_numbers,
+                "custom_instructions": a.custom_instructions,
+                "function_tools": a.function_tools,
+                "schedule_status": agent_schedule_status(a.id),
+                "max_concurrent_calls": a.max_concurrent_calls,
+            }
+            for a in agents
+        ],
     }

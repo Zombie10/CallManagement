@@ -7,7 +7,7 @@ from typing import Any
 
 from call_management.agents.registry import resolve_handoff_target
 from call_management.crm.banking_data import format_customer_lookup, get_demo_customer, normalize_phone
-from call_management.crm.database import get_crm
+
 
 # Generic playground defaults — not real callers until the agent collects a number.
 _PLACEHOLDER_PHONES = frozenset({"", "+15551234567", "+10000000000"})
@@ -64,12 +64,11 @@ async def execute_voice_function(
             event={"type": "handoff", "detail": handoff},
         )
 
-    if tenant_id:
-        from call_management.tenancy.context import resolve_crm_for_tenant
+    if not tenant_id:
+        raise ValueError("tenant_id is required to execute voice tools")
+    from call_management.tenancy.context import resolve_crm_for_tenant
 
-        crm = await resolve_crm_for_tenant(tenant_id)
-    else:
-        crm = await get_crm()
+    crm = await resolve_crm_for_tenant(tenant_id)
     active_phone = phone
 
     if name == "lookup_customer":

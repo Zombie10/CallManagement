@@ -139,6 +139,25 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
+def _scoped_user_fields(actor: dict, *, role: str, tenant_id: str | None) -> tuple[str, str | None]:
+    """Tenant admins cannot mint orquestadores or assign other companies."""
+    actor_role = normalize_role(str(actor.get("role")))
+    requested = normalize_role(role)
+    if actor_role == "super_admin":
+        if requested != "super_admin" and not tenant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Los usuarios que no son orquestador deben pertenecer a una empresa",
+            )
+        return requested, tenant_id
+    if requested == "super_admin":
+        raise HTTPException(status_code=403, detail="No puedes crear o promover un orquestador")
+    actor_tenant = actor.get("tenant_id")
+    if not actor_tenant:
+        raise HTTPException(status_code=403, detail="Tu cuenta no tiene empresa asignada")
+    return requested, str(actor_tenant)
+
+
 class PasswordLoginPayload(BaseModel):
     username: str
     password: str
@@ -273,19 +292,21 @@ async def remove_passkey(credential_id: str, user: dict = Depends(get_current_us
 
 
 @router.get("/users")
-async def list_admin_users(_admin: dict = Depends(require_admin)):
-    return {"users": [_user_payload(u) for u in list_users()]}
+async def list_admin_users(admin: dict = Depends(require_admin)):
+    tenant_filter = None if normalize_role(str(admin.get("role"))) == "super_admin" else admin.get("tenant_id")
+    return {"users": [_user_payload(u) for u in list_users(tenant_id=tenant_filter)]}
 
 
 @router.post("/users")
-async def create_admin_user(payload: AdminUserCreatePayload, _admin: dict = Depends(require_admin)):
+async def create_admin_user(payload: AdminUserCreatePayload, admin: dict = Depends(require_admin)):
+    role, tenant_id = _scoped_user_fields(admin, role=payload.role, tenant_id=payload.tenant_id)
     try:
         created = create_user(
             username=payload.username,
             password=payload.password,
             display_name=payload.display_name,
-            role=payload.role,
-            tenant_id=payload.tenant_id,
+            role=role,
+            tenant_id=tenant_id,
             modules=payload.modules,
         )
     except ValueError as exc:
@@ -297,17 +318,28 @@ async def create_admin_user(payload: AdminUserCreatePayload, _admin: dict = Depe
 async def patch_admin_user(
     user_id: str,
     payload: AdminUserUpdatePayload,
-    _admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
+    from call_management.admin.auth_store import get_user_by_id
+
+    existing = get_user_by_id(user_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    actor_role = normalize_role(str(admin.get("role")))
+    if actor_role != "super_admin" and existing.tenant_id != admin.get("tenant_id"):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     try:
         data = payload.model_dump(exclude_unset=True)
+        next_role = data.get("role", existing.role)
+        next_tenant = data["tenant_id"] if "tenant_id" in data else existing.tenant_id
+        next_role, next_tenant = _scoped_user_fields(admin, role=next_role, tenant_id=next_tenant)
         updated = update_user(
             user_id,
             display_name=data.get("display_name"),
-            role=data.get("role"),
+            role=next_role,
             enabled=data.get("enabled"),
             password=data.get("password"),
-            tenant_id=data["tenant_id"] if "tenant_id" in data else ...,
+            tenant_id=next_tenant,
             modules=data["modules"] if "modules" in data else ...,
         )
     except ValueError as exc:
@@ -319,6 +351,15 @@ async def patch_admin_user(
 async def remove_admin_user(user_id: str, admin: dict = Depends(require_admin)):
     if user_id == admin["id"]:
         raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
+    from call_management.admin.auth_store import get_user_by_id
+
+    existing = get_user_by_id(user_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if normalize_role(str(admin.get("role"))) != "super_admin" and existing.tenant_id != admin.get(
+        "tenant_id"
+    ):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     try:
         delete_user(user_id)
     except ValueError as exc:

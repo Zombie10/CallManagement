@@ -51,27 +51,19 @@ async def get_call_for_tenant(ctx, call_id: str) -> dict:
 
 
 async def upload_call_recording(ctx, call_id: str, file: UploadFile) -> dict:
-    from call_management.crm.database import CallRecord
-    from call_management.utils.time import utc_now_iso
-
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     row = await crm.get_call_record_row(call_id)
     if not row:
-        await crm.create_call_record(
-            CallRecord(
-                call_id=call_id,
-                room_name="browser-recording",
-                from_number="+15551234567",
-                start_time=utc_now_iso(),
-                channel="voice_livekit",
-            )
-        )
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
 
     data = await file.read()
     ext = "webm"
     if file.filename and "." in file.filename:
         ext = file.filename.rsplit(".", 1)[-1].lower()
-    save_recording_bytes(ctx.tenant.id, call_id, data, ext=ext)
+    try:
+        save_recording_bytes(ctx.tenant.id, call_id, data, ext=ext)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     url = recording_api_url(call_id)
     await crm.update_call_recording(call_id, url)
     return {"saved": True, "call_id": call_id, "recording_url": url, "bytes": len(data)}

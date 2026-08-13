@@ -254,12 +254,15 @@ def get_user_by_id(user_id: str) -> AdminUser | None:
         return _row_to_user(row)
 
 
-def list_users() -> list[AdminUser]:
+def list_users(*, tenant_id: str | None = None) -> list[AdminUser]:
     with _connect() as conn:
         rows = conn.execute(
             "SELECT id, username, display_name, role, enabled, tenant_id, modules_json FROM users ORDER BY created_at ASC"
         ).fetchall()
-        return [_row_to_user(row) for row in rows]
+        users = [_row_to_user(row) for row in rows]
+    if tenant_id:
+        return [u for u in users if u.tenant_id == tenant_id]
+    return users
 
 
 def create_user(
@@ -419,7 +422,8 @@ def delete_user_credential(user_id: str, credential_row_id: str) -> None:
 def verify_user_password(username: str, password: str) -> AdminUser | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, username, display_name, password_hash FROM users WHERE username = ?",
+            "SELECT id, username, display_name, role, enabled, tenant_id, modules_json, password_hash "
+            "FROM users WHERE username = ?",
             (username.strip().lower(),),
         ).fetchone()
         if not row or not verify_password(password, row["password_hash"]):

@@ -41,3 +41,20 @@ def test_api_recording_requires_recordings_module():
 def test_playground_role_can_list_company_agents():
     assert can_access_api("playground", "/api/playground/agents", ["playground"])
     assert not can_access_api("playground", "/api/tenant-agents", ["playground"])
+
+
+def test_admin_does_not_bypass_module_prefixes():
+    assert can_access_api("admin", "/api/supervisor")
+    assert can_access_api("admin", "/api/export/calls.csv")
+    assert not can_access_api("admin", "/api/agents")
+    assert can_access_api("admin", "/api/auth/users")
+    assert not can_access_api("admin", "/api/auth/users", ["dashboard"])
+    assert can_access_api("admin", "/api/auth/users", ["users"])
+
+
+def test_operations_and_voice_preview_modules():
+    assert can_access_api("viewer", "/api/operations/agents", ["operations"])
+    assert not can_access_api("viewer", "/api/tenant-agents", ["operations"])
+    assert can_access_api("admin", "/api/voice/preview", ["my_agents"])
+    assert can_access_api("playground", "/api/voice/preview", ["playground"])
+    assert not can_access_api("viewer", "/api/voice/preview", ["operations"])

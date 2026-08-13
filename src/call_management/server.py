@@ -21,7 +21,8 @@ from call_management.agents import (
     SupportAgent,
     TechnicalAgent,
 )
-from call_management.agent_store import get_effective_instructions
+from call_management.agents.catalog import TEMPLATE_IDS
+from call_management.agents.runtime import build_runtime_agent
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
@@ -35,7 +36,7 @@ load_dotenv()
 
 logger = configure_logging()
 
-VALID_DEPARTMENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
+VALID_DEPARTMENTS = set(TEMPLATE_IDS)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -232,11 +233,15 @@ async def entrypoint(ctx: JobContext) -> None:
     from call_management.tenancy.scheduling import is_agent_available
 
     store = get_platform_store()
-    tenant, agent_instance, routed_template = resolve_dispatch(
-        dialed_number=to_number,
-        tenant_id=overrides.get("tenant_id"),  # type: ignore[arg-type]
-        agent_instance_id=overrides.get("agent_instance_id"),  # type: ignore[arg-type]
-    )
+    try:
+        tenant, agent_instance, routed_template = resolve_dispatch(
+            dialed_number=to_number,
+            tenant_id=overrides.get("tenant_id"),  # type: ignore[arg-type]
+            agent_instance_id=overrides.get("agent_instance_id"),  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        logger.error("Dispatch failed — dropping job: %s", exc)
+        return
     if not department_hint:
         department_hint = routed_template
 
@@ -259,6 +264,51 @@ async def entrypoint(ctx: JobContext) -> None:
         dialed_number=to_number,
     )
     queued_ok, blocked_layer = await acquire_queue_slot(queue_limits)
+    try:
+        await _run_session(
+            ctx,
+            overrides=overrides,
+            from_number=from_number,
+            to_number=to_number,
+            metadata_phone=metadata_phone,
+            tenant=tenant,
+            agent_instance=agent_instance,
+            routed_template=routed_template,
+            department_hint=department_hint,
+            after_hours_note=after_hours_note,
+            queue_note="",
+            limit_note=limit_note,
+            queued_ok=queued_ok,
+            blocked_layer=blocked_layer,
+            queue_limits=queue_limits,
+            store=store,
+        )
+    except Exception:
+        await release_queue_slot(queue_limits)
+        raise
+
+
+async def _run_session(
+    ctx: JobContext,
+    *,
+    overrides: dict,
+    from_number: str,
+    to_number: str | None,
+    metadata_phone: str | None,
+    tenant,
+    agent_instance,
+    routed_template: str,
+    department_hint: str | None,
+    after_hours_note: str,
+    queue_note: str,
+    limit_note: str,
+    queued_ok: bool,
+    blocked_layer,
+    queue_limits,
+    store,
+) -> None:
+    from call_management.tenancy.scheduling import is_agent_available
+
     if not queued_ok:
         if blocked_layer == "agent":
             queue_note = (
@@ -358,7 +408,13 @@ async def entrypoint(ctx: JobContext) -> None:
     }
     call_ctx.agents = agents_registry
 
-    voice_override = agent_instance.voice if agent_instance else None
+    extra_notes = f"{after_hours_note}{queue_note}{limit_note}"
+    voice_override = None
+    tenant_instances = {a.template_id: a for a in store.list_agents(tenant.id) if a.status == "active"}
+    if agent_instance:
+        tenant_instances[agent_instance.template_id] = agent_instance
+        voice_override = agent_instance.voice
+
     session = _build_session(
         call_ctx,
         ctx,
@@ -379,32 +435,18 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
     for agent_name, agent in agents_registry.items():
-        agent._instructions = get_effective_instructions(
-            agent_name,
+        overlay = tenant_instances.get(agent_name)
+        notes = extra_notes if overlay is agent_instance or agent_name == routed_template else ""
+        if not agent_instance and agent_name == "receptionist":
+            notes = extra_notes
+        runtime = build_runtime_agent(
+            instance=overlay,
+            template_id=agent_name,
+            extra_notes=notes,
             for_voice=cfg.use_grok_realtime,
         )
-
-    if agent_instance:
-        routed = agents_registry.get(routed_template)
-        if routed:
-            extra = ""
-            if agent_instance.custom_instructions:
-                extra += f"\n\n{agent_instance.custom_instructions.strip()}"
-            if after_hours_note:
-                extra += after_hours_note
-            if queue_note:
-                extra += queue_note
-            if limit_note:
-                extra += limit_note
-            if extra:
-                routed._instructions = f"{routed._instructions}{extra}"
-
-    if after_hours_note and not agent_instance:
-        receptionist._instructions += after_hours_note
-    if queue_note:
-        receptionist._instructions += queue_note
-    if limit_note:
-        receptionist._instructions += limit_note
+        agent._instructions = runtime.instructions
+        agent.preferred_voice = runtime.voice
 
     initial_agent, route_reason = _resolve_initial_agent(
         agents_registry,
@@ -415,7 +457,7 @@ async def entrypoint(ctx: JobContext) -> None:
     if route_reason == "vip_support":
         call_ctx.call_notes.append("VIP caller routed directly to support")
 
-    call_ctx.previous_agent_name = getattr(initial_agent, "agent_name", None)
+    call_ctx.current_agent_name = getattr(initial_agent, "agent_name", None)
 
     await session.start(agent=initial_agent, room=ctx.room)
     await ctx.connect()

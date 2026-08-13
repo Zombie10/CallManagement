@@ -6,7 +6,7 @@ import os
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,18 +15,13 @@ from call_management.admin.auth_middleware import AdminAuthMiddleware
 from call_management.admin.auth_routes import router as auth_router
 from call_management.admin.auth_store import ensure_bootstrap_user
 from call_management.admin.chat_runner import get_chat_manager
-from call_management.admin.livekit_playground import (
-    create_livekit_playground_session,
-    livekit_playground_ready,
-)
+from call_management.admin.livekit_playground import livekit_playground_ready
 from call_management.admin.call_records import (
     get_call_for_tenant,
     list_calls_for_tenant,
     stream_call_recording,
     upload_call_recording,
 )
-from call_management.admin.interaction_complete import complete_voice_xai_session
-from call_management.admin.voice_session import create_browser_voice_session
 from call_management.admin.env_store import PROJECT_ROOT, load_settings, save_settings
 from call_management.admin.public_api import router as public_api_router
 from call_management.admin.schemas import (
@@ -34,27 +29,21 @@ from call_management.admin.schemas import (
     ApiKeyCreate,
     AppointmentCreate,
     AppointmentUpdate,
-    ChatMessagePayload,
-    ChatSessionCreate,
-    VoiceSessionCreate,
-    VoiceSessionComplete,
-    VoiceToolExecute,
     VoicePreviewPayload,
-    LiveKitPlaygroundCreate,
     CustomerCreate,
     CustomerUpdate,
     SettingsUpdate,
 )
-from call_management.admin.tenant_deps import require_tenant_context
+from call_management.admin.tenant_deps import require_super_admin, require_tenant_context, scoped_playground_context
+from call_management.admin.playground_routes import router as playground_router
 from call_management.admin.tenant_routes import router as tenant_router
-from call_management.admin.voice_tool_runner import execute_voice_function
 from call_management.agent_store import delete_profile, get_catalog, load_profiles, upsert_profile
 from call_management.tenancy.context import resolve_crm_for_tenant
 from call_management.tenancy.migrate import migrate_legacy_crm_if_needed
 from call_management.tenancy.platform_store import get_platform_store
 from call_management.agents.registry import get_default_instructions
 from call_management.config import get_model_config
-from call_management.crm.database import Appointment, Customer, get_crm
+from call_management.crm.database import Appointment, Customer
 from call_management.tenancy.webhooks import emit_event, WEBHOOK_EVENTS
 from call_management.xai.mcp import load_remote_mcp_config
 
@@ -92,6 +81,7 @@ app.add_middleware(AdminAuthMiddleware)
 app.include_router(auth_router)
 app.include_router(tenant_router)
 app.include_router(public_api_router)
+app.include_router(playground_router)
 
 
 @app.get("/api/health")
@@ -163,12 +153,12 @@ async def dashboard(ctx=Depends(require_tenant_context)):
 
 
 @app.get("/api/settings")
-async def get_settings():
+async def get_settings(_admin=Depends(require_super_admin)):
     return load_settings()
 
 
 @app.put("/api/settings")
-async def put_settings(payload: SettingsUpdate):
+async def put_settings(payload: SettingsUpdate, _admin=Depends(require_super_admin)):
     try:
         return save_settings(payload.values)
     except Exception as exc:
@@ -194,11 +184,26 @@ def _agents_response() -> dict:
 
 
 @app.get("/api/voice/config/{agent_name}")
-async def get_voice_agent_config(agent_name: str):
-    from call_management.xai.voice import build_voice_session_payload
+async def get_voice_agent_config(agent_name: str, request: Request):
+    from call_management.agents.runtime import build_runtime_agent, runtime_to_voice_payload
 
     try:
-        return build_voice_session_payload(agent_name)
+        ctx = scoped_playground_context(request, tenant_id=None, agent_instance_id=None)
+        instance = None
+        if ctx.tenant:
+            store = get_platform_store()
+            matches = [
+                a
+                for a in store.list_agents(ctx.tenant.id)
+                if a.template_id == agent_name
+            ]
+            instance = next((a for a in matches if a.status == "active"), None) or (
+                matches[0] if matches else None
+            )
+        runtime = build_runtime_agent(instance=instance, template_id=agent_name, for_voice=True)
+        return runtime_to_voice_payload(runtime)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -295,7 +300,8 @@ async def update_customer(phone_number: str, payload: CustomerUpdate, ctx=Depend
         customer.email = payload.email
     if payload.notes is not None:
         customer.notes = payload.notes
-    customer.vip = payload.vip
+    if payload.vip is not None:
+        customer.vip = payload.vip
     await crm.update_customer(customer)
     return customer
 
@@ -567,147 +573,6 @@ async def revoke_api_key(key_id: str, ctx=Depends(require_tenant_context)):
     if not ok:
         raise HTTPException(status_code=404, detail="API key no encontrada")
     return {"revoked": key_id}
-
-
-@app.get("/api/chat/status")
-async def chat_status():
-    return get_chat_manager().status()
-
-
-@app.post("/api/chat/sessions")
-async def create_chat_session(payload: ChatSessionCreate):
-    try:
-        return await get_chat_manager().create(
-            phone_number=payload.phone_number,
-            customer_name=payload.customer_name,
-            department=payload.department,
-            initial_agent=payload.initial_agent,
-            tenant_id=payload.tenant_id,
-            agent_instance_id=payload.agent_instance_id,
-            vip=payload.vip,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.post("/api/chat/sessions/{session_id}/messages")
-async def send_chat_message(session_id: str, payload: ChatMessagePayload):
-    try:
-        return await get_chat_manager().send_message(session_id, payload.message)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.post("/api/chat/sessions/{session_id}/reset")
-async def reset_chat_session(session_id: str):
-    try:
-        return await get_chat_manager().reset(session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.delete("/api/chat/sessions/{session_id}")
-async def delete_chat_session(session_id: str):
-    await get_chat_manager().close(session_id)
-    return {"deleted": session_id}
-
-
-@app.post("/api/voice/session")
-async def create_voice_session(payload: VoiceSessionCreate):
-    try:
-        return await create_browser_voice_session(
-            agent_name=payload.agent,
-            tenant_id=payload.tenant_id,
-            agent_instance_id=payload.agent_instance_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.post("/api/voice/complete")
-async def complete_voice_session(payload: VoiceSessionComplete):
-    try:
-        return await complete_voice_xai_session(
-            call_id=payload.call_id,
-            agent=payload.agent,
-            phone_number=payload.phone_number,
-            customer_name=payload.customer_name,
-            tenant_id=payload.tenant_id,
-            agent_instance_id=payload.agent_instance_id,
-            start_time=payload.start_time,
-            transcript=payload.transcript,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.post("/api/voice/tools/execute")
-async def execute_voice_tool(payload: VoiceToolExecute):
-    try:
-        return await execute_voice_function(
-            function_name=payload.function_name,
-            arguments=payload.arguments,
-            phone_number=payload.phone_number,
-            customer_name=payload.customer_name,
-            tenant_id=payload.tenant_id,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.get("/api/playground/agents")
-async def playground_agents(ctx=Depends(require_tenant_context)):
-    """Read-only agent list for Probar agente (all roles with playground access)."""
-    store = get_platform_store()
-    agents = store.list_agents(ctx.tenant.id)
-    return {
-        "tenant": {
-            "id": ctx.tenant.id,
-            "name": ctx.tenant.name,
-            "slug": ctx.tenant.slug,
-        },
-        "agents": [
-            {
-                "id": a.id,
-                "display_name": a.display_name,
-                "template_id": a.template_id,
-                "status": a.status,
-                "phone_number": a.phone_number or None,
-            }
-            for a in agents
-        ],
-    }
-
-
-@app.get("/api/livekit/status")
-async def livekit_status():
-    ready, issues = livekit_playground_ready()
-    return {"ready": ready, "issues": issues, "requires_worker": True}
-
-
-@app.post("/api/livekit/playground")
-async def create_livekit_playground(payload: LiveKitPlaygroundCreate):
-    try:
-        return await create_livekit_playground_session(
-            initial_agent=payload.initial_agent,
-            phone_number=payload.phone_number,
-            customer_name=payload.customer_name,
-            tenant_id=payload.tenant_id,
-            agent_instance_id=payload.agent_instance_id,
-            vip=payload.vip,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 def _mount_static() -> None:

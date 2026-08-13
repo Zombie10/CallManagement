@@ -49,7 +49,7 @@ export function OperationFlows() {
 
   const { data: agentsData, isLoading: agentsLoading } = useQuery({
     queryKey: ["tenant-agents", tenantId],
-    queryFn: () => api.listTenantAgents(tenantId),
+    queryFn: () => api.listOperationsAgents(tenantId),
     enabled: !!tenantId,
   });
 
@@ -102,6 +102,8 @@ export function OperationFlows() {
         phone_numbers: agentPhones(selectedAgent),
         schedule_status: selectedAgent.schedule_status,
         max_concurrent_calls: selectedAgent.max_concurrent_calls,
+        custom_instructions: selectedAgent.custom_instructions,
+        function_tools: selectedAgent.function_tools,
       },
       variantFlowId,
     );
@@ -154,8 +156,8 @@ export function OperationFlows() {
               Flujos / Operación
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-400 sm:text-base">
-              Elige un <strong className="font-medium text-slate-300">agente de la empresa</strong>{" "}
-              (p. ej. Soporte bancario) y recorre su flujo de atención interactivo, o explora los
+              Documentación interactiva de la <strong className="font-medium text-slate-300">plantilla</strong>{" "}
+              del agente (no es el runtime en vivo). Elige un agente de la empresa o explora los
               flujos de plataforma.
               {tenant?.name ? (
                 <span className="text-slate-500"> · {tenant.name}</span>

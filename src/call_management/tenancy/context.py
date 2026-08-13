@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from call_management.crm.database import CRMDatabase
-from call_management.crm.factory import get_crm_backend
+from call_management.crm.database import CRMDatabase, get_crm
 from call_management.tenancy.paths import tenant_crm_path
 from call_management.tenancy.platform_store import AgentInstance, Tenant, get_platform_store
 
@@ -21,7 +20,7 @@ class TenantContext:
 async def resolve_crm_for_tenant(tenant_id: str) -> CRMDatabase:
     if tenant_id in _crm_cache:
         return _crm_cache[tenant_id]
-    db = await get_crm_backend(str(tenant_crm_path(tenant_id)))
+    db = await get_crm(str(tenant_crm_path(tenant_id)))
     _crm_cache[tenant_id] = db
     return db
 
@@ -38,9 +37,14 @@ def get_tenant_context(
     is_super_admin: bool = False,
 ) -> TenantContext:
     store = get_platform_store()
+    if not is_super_admin and not user_tenant_id:
+        raise PermissionError("Tu cuenta no tiene empresa asignada")
     resolved_tenant_id = tenant_id or user_tenant_id
     if not resolved_tenant_id:
-        resolved_tenant_id = store.ensure_default_tenant().id
+        if is_super_admin:
+            resolved_tenant_id = store.ensure_default_tenant().id
+        else:
+            raise PermissionError("Tu cuenta no tiene empresa asignada")
     if not is_super_admin and user_tenant_id and tenant_id and tenant_id != user_tenant_id:
         raise PermissionError("No puedes acceder a otra empresa")
     if not is_super_admin and user_tenant_id:
@@ -93,6 +97,8 @@ def resolve_dispatch(
         tenant = store.get_tenant(tenant_id)
 
     if not tenant:
+        if lookup_number:
+            raise ValueError(f"Número no enrutado: {lookup_number}")
         tenant = store.ensure_default_tenant()
 
     initial_template = agent.template_id if agent else "receptionist"

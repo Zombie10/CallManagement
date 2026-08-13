@@ -26,12 +26,9 @@ async def complete_voice_xai_session(
     if not transcript.strip():
         raise ValueError("Transcript vacío — nada que guardar")
 
-    if tenant_id:
-        crm = await resolve_crm_for_tenant(tenant_id)
-    else:
-        from call_management.crm.database import get_crm
-
-        crm = await get_crm()
+    if not tenant_id:
+        raise ValueError("tenant_id is required to persist a voice session")
+    crm = await resolve_crm_for_tenant(tenant_id)
 
     customer = await crm.get_or_create_customer(phone_number)
     if customer_name:

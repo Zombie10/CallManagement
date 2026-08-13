@@ -9,6 +9,8 @@ from pathlib import Path
 from call_management.tenancy.paths import PROJECT_ROOT
 
 SAFE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
+SAFE_EXT = frozenset({"webm", "ogg", "mp4", "m4a", "wav"})
+MAX_RECORDING_BYTES = 25 * 1024 * 1024
 
 RECORDINGS_ROOT = Path(
     os.getenv("RECORDINGS_DIR", str(PROJECT_ROOT / "data" / "recordings")),
@@ -31,7 +33,10 @@ def recording_dir(tenant_id: str | None) -> Path:
 
 def recording_path(tenant_id: str | None, call_id: str, *, ext: str = "webm") -> Path:
     cid = _safe_segment(call_id)
-    return recording_dir(tenant_id) / f"{cid}.{ext.lstrip('.')}"
+    clean_ext = ext.lstrip(".").lower()
+    if clean_ext not in SAFE_EXT:
+        raise ValueError(f"Invalid recording extension: {ext!r}")
+    return recording_dir(tenant_id) / f"{cid}.{clean_ext}"
 
 
 def recording_api_url(call_id: str) -> str:
@@ -57,6 +62,8 @@ def save_recording_bytes(
 ) -> Path:
     if not data:
         raise ValueError("Recording vacío")
+    if len(data) > MAX_RECORDING_BYTES:
+        raise ValueError("Recording demasiado grande (máx. 25MB)")
     path = recording_path(tenant_id, call_id, ext=ext)
     path.write_bytes(data)
     return path

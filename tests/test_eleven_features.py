@@ -258,13 +258,11 @@ async def test_supervisor_api_endpoint(tmp_path):
         assert "alerts" in body
 
 
-def test_postgres_backend_sqlite_fallback_without_asyncpg(monkeypatch, tmp_path):
-    monkeypatch.setenv("CRM_DATABASE_URL", "postgresql://user:pass@localhost/testdb")
-    from call_management.crm.postgres_backend import PostgresCRMDatabase
+def test_postgres_rewriter_removed():
+    import importlib.util
 
-    pg = PostgresCRMDatabase("postgresql://localhost/test", tenant_key=str(tmp_path / "t1" / "crm.db"))
-    if not pg._pg:
-        assert pg.db_path == tmp_path / "t1" / "crm.db"
+    assert importlib.util.find_spec("call_management.crm.postgres_backend") is None
+    assert importlib.util.find_spec("call_management.crm.factory") is None
 
 
 @pytest.mark.asyncio

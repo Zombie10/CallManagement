@@ -69,14 +69,21 @@ def language_hint_for_agent(agent_name: str) -> str | None:
     return get_voice_language_for_agent(agent_name)
 
 
-def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
+def build_voice_tools(
+    agent_name: str,
+    *,
+    tools_override: list[str] | None = None,
+    function_tools_override: list[str] | None = None,
+    mcp_override: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Build xAI Voice Agent API tool definitions for an agent profile."""
     from call_management.agent_store import get_mcp_profile, get_tool_profile
 
     cfg = get_xai_tools_config()
     tools: list[dict[str, Any]] = []
 
-    for tool_name in get_tool_profile(agent_name):
+    enabled_tools = tools_override if tools_override is not None else get_tool_profile(agent_name)
+    for tool_name in enabled_tools:
         if tool_name == "web_search" and cfg.enable_web_search:
             tools.append({"type": "web_search"})
         elif tool_name == "x_search" and cfg.enable_x_search:
@@ -98,7 +105,8 @@ def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
     mcp_cfg = load_remote_mcp_config()
     if mcp_cfg.enabled:
         by_id = {server.id: server for server in mcp_cfg.servers}
-        for server_id in get_mcp_profile(agent_name):
+        mcp_ids = mcp_override if mcp_override is not None else get_mcp_profile(agent_name)
+        for server_id in mcp_ids:
             server = by_id.get(server_id)
             if not server:
                 continue
@@ -116,7 +124,12 @@ def build_voice_tools(agent_name: str) -> list[dict[str, Any]]:
     from call_management.agent_store import get_function_tool_profile
     from call_management.agents.registry import build_voice_function_tools
 
-    tools.extend(build_voice_function_tools(agent_name, get_function_tool_profile(agent_name)))
+    fn_tools = (
+        function_tools_override
+        if function_tools_override is not None
+        else get_function_tool_profile(agent_name)
+    )
+    tools.extend(build_voice_function_tools(agent_name, fn_tools))
     return tools
 
 
@@ -285,15 +298,30 @@ async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[st
             return data
 
 
-def build_voice_session_payload(agent_name: str = "receptionist") -> dict[str, Any]:
+def build_voice_session_payload(
+    agent_name: str = "receptionist",
+    *,
+    tools_override: list[str] | None = None,
+    function_tools_override: list[str] | None = None,
+    mcp_override: list[str] | None = None,
+    instructions_override: str | None = None,
+    voice_override: str | None = None,
+    language_hint_override: str | None = None,
+) -> dict[str, Any]:
     """Browser/API session config for Grok Speech-to-Speech (Think Fast 2.0)."""
     from call_management.agent_store import get_profile
 
     cfg = get_model_config()
     profile = get_profile(agent_name)
-    voice = normalize_xai_voice(profile.voice if profile else cfg.grok_realtime_voice)
+    voice = normalize_xai_voice(
+        voice_override or (profile.voice if profile else cfg.grok_realtime_voice)
+    )
     model = cfg.grok_realtime_model or DEFAULT_REALTIME_MODEL
-    language_hint = language_hint_for_agent(agent_name)
+    language_hint = (
+        language_hint_override
+        if language_hint_override is not None
+        else language_hint_for_agent(agent_name)
+    )
 
     threshold = _env_float("GROK_VOICE_VAD_THRESHOLD", 0.85)
     threshold = max(0.1, min(0.9, threshold))
@@ -327,9 +355,14 @@ def build_voice_session_payload(agent_name: str = "receptionist") -> dict[str, A
         "model": model,
         "voice": voice,
         "agent": agent_name,
-        "instructions": get_agent_instructions(agent_name),
+        "instructions": instructions_override or get_agent_instructions(agent_name),
         "language_hint": language_hint,
-        "tools": build_voice_tools(agent_name),
+        "tools": build_voice_tools(
+            agent_name,
+            tools_override=tools_override,
+            function_tools_override=function_tools_override,
+            mcp_override=mcp_override,
+        ),
         "turn_detection": turn_detection,
         # session.update uses reasoning.effort (high | none); default high for Think Fast.
         "reasoning_effort": "high" if model in THINK_FAST_MODELS else None,

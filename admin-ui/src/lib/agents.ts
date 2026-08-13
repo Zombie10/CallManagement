@@ -1,14 +1,34 @@
 import type { SelectOption } from "../components/Select";
+import type { AgentProfile } from "./api";
 
-export const AGENT_OPTIONS: SelectOption[] = [
-  { value: "receptionist", label: "Recepción", description: "Saludo y enrutamiento" },
-  { value: "banking_support", label: "Soporte bancario BAC", description: "Cuentas, tarjetas y verificación" },
-  { value: "support", label: "Soporte general", description: "Cuentas y citas" },
-  { value: "sales", label: "Ventas", description: "Precios y demos" },
-  { value: "technical", label: "Técnico", description: "Ingeniería y código" },
-  { value: "escalation", label: "Escalación", description: "Supervisor / humano" },
-];
+const FALLBACK_LABELS: Record<string, string> = {
+  receptionist: "Recepción",
+  banking_support: "Soporte bancario BAC",
+  support: "Soporte general",
+  sales: "Ventas",
+  technical: "Técnico",
+  escalation: "Escalación",
+};
 
-export function agentLabel(id: string): string {
-  return AGENT_OPTIONS.find((a) => a.value === id)?.label || id;
+/** Fallback labels when the catalog has not loaded yet. Prefer templateOptionsFromProfiles. */
+export const AGENT_OPTIONS: SelectOption[] = Object.entries(FALLBACK_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+export function agentLabel(id: string, profiles?: AgentProfile[]): string {
+  const fromCatalog = profiles?.find((p) => p.name === id);
+  if (fromCatalog?.display_name) return fromCatalog.display_name;
+  return FALLBACK_LABELS[id] || id;
+}
+
+export function templateOptionsFromProfiles(profiles?: AgentProfile[]): SelectOption[] {
+  if (profiles?.length) {
+    return profiles.map((p) => ({
+      value: p.name,
+      label: p.display_name || FALLBACK_LABELS[p.name] || p.name,
+      description: p.enabled === false ? "Deshabilitado" : undefined,
+    }));
+  }
+  return AGENT_OPTIONS;
 }

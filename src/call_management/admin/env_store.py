@@ -179,7 +179,10 @@ def save_settings(updates: dict[str, str]) -> dict[str, str]:
     current = dotenv_values(ENV_PATH) if ENV_PATH.exists() else {}
     merged = {k: ("" if v is None else str(v)) for k, v in current.items()}
 
+    allowed_keys = {f["key"] for fields in SETTING_SECTIONS.values() for f in fields}
     for key, value in updates.items():
+        if key not in allowed_keys:
+            continue
         if value in ("", None):
             continue
         if "••••" in str(value):

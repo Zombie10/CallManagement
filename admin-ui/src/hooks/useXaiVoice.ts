@@ -14,23 +14,6 @@ const CHUNK_MS = 100;
 /** xAI Voice API default; input/output must use the same rate for playback. */
 const XAI_AUDIO_RATE = 24000;
 
-const HANDOFF_TARGETS: Record<string, string> = {
-  transfer_to_support: "support",
-  transfer_to_sales: "sales",
-  transfer_to_technical: "technical",
-  transfer_to_scheduling: "support",
-  transfer_to_escalation: "escalation",
-  transfer_to_receptionist: "receptionist",
-  transfer_to_banking_support: "banking_support",
-  to_banking_support: "banking_support",
-  to_support: "support",
-  to_sales: "sales",
-  to_technical: "technical",
-  to_scheduling: "support",
-  to_escalation: "escalation",
-  to_receptionist: "receptionist",
-};
-
 export type VoiceTranscriptLine = {
   id: string;
   role: "user" | "assistant" | "system";
@@ -281,6 +264,7 @@ export function useXaiVoice() {
           phone_number: ctx.phone_number,
           customer_name: ctx.customer_name,
           tenant_id: ctx.tenant_id,
+          agent_instance_id: ctx.agent_instance_id,
         });
         output = result.output;
         handoffAgent = result.handoff_agent;
@@ -314,14 +298,8 @@ export function useXaiVoice() {
           appendSystem(`${result.event.type}: ${result.event.detail}`);
         }
       } catch (err) {
-        const fallback = HANDOFF_TARGETS[name];
-        if (fallback) {
-          handoffAgent = fallback;
-          output = `Transferred to ${fallback} agent. Continue the conversation as that specialist.`;
-          appendSystem(`Transferencia de voz → ${fallback}`);
-        } else {
-          output = err instanceof Error ? err.message : `Function ${name} failed`;
-        }
+        output = err instanceof Error ? err.message : `Function ${name} failed`;
+        appendSystem(`Tool error: ${output}`);
         setToolCalls((prev) =>
           prev.map((entry) =>
             entry.id === pendingId
@@ -483,8 +461,8 @@ export function useXaiVoice() {
       if (recorded && info.call_id) {
         await api.uploadCallRecording(info.call_id, recorded.blob, recorded.ext);
       }
-    } catch {
-      /* persist best-effort on disconnect */
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la transcripción");
     }
   }, [stopRecorder]);
 

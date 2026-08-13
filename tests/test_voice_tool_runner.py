@@ -5,6 +5,11 @@ from __future__ import annotations
 import pytest
 
 from call_management.admin.voice_tool_runner import execute_voice_function
+from call_management.tenancy.platform_store import get_platform_store
+
+
+def _tenant_id() -> str:
+    return get_platform_store().ensure_default_tenant().id
 
 
 @pytest.mark.asyncio
@@ -12,6 +17,7 @@ async def test_lookup_customer_requires_phone():
     result = await execute_voice_function(
         function_name="lookup_customer",
         phone_number="+15551234567",
+        tenant_id=_tenant_id(),
     )
     assert result["status"] == "error"
     assert "teléfono" in result["output"].lower()
@@ -23,6 +29,7 @@ async def test_lookup_customer_with_provided_phone():
         function_name="lookup_customer",
         arguments={"phone_number": "+15103750043"},
         phone_number="+15551234567",
+        tenant_id=_tenant_id(),
     )
     assert result["tool"] == "lookup_customer"
     assert result["status"] == "ok"
@@ -35,6 +42,7 @@ async def test_verify_bac_account_demo_customer():
         function_name="verify_bac_account",
         arguments={"account_last_four": "8493"},
         phone_number="+15103750043",
+        tenant_id=_tenant_id(),
     )
     assert result["status"] == "ok"
     assert "verificada" in result["output"].lower() or "verificado" in result["output"].lower()

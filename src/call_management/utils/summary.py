@@ -16,7 +16,7 @@ def build_structured_summary(call_ctx: Any) -> str:
         f"From: {call_ctx.from_number}",
         f"Outcome: {call_ctx.outcome or 'unknown'}",
         f"Purpose: {call_ctx.call_purpose or 'not captured'}",
-        f"Final agent: {call_ctx.previous_agent_name or 'unknown'}",
+        f"Final agent: {getattr(call_ctx, 'current_agent_name', None) or call_ctx.previous_agent_name or 'unknown'}",
     ]
     if call_ctx.handoff_reason:
         lines.append(f"Last handoff: {call_ctx.handoff_reason}")

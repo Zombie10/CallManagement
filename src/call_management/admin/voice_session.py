@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from call_management.agents.catalog import is_valid_template, normalize_template
+from call_management.agents.runtime import build_runtime_agent, runtime_to_voice_payload
 from call_management.utils.time import utc_now_iso
-from call_management.xai.voice import build_voice_session_payload, create_ephemeral_voice_token
-
-VALID_VOICE_AGENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
+from call_management.xai.voice import create_ephemeral_voice_token
 
 
 async def create_browser_voice_session(
@@ -26,15 +26,13 @@ async def create_browser_voice_session(
             agent_name = instance.template_id
             tenant_id = instance.tenant_id
 
-    if agent_name not in VALID_VOICE_AGENTS:
+    agent_name = normalize_template(agent_name)
+    if not is_valid_template(agent_name):
         raise ValueError(f"Invalid agent '{agent_name}'")
 
     token_data = await create_ephemeral_voice_token()
-    session = build_voice_session_payload(agent_name)
-    if instance:
-        session["voice"] = instance.voice
-        if instance.custom_instructions.strip():
-            session["instructions"] = instance.custom_instructions
+    runtime = build_runtime_agent(instance=instance, template_id=agent_name, for_voice=True)
+    session = runtime_to_voice_payload(runtime)
 
     return {
         "call_id": f"voice_{uuid.uuid4().hex[:12]}",
@@ -45,6 +43,6 @@ async def create_browser_voice_session(
         },
         **session,
         "tenant_id": tenant_id,
-        "agent_instance_id": agent_instance_id,
+        "agent_instance_id": agent_instance_id or runtime.instance_id,
         "ws_url": "wss://api.x.ai/v1/realtime",
     }

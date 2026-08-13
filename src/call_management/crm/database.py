@@ -5,57 +5,19 @@ from __future__ import annotations
 import os
 import sqlite3
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import aiosqlite
 
+from call_management.crm.models import Appointment, CallRecord, Customer
 from call_management.utils.time import utc_now_iso
+
+__all__ = ["Appointment", "CallRecord", "Customer", "CRMDatabase", "get_crm", "reset_crm_singleton"]
 
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 SCHEMA_VERSION = 4
-
-
-@dataclass
-class Customer:
-    phone_number: str
-    name: str | None = None
-    email: str | None = None
-    notes: str | None = None
-    vip: bool = False
-    created_at: str = field(default_factory=utc_now_iso)
-    updated_at: str = field(default_factory=utc_now_iso)
-
-
-@dataclass
-class CallRecord:
-    call_id: str
-    room_name: str
-    from_number: str
-    to_number: str | None = None
-    start_time: str = field(default_factory=utc_now_iso)
-    end_time: str | None = None
-    outcome: str | None = None
-    summary: str | None = None
-    agent_notes: str | None = None
-    transferred_to: str | None = None
-    duration_seconds: int | None = None
-    transcript: str | None = None
-    recording_url: str | None = None
-    agent_instance_id: str | None = None
-    channel: str = "sip"
-
-
-@dataclass
-class Appointment:
-    id: str | None = None
-    customer_phone: str = ""
-    scheduled_time: str = ""
-    purpose: str = ""
-    notes: str | None = None
-    created_at: str = field(default_factory=utc_now_iso)
 
 
 class CRMDatabase:
@@ -329,6 +291,7 @@ class CRMDatabase:
                 row = await cursor.fetchone()
             if not row:
                 return None
+            keys = row.keys()
             return CallRecord(
                 call_id=row["call_id"],
                 room_name=row["room_name"],
@@ -341,6 +304,10 @@ class CRMDatabase:
                 agent_notes=row["agent_notes"],
                 transferred_to=row["transferred_to"],
                 duration_seconds=row["duration_seconds"],
+                transcript=row["transcript"] if "transcript" in keys else None,
+                recording_url=row["recording_url"] if "recording_url" in keys else None,
+                agent_instance_id=row["agent_instance_id"] if "agent_instance_id" in keys else None,
+                channel=row["channel"] if "channel" in keys else "sip",
             )
 
     async def create_appointment(self, appt: Appointment) -> str:

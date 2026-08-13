@@ -26,14 +26,20 @@ class ModuleDef(TypedDict):
 MODULES: tuple[ModuleDef, ...] = (
     {"id": "dashboard", "label": "Dashboard", "route": "/", "category": "General", "api_prefixes": ("/api/dashboard",)},
     {"id": "tenants", "label": "Empresas", "route": "/tenants", "category": "Orquestador", "api_prefixes": ("/api/tenants", "/api/platform/")},
-    {"id": "my_agents", "label": "Mis agentes", "route": "/my-agents", "category": "Operación", "api_prefixes": ("/api/tenant-agents",)},
+    {
+        "id": "my_agents",
+        "label": "Mis agentes",
+        "route": "/my-agents",
+        "category": "Operación",
+        "api_prefixes": ("/api/tenant-agents", "/api/voice/preview"),
+    },
     {"id": "setup", "label": "Guía inicio", "route": "/setup", "category": "Operación", "api_prefixes": ()},
     {
         "id": "operations",
         "label": "Flujos / Operación",
         "route": "/operations",
         "category": "Operación",
-        "api_prefixes": (),
+        "api_prefixes": ("/api/operations",),
     },
     {"id": "analytics", "label": "Análisis", "route": "/analytics", "category": "Reportes", "api_prefixes": ("/api/reports/", "/api/analytics")},
     {"id": "customers", "label": "Clientes", "route": "/customers", "category": "CRM", "api_prefixes": ("/api/customers",)},
@@ -94,7 +100,13 @@ MODULES: tuple[ModuleDef, ...] = (
         "category": "Sistema",
         "api_prefixes": ("/api/api-keys",),
     },
-    {"id": "agents", "label": "Plantillas sistema", "route": "/agents", "category": "Sistema", "api_prefixes": ("/api/agents",)},
+    {
+        "id": "agents",
+        "label": "Plantillas sistema",
+        "route": "/agents",
+        "category": "Sistema",
+        "api_prefixes": ("/api/agents", "/api/voice/preview"),
+    },
     {"id": "users", "label": "Usuarios", "route": "/users", "category": "Sistema", "api_prefixes": ("/api/auth/users", "/api/auth/roles", "/api/auth/modules")},
 )
 
@@ -196,26 +208,27 @@ def can_access_api(role: str, path: str, module_ids: list[str] | None = None) ->
     role = normalize_role(role)
     if any(path.startswith(p) for p in _ALWAYS_API_PREFIXES):
         return True
-    if path.startswith("/api/auth/"):
+    if path in ("/api/auth/me", "/api/auth/logout", "/api/auth/status") or path.startswith(
+        "/api/auth/passkey/"
+    ):
+        return True
+    if path.startswith("/api/auth/me"):
         return True
 
     mods = effective_modules(role, module_ids)
     mods_set = set(mods)
 
     if _is_recording_api(path):
-        if "recordings" in mods_set:
-            return True
-        if module_ids is None and role in ("super_admin", "admin"):
-            return True
-        return False
+        return "recordings" in mods_set
+
+    if path == "/api/voice/preview" or path.startswith("/api/voice/preview"):
+        return bool(mods_set & {"playground", "my_agents", "agents"})
+
     prefixes: list[str] = []
     for mid in mods:
         mod = MODULE_BY_ID.get(mid)
         if mod:
             prefixes.extend(mod["api_prefixes"])
-
-    if module_ids is None and role in ("super_admin", "admin"):
-        return True
 
     for prefix in prefixes:
         if path.startswith(prefix):

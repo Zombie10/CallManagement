@@ -71,13 +71,16 @@ async def test_playground_user_rbac(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_PASSWORD", "admin-secret-99")
 
     from call_management.admin.auth_store import create_user, ensure_bootstrap_user
+    from call_management.tenancy.platform_store import get_platform_store
 
     ensure_bootstrap_user()
+    tenant = get_platform_store().ensure_default_tenant()
     demo = create_user(
         username="demo",
         password="demo-pass-99",
         display_name="Demo",
         role="playground",
+        tenant_id=tenant.id,
     )
     assert demo.role == "playground"
 
@@ -122,6 +125,9 @@ async def test_admin_creates_playground_user(monkeypatch, tmp_path):
         )
         cookie = login.cookies.get("cm_admin_session")
 
+        from call_management.tenancy.platform_store import get_platform_store
+
+        tenant = get_platform_store().ensure_default_tenant()
         created = await client.post(
             "/api/auth/users",
             json={
@@ -129,11 +135,24 @@ async def test_admin_creates_playground_user(monkeypatch, tmp_path):
                 "password": "tester-pass",
                 "display_name": "Tester",
                 "role": "playground",
+                "tenant_id": tenant.id,
             },
             cookies={"cm_admin_session": cookie},
         )
         assert created.status_code == 200
         assert created.json()["role"] == "playground"
+
+        rejected = await client.post(
+            "/api/auth/users",
+            json={
+                "username": "orphan",
+                "password": "orphan-pass",
+                "display_name": "Orphan",
+                "role": "playground",
+            },
+            cookies={"cm_admin_session": cookie},
+        )
+        assert rejected.status_code == 400
 
 
 @pytest.mark.asyncio

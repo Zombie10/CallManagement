@@ -13,7 +13,7 @@ class CustomerUpdate(BaseModel):
     name: str | None = None
     email: str | None = None
     notes: str | None = None
-    vip: bool = False
+    vip: bool | None = None
 
 
 class CustomerCreate(BaseModel):
@@ -52,6 +52,7 @@ class VoiceToolExecute(BaseModel):
     phone_number: str = "+15551234567"
     customer_name: str | None = None
     tenant_id: str | None = None
+    agent_instance_id: str | None = None
 
 
 class VoicePreviewPayload(BaseModel):

@@ -21,7 +21,7 @@ import { TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
 import { VoicePreviewButton } from "../components/VoicePreviewButton";
 import { useTenant } from "../contexts/TenantContext";
-import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
+import { agentLabel, templateOptionsFromProfiles } from "../lib/agents";
 import {
   api,
   type AgentInstanceInput,
@@ -446,7 +446,7 @@ export function TenantAgents() {
               className="w-full"
               value={draft.template_id}
               onChange={(v) => setDraft((d) => ({ ...d, template_id: v }))}
-              options={AGENT_OPTIONS}
+              options={templateOptionsFromProfiles(agentsCatalog?.profiles)}
               disabled={!isNew}
             />
             <Select

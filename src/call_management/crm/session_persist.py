@@ -163,7 +163,7 @@ async def finalize_interaction(
             outcome=call_ctx.outcome,
             summary=summary,
             agent_notes="\n".join(call_ctx.call_notes) if call_ctx.call_notes else None,
-            transferred_to=call_ctx.previous_agent_name,
+            transferred_to=call_ctx.transferred_to,
             duration_seconds=duration_seconds,
             transcript=transcript or None,
             recording_url=recording_url,

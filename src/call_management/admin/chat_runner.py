@@ -21,7 +21,8 @@ from call_management.agents import (
     SupportAgent,
     TechnicalAgent,
 )
-from call_management.agent_store import get_effective_instructions
+from call_management.agents.catalog import is_valid_template, normalize_template
+from call_management.agents.runtime import build_runtime_agent
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
@@ -30,7 +31,7 @@ from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_c
 
 logger = logging.getLogger("call-management.admin.chat")
 
-VALID_START_AGENTS = {"receptionist", "support", "sales", "technical", "escalation", "banking_support"}
+
 
 
 @dataclass
@@ -144,13 +145,15 @@ class ChatSessionManager:
         from call_management.tenancy.context import resolve_crm_for_tenant
         from call_management.tenancy.platform_store import get_platform_store
 
+        instance = None
         if agent_instance_id:
             instance = get_platform_store().get_agent(agent_instance_id)
             if instance:
                 initial_agent = instance.template_id
                 tenant_id = instance.tenant_id
 
-        if initial_agent not in VALID_START_AGENTS:
+        initial_agent = normalize_template(initial_agent)
+        if not is_valid_template(initial_agent):
             raise ValueError(f"Invalid initial agent '{initial_agent}'")
 
         cfg = get_model_config()
@@ -185,6 +188,7 @@ class ChatSessionManager:
             tenant_id=tenant_id,
             agent_instance_id=agent_instance_id,
             channel="chat",
+            current_agent_name=initial_agent,
         )
 
         agents_registry = {
@@ -201,7 +205,11 @@ class ChatSessionManager:
             attach_xai_provider_tools(agents_registry, realtime=False, cfg=get_xai_tools_config())
 
         for agent_name, agent in agents_registry.items():
-            agent._instructions = get_effective_instructions(agent_name)
+            overlay = instance if instance and instance.template_id == agent_name else None
+            runtime = build_runtime_agent(instance=overlay, template_id=agent_name, for_voice=False)
+            agent._instructions = runtime.instructions
+            if overlay and overlay.voice:
+                agent.preferred_voice = runtime.voice
 
         session.userdata = call_ctx
         start_agent = agents_registry[initial_agent]
@@ -273,7 +281,7 @@ class ChatSessionManager:
         return await self.create(
             phone_number=phone,
             department=department,
-            initial_agent=initial if initial in VALID_START_AGENTS else "receptionist",
+            initial_agent=initial if is_valid_template(initial) else "receptionist",
             tenant_id=tenant_id,
             agent_instance_id=agent_instance_id,
             vip=vip,
