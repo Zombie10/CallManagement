@@ -60,8 +60,8 @@ def test_daily_call_counter_resets_on_new_date(monkeypatch):
     assert store.tenant_metrics(tenant.id)["calls_today"] == 2
 
     monkeypatch.setattr(
-        "call_management.tenancy.platform_store._utc_iso",
-        lambda: "1999-01-02T00:00:00+00:00",
+        "call_management.tenancy.calendar_day.tenant_calendar_day",
+        lambda tz, now=None: "1999-01-02",
     )
     store.increment_agent_calls(agent.id)
     loaded = store.get_agent(agent.id)
@@ -284,7 +284,9 @@ async def test_settings_allowlist_ignores_unknown_keys(tmp_path, monkeypatch):
 def test_webhook_list_redacts_secret():
     store = get_platform_store()
     tenant = store.ensure_default_tenant()
-    created = store.create_webhook(tenant.id, url="https://example.com/hook", events=["call.ended"], secret="shh")
+    from call_management.tenancy import webhook_store
+
+    created = webhook_store.create_webhook(tenant.id, url="https://example.com/hook", events=["call.ended"], secret="shh")
     assert created["secret"] == "shh"
 
 
@@ -292,7 +294,9 @@ def test_webhook_list_redacts_secret():
 async def test_webhook_api_redacts_secret_on_list():
     store = get_platform_store()
     tenant = store.ensure_default_tenant()
-    store.create_webhook(tenant.id, url="https://example.com/hook", events=["call.ended"], secret="shh")
+    from call_management.tenancy import webhook_store
+
+    webhook_store.create_webhook(tenant.id, url="https://example.com/hook", events=["call.ended"], secret="shh")
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         listed = await client.get("/api/webhooks", headers={"X-Tenant-Id": tenant.id})

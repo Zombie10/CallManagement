@@ -26,7 +26,8 @@ from call_management.xai.voice_catalog import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROFILES_PATH = Path(os.getenv("AGENT_PROFILES_PATH", PROJECT_ROOT / "data" / "agent_profiles.json"))
+def _profiles_path() -> Path:
+    return Path(os.getenv("AGENT_PROFILES_PATH", str(PROJECT_ROOT / "data" / "agent_profiles.json")))
 
 AVAILABLE_TOOLS: list[str] = ["web_search", "x_search", "file_search", "code_interpreter"]
 AVAILABLE_LOCALES: list[str] = list(LANGUAGE_INSTRUCTIONS.keys())
@@ -98,30 +99,51 @@ def _validate_profile(profile: AgentProfile) -> AgentProfile:
 
 
 def _load_raw() -> dict[str, dict[str, Any]]:
-    if not PROFILES_PATH.exists():
+    if not _profiles_path().exists():
         return {}
     try:
-        data = json.loads(PROFILES_PATH.read_text(encoding="utf-8"))
+        data = json.loads(_profiles_path().read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON in {PROFILES_PATH}") from exc
+        raise ValueError(f"Invalid JSON in {_profiles_path()}") from exc
     if not isinstance(data, dict):
         raise ValueError("Agent profiles file must be a JSON object")
     return data
 
 
+_profiles_cache: dict[str, AgentProfile] | None = None
+_profiles_mtime: float | None = None
+
+
+def reset_profile_cache() -> None:
+    global _profiles_cache, _profiles_mtime
+    _profiles_cache = None
+    _profiles_mtime = None
+
+
 def _save_raw(profiles: dict[str, AgentProfile]) -> None:
-    PROFILES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _profiles_path().parent.mkdir(parents=True, exist_ok=True)
     payload = {name: profile.to_dict() for name, profile in sorted(profiles.items())}
-    PROFILES_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _profiles_path().write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    reset_profile_cache()
 
 
 def load_profiles(*, force_defaults: bool = False) -> dict[str, AgentProfile]:
+    global _profiles_cache, _profiles_mtime
     defaults = _default_profiles()
     if force_defaults:
         return defaults
 
+    try:
+        mtime = _profiles_path().stat().st_mtime
+    except OSError:
+        mtime = None
+    if _profiles_cache is not None and mtime == _profiles_mtime:
+        return _profiles_cache
+
     raw = _load_raw()
     if not raw:
+        _profiles_cache = defaults
+        _profiles_mtime = mtime
         return defaults
 
     merged = dict(defaults)
@@ -142,6 +164,8 @@ def load_profiles(*, force_defaults: bool = False) -> dict[str, AgentProfile]:
             mcp_servers=list(entry.get("mcp_servers") or base.mcp_servers),
             enabled=bool(entry.get("enabled", base.enabled)),
         )
+    _profiles_cache = merged
+    _profiles_mtime = mtime
     return merged
 
 

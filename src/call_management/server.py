@@ -149,11 +149,15 @@ def _build_session(
 
     if cfg.provider == "xai":
         if cfg.use_grok_realtime:
+            from call_management.xai.voice import apply_sip_voice_extras
+
+            extras = apply_sip_voice_extras(call_ctx)
             initial_voice = voice_override or get_voice_for_agent(template_agent, cfg.provider)
             logger.info(
-                "Using xAI Grok Realtime (model=%s, voice=%s)",
+                "Using xAI Grok Realtime (model=%s, voice=%s extras=%s)",
                 cfg.grok_realtime_model,
                 initial_voice,
+                {k: extras[k] for k in ("idle_timeout_ms", "output_speed", "resumption_enabled")},
             )
             return AgentSession[CallContext](
                 vad=vad,
@@ -227,10 +231,8 @@ async def entrypoint(ctx: JobContext) -> None:
     from call_management.tenancy.context import resolve_crm_for_tenant, resolve_dispatch
 
     from call_management.tenancy.platform_store import get_platform_store
+    from call_management.tenancy.queue import admit_inbound_job
     from call_management.tenancy.queue import release as release_queue_slot
-    from call_management.tenancy.queue import resolve_queue_limits_from_store
-    from call_management.tenancy.queue import try_acquire as acquire_queue_slot
-    from call_management.tenancy.scheduling import is_agent_available
 
     store = get_platform_store()
     try:
@@ -245,25 +247,20 @@ async def entrypoint(ctx: JobContext) -> None:
     if not department_hint:
         department_hint = routed_template
 
-    after_hours_note = ""
-    queue_note = ""
-    limit_note = ""
-
-    if not store.tenant_within_call_limit(tenant.id):
-        limit_note = (
-            "\n\nLa empresa alcanzó su límite de llamadas del día. "
-            "Informa amablemente que no podemos atender más llamadas hoy y ofrece contacto mañana."
-        )
-        department_hint = "receptionist"
-
-    agent_id_for_queue = agent_instance.id if agent_instance else None
-    queue_limits = resolve_queue_limits_from_store(
+    admission = admit_inbound_job(
         store,
-        tenant_id=tenant.id,
-        agent_instance_id=agent_id_for_queue,
+        tenant=tenant,
+        agent_instance=agent_instance,
         dialed_number=to_number,
     )
-    queued_ok, blocked_layer = await acquire_queue_slot(queue_limits)
+    if not admission.allowed:
+        logger.warning(
+            "Rejecting inbound job room=%s reason=%s — not starting a served session",
+            ctx.room.name,
+            admission.reason,
+        )
+        return
+
     try:
         await _run_session(
             ctx,
@@ -275,16 +272,16 @@ async def entrypoint(ctx: JobContext) -> None:
             agent_instance=agent_instance,
             routed_template=routed_template,
             department_hint=department_hint,
-            after_hours_note=after_hours_note,
+            after_hours_note="",
             queue_note="",
-            limit_note=limit_note,
-            queued_ok=queued_ok,
-            blocked_layer=blocked_layer,
-            queue_limits=queue_limits,
+            limit_note="",
+            queued_ok=True,
+            blocked_layer=None,
+            queue_limits=admission.queue_limits,
             store=store,
         )
     except Exception:
-        await release_queue_slot(queue_limits)
+        await release_queue_slot(admission.queue_limits)
         raise
 
 
@@ -414,6 +411,7 @@ async def _run_session(
     if agent_instance:
         tenant_instances[agent_instance.template_id] = agent_instance
         voice_override = agent_instance.voice
+    call_ctx.tenant_instances = tenant_instances
 
     session = _build_session(
         call_ctx,

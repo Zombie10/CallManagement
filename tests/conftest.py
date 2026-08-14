@@ -19,6 +19,11 @@ def disable_admin_auth(monkeypatch):
 def isolated_agent_profiles(agent_profiles_file, monkeypatch):
     """Prevent tests from reading/writing the developer's local agent_profiles.json."""
     monkeypatch.setenv("AGENT_PROFILES_PATH", str(agent_profiles_file))
+    from call_management.agent_store import reset_profile_cache
+
+    reset_profile_cache()
+    yield
+    reset_profile_cache()
 
 
 @pytest.fixture(autouse=True)

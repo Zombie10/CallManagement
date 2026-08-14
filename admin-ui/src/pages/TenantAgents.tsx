@@ -17,9 +17,10 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { AgentInstructionsEditor } from "../components/AgentInstructionsEditor";
 import { TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
-import { VoicePreviewButton } from "../components/VoicePreviewButton";
+import { VoicePicker } from "../components/VoicePicker";
 import { useTenant } from "../contexts/TenantContext";
 import { agentLabel, templateOptionsFromProfiles } from "../lib/agents";
 import {
@@ -30,7 +31,6 @@ import {
   type TelephonyProvisionResult,
 } from "../lib/api";
 import { TELEPHONY_MODE_STYLES } from "../lib/telephony";
-import { voiceSelectOptions } from "../lib/voices";
 import clsx from "clsx";
 
 const STATUS_OPTIONS = [
@@ -211,10 +211,6 @@ export function TenantAgents() {
   const queryClient = useQueryClient();
   const { tenant, tenantId, isSuperAdmin, setTenantId } = useTenant();
   const { data: agentsCatalog } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
-  const voiceOptions = useMemo(
-    () => voiceSelectOptions(agentsCatalog?.catalog.voice_library || []),
-    [agentsCatalog?.catalog.voice_library],
-  );
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["tenant-agents", tenantId],
     queryFn: () => api.listTenantAgents(tenantId),
@@ -234,8 +230,6 @@ export function TenantAgents() {
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [phoneLimits, setPhoneLimits] = useState<Record<string, string>>({});
   const [provisionNotes, setProvisionNotes] = useState<TelephonyProvisionResult[] | null>(null);
-  const [showDefaultInstructions, setShowDefaultInstructions] = useState(true);
-
   const templateDefaultInstructions = useMemo(() => {
     const tid = draft.template_id || "receptionist";
     const profile = agentsCatalog?.profiles?.find((p) => p.name === tid);
@@ -599,102 +593,21 @@ export function TenantAgents() {
                 + Otro número
               </button>
             </div>
-            <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.04] p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-slate-200">
-                    <Mic className="h-4 w-4 text-cyan-400" />
-                    Voz xAI del agente
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Voces oficiales de xAI · muestra TTS en el idioma configurado
-                  </p>
-                </div>
-                <VoicePreviewButton
-                  voiceId={draft.voice || "carina"}
-                  language={draft.voice_language || draft.locale || "es"}
-                  label="Probar voz"
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block space-y-1.5 sm:col-span-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Voz xAI
-                  </span>
-                  <Select
-                    className="w-full"
-                    value={draft.voice || "carina"}
-                    onChange={(v) => setDraft((d) => ({ ...d, voice: v }))}
-                    options={voiceOptions}
-                    placeholder="Seleccionar voz…"
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Idioma de muestra / ASR
-                  </span>
-                  <Select
-                    className="w-full"
-                    value={draft.voice_language || ""}
-                    onChange={(voice_language) =>
-                      setDraft((d) => ({ ...d, voice_language }))
-                    }
-                    options={[
-                      {
-                        value: "",
-                        label: `Heredar locale (${draft.locale || "es"})`,
-                      },
-                      ...(agentsCatalog?.catalog.voice_language_options || []).map(
-                        (opt) => ({ value: opt.code, label: opt.label }),
-                      ),
-                    ]}
-                  />
-                </label>
-                <div className="flex items-end">
-                  <VoicePreviewButton
-                    className="w-full [&_button]:w-full [&_button]:justify-center"
-                    voiceId={draft.voice || "carina"}
-                    language={draft.voice_language || draft.locale || "es"}
-                    label={`Escuchar ${(draft.voice || "carina").replace(/^./, (c) => c.toUpperCase())}`}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3 sm:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Instrucciones
-                </p>
-                <button
-                  type="button"
-                  className="btn-ghost px-2 py-1 text-xs"
-                  onClick={() => setShowDefaultInstructions((v) => !v)}
-                >
-                  {showDefaultInstructions ? "Ocultar plantilla" : "Ver plantilla por defecto"}
-                </button>
-              </div>
-              {showDefaultInstructions && (
-                <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-cyan-300/80">
-                    Instrucciones por defecto · {agentLabel(draft.template_id || "receptionist")}
-                  </p>
-                  <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-400">
-                    {templateDefaultInstructions ||
-                      "Sin instrucciones por defecto para esta plantilla."}
-                  </pre>
-                </div>
-              )}
-              <textarea
-                className="input-field min-h-[140px] w-full font-mono text-sm leading-relaxed"
-                placeholder="Instrucciones personalizadas (opcional). Vacío = usar las de la plantilla."
+            <VoicePicker
+              voiceId={draft.voice || "carina"}
+              language={draft.voice_language || ""}
+              localeFallback={draft.locale || "es"}
+              languageOptions={agentsCatalog?.catalog.voice_language_options}
+              library={agentsCatalog?.catalog.voice_library}
+              onVoiceChange={(voice) => setDraft((d) => ({ ...d, voice }))}
+              onLanguageChange={(voice_language) => setDraft((d) => ({ ...d, voice_language }))}
+            />
+            <div className="sm:col-span-2">
+              <AgentInstructionsEditor
                 value={draft.custom_instructions || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, custom_instructions: e.target.value }))}
+                defaultInstructions={templateDefaultInstructions}
+                onChange={(custom_instructions) => setDraft((d) => ({ ...d, custom_instructions }))}
               />
-              <p className="text-xs text-slate-500">
-                {(draft.custom_instructions || "").trim()
-                  ? "Usando instrucciones personalizadas (se combinan con estilo de llamada e idioma)."
-                  : "Usando las instrucciones por defecto de la plantilla seleccionada."}
-              </p>
             </div>
 
             {!isNew && (

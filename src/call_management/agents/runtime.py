@@ -20,6 +20,22 @@ if TYPE_CHECKING:
     from call_management.tenancy.platform_store import AgentInstance
 
 
+def resolve_instance_for_template(store: Any, tenant_id: str, template_id: str):
+    """Pick the company instance used when handing off to a template."""
+    template = normalize_template(template_id)
+    matches = [a for a in store.list_agents(tenant_id) if a.template_id == template]
+    return next((a for a in matches if a.status == "active"), None) or (
+        matches[0] if matches else None
+    )
+
+
+def apply_instance_overlay(agent: Any, instance: Any, *, for_voice: bool = True):
+    runtime = build_runtime_agent(instance=instance, for_voice=for_voice)
+    agent._instructions = runtime.instructions
+    agent.preferred_voice = runtime.voice
+    return runtime
+
+
 @dataclass
 class RuntimeAgentConfig:
     template_id: str

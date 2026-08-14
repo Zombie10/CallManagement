@@ -155,7 +155,7 @@ async def test_voice_session_endpoint(monkeypatch):
     body = resp.json()
     assert body["model"] == "grok-voice-latest"
     assert body["client_secret"]["value"] == "test-token"
-    assert body["voice"] == "ara"
+    assert body["voice"] == "carina"
 
 
 @pytest.mark.asyncio

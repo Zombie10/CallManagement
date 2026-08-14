@@ -15,6 +15,24 @@ from call_management.agent_store import (
 )
 
 
+def test_load_profiles_skips_disk_on_warm_cache(monkeypatch):
+    from call_management import agent_store
+
+    agent_store.reset_profile_cache()
+    first = load_profiles()
+    calls = {"n": 0}
+    real = agent_store._load_raw
+
+    def counted():
+        calls["n"] += 1
+        return real()
+
+    monkeypatch.setattr(agent_store, "_load_raw", counted)
+    second = load_profiles()
+    assert calls["n"] == 0
+    assert set(second) == set(first)
+
+
 def test_defaults_when_no_file():
     profiles = load_profiles()
     assert "receptionist" in profiles

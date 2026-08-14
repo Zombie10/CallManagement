@@ -212,6 +212,13 @@ class PlatformStore:
 
                 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_tenant ON webhook_deliveries(tenant_id);
                 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON tenant_api_keys(tenant_id);
+
+                CREATE TABLE IF NOT EXISTS concurrency_slots (
+                    layer TEXT NOT NULL,
+                    slot_key TEXT NOT NULL,
+                    count INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (layer, slot_key)
+                );
                 """
             )
             cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_instances)").fetchall()}
@@ -639,6 +646,57 @@ class PlatformStore:
         metrics = self.tenant_metrics(tenant_id)
         return metrics["calls_today"] < tenant.max_calls_per_day
 
+    def try_acquire_layers(self, layers: list[tuple[str, str, int]]) -> tuple[bool, str | None]:
+        """Atomically acquire one slot on every layer. Shared across processes via SQLite."""
+        if not layers:
+            return True, None
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for kind, key, cap in layers:
+                row = conn.execute(
+                    "SELECT count FROM concurrency_slots WHERE layer = ? AND slot_key = ?",
+                    (kind, key),
+                ).fetchone()
+                current = int(row["count"]) if row else 0
+                if current >= cap:
+                    conn.rollback()
+                    return False, kind
+            for kind, key, _cap in layers:
+                conn.execute(
+                    """
+                    INSERT INTO concurrency_slots (layer, slot_key, count) VALUES (?, ?, 1)
+                    ON CONFLICT(layer, slot_key) DO UPDATE SET count = count + 1
+                    """,
+                    (kind, key),
+                )
+            conn.commit()
+        return True, None
+
+    def release_layers(self, layers: list[tuple[str, str, int]]) -> None:
+        with self._connect() as conn:
+            for kind, key, _cap in layers:
+                conn.execute(
+                    """
+                    UPDATE concurrency_slots SET count = MAX(0, count - 1)
+                    WHERE layer = ? AND slot_key = ?
+                    """,
+                    (kind, key),
+                )
+            conn.commit()
+
+    def slot_count(self, layer: str, key: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT count FROM concurrency_slots WHERE layer = ? AND slot_key = ?",
+                (layer, key),
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
+    def reset_concurrency_slots(self) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM concurrency_slots")
+            conn.commit()
+
     def resolve_phone(self, phone_number: str) -> PhoneRoute | None:
         from call_management.crm.banking_data import normalize_phone
 
@@ -743,8 +801,11 @@ class PlatformStore:
         return self.list_schedules(agent_instance_id)
 
     def tenant_metrics(self, tenant_id: str) -> dict[str, Any]:
+        from call_management.tenancy.calendar_day import tenant_calendar_day
+
         agents = self.list_agents(tenant_id)
         tenant = self.get_tenant(tenant_id)
+        today = tenant_calendar_day(tenant.timezone if tenant else "UTC")
         return {
             "tenant_id": tenant_id,
             "agent_count": len(agents),
@@ -752,7 +813,7 @@ class PlatformStore:
             "paused_agents": sum(1 for a in agents if a.status == "paused"),
             "draft_agents": sum(1 for a in agents if a.status == "draft"),
             "calls_today": sum(
-                a.call_count_today for a in agents if a.call_count_date == _utc_iso()[:10]
+                a.call_count_today for a in agents if a.call_count_date == today
             ),
             "max_agents": tenant.max_agents if tenant else 0,
             "max_calls_per_day": tenant.max_calls_per_day if tenant else 0,
@@ -768,7 +829,13 @@ class PlatformStore:
         }
 
     def increment_agent_calls(self, agent_id: str) -> None:
-        today = _utc_iso()[:10]
+        from call_management.tenancy.calendar_day import tenant_calendar_day
+
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return
+        tenant = self.get_tenant(agent.tenant_id)
+        today = tenant_calendar_day(tenant.timezone if tenant else "UTC")
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT call_count_today, call_count_date FROM agent_instances WHERE id = ?",
@@ -784,220 +851,6 @@ class PlatformStore:
                 (next_count, today, agent_id),
             )
             conn.commit()
-
-    def list_webhooks(self, tenant_id: str, *, event: str | None = None) -> list[dict[str, Any]]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM tenant_webhooks WHERE tenant_id = ? ORDER BY created_at DESC",
-                (tenant_id,),
-            ).fetchall()
-        out = []
-        for r in rows:
-            events = json.loads(r["events_json"] or "[]")
-            if event and event not in events:
-                continue
-            out.append(
-                {
-                    "id": r["id"],
-                    "tenant_id": r["tenant_id"],
-                    "url": r["url"],
-                    "events": events,
-                    "secret": r["secret"],
-                    "enabled": bool(r["enabled"]),
-                    "created_at": r["created_at"],
-                }
-            )
-        return out
-
-    def create_webhook(self, tenant_id: str, *, url: str, events: list[str], secret: str | None = None) -> dict[str, Any]:
-        wid = _new_id("whk")
-        now = _utc_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO tenant_webhooks (id, tenant_id, url, events_json, secret, enabled, created_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?)
-                """,
-                (wid, tenant_id, url.strip(), json.dumps(events or ["call.ended"]), secret, now),
-            )
-            conn.commit()
-        for hook in self.list_webhooks(tenant_id):
-            if hook["id"] == wid:
-                return hook
-        return {"id": wid, "tenant_id": tenant_id, "url": url.strip(), "events": events or ["call.ended"], "secret": secret, "enabled": True, "created_at": now}
-
-    def delete_webhook(self, webhook_id: str) -> None:
-        with self._connect() as conn:
-            conn.execute("DELETE FROM tenant_webhooks WHERE id = ?", (webhook_id,))
-            conn.commit()
-
-    def log_webhook_delivery(
-        self,
-        *,
-        tenant_id: str,
-        webhook_id: str | None,
-        event: str,
-        url: str,
-        status_code: int | None,
-        success: bool,
-        attempts: int,
-        error: str | None,
-    ) -> dict[str, Any]:
-        did = _new_id("whd")
-        now = _utc_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO webhook_deliveries
-                (id, tenant_id, webhook_id, event, url, status_code, success, attempts, error, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    did,
-                    tenant_id,
-                    webhook_id,
-                    event,
-                    url,
-                    status_code,
-                    int(success),
-                    attempts,
-                    error,
-                    now,
-                ),
-            )
-            conn.commit()
-        return {
-            "id": did,
-            "tenant_id": tenant_id,
-            "webhook_id": webhook_id,
-            "event": event,
-            "url": url,
-            "status_code": status_code,
-            "success": success,
-            "attempts": attempts,
-            "error": error,
-            "created_at": now,
-        }
-
-    def list_webhook_deliveries(
-        self, tenant_id: str, *, limit: int = 50, offset: int = 0
-    ) -> dict[str, Any]:
-        with self._connect() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) AS c FROM webhook_deliveries WHERE tenant_id = ?",
-                (tenant_id,),
-            ).fetchone()["c"]
-            rows = conn.execute(
-                """
-                SELECT * FROM webhook_deliveries WHERE tenant_id = ?
-                ORDER BY created_at DESC LIMIT ? OFFSET ?
-                """,
-                (tenant_id, limit, offset),
-            ).fetchall()
-        items = [
-            {
-                "id": r["id"],
-                "webhook_id": r["webhook_id"],
-                "event": r["event"],
-                "url": r["url"],
-                "status_code": r["status_code"],
-                "success": bool(r["success"]),
-                "attempts": r["attempts"],
-                "error": r["error"],
-                "created_at": r["created_at"],
-            }
-            for r in rows
-        ]
-        return {"items": items, "total": total, "limit": limit, "offset": offset}
-
-    def create_api_key(
-        self,
-        tenant_id: str,
-        *,
-        name: str,
-        scopes: list[str],
-        raw_key: str,
-        key_hash: str,
-    ) -> dict[str, Any]:
-        kid = _new_id("key")
-        prefix = raw_key[:12]
-        now = _utc_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO tenant_api_keys
-                (id, tenant_id, name, key_hash, key_prefix, scopes_json, enabled, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                """,
-                (kid, tenant_id, name.strip(), key_hash, prefix, json.dumps(scopes), now),
-            )
-            conn.commit()
-        return {
-            "id": kid,
-            "tenant_id": tenant_id,
-            "name": name.strip(),
-            "key_prefix": prefix,
-            "scopes": scopes,
-            "enabled": True,
-            "created_at": now,
-            "api_key": raw_key,
-        }
-
-    def list_api_keys(self, tenant_id: str) -> list[dict[str, Any]]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM tenant_api_keys WHERE tenant_id = ? ORDER BY created_at DESC",
-                (tenant_id,),
-            ).fetchall()
-        return [
-            {
-                "id": r["id"],
-                "tenant_id": r["tenant_id"],
-                "name": r["name"],
-                "key_prefix": r["key_prefix"],
-                "scopes": json.loads(r["scopes_json"] or "[]"),
-                "enabled": bool(r["enabled"]),
-                "created_at": r["created_at"],
-                "last_used_at": r["last_used_at"],
-            }
-            for r in rows
-        ]
-
-    def get_api_key_by_hash(self, key_hash: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM tenant_api_keys WHERE key_hash = ? AND enabled = 1",
-                (key_hash,),
-            ).fetchone()
-        if not row:
-            return None
-        return {
-            "id": row["id"],
-            "tenant_id": row["tenant_id"],
-            "name": row["name"],
-            "key_prefix": row["key_prefix"],
-            "scopes": json.loads(row["scopes_json"] or "[]"),
-            "enabled": bool(row["enabled"]),
-            "key_hash": row["key_hash"],
-        }
-
-    def touch_api_key(self, key_id: str) -> None:
-        now = _utc_iso()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE tenant_api_keys SET last_used_at = ? WHERE id = ?",
-                (now, key_id),
-            )
-            conn.commit()
-
-    def revoke_api_key(self, key_id: str, tenant_id: str) -> bool:
-        with self._connect() as conn:
-            cur = conn.execute(
-                "UPDATE tenant_api_keys SET enabled = 0 WHERE id = ? AND tenant_id = ?",
-                (key_id, tenant_id),
-            )
-            conn.commit()
-            return cur.rowcount > 0
 
 
 _store: PlatformStore | None = None

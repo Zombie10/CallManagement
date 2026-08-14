@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
 import { ListFilterBar } from "../components/ListFilterBar";
 import { ModulePermissionPicker } from "../components/ModulePermissionPicker";
+import { UserPermissionEditor } from "../components/UserPermissionEditor";
 import { Select } from "../components/Select";
 import { TableScroll } from "../components/TableScroll";
 import { api, type AdminRole, type AdminUserRecord } from "../lib/api";
@@ -524,32 +525,16 @@ function UserMobileCard({
       </div>
 
       {showPermissions && !isProtected && catalog.length > 0 && (
-        <div className="space-y-3 border-t border-white/5 pt-3">
-          <ModulePermissionPicker
-            role={row.role}
-            catalog={catalog}
-            roleDefaults={roleDefaults}
-            roleCeilings={roleCeilings}
-            custom={custom}
-            selected={selected}
-            onCustomChange={setCustom}
-            onSelectedChange={setSelected}
-            disabled={busy}
-          />
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary text-sm"
-              disabled={busy || (custom && !selected.length)}
-              onClick={() => onSaveModules(custom ? selected : null)}
-            >
-              Guardar permisos
-            </button>
-            <button type="button" className="btn-ghost text-sm" onClick={onTogglePermissions}>
-              Cerrar
-            </button>
-          </div>
-        </div>
+        <UserPermissionEditor
+          role={row.role}
+          modules={row.modules ?? null}
+          catalog={catalog}
+          roleDefaults={roleDefaults}
+          roleCeilings={roleCeilings}
+          busy={busy}
+          onSave={onSaveModules}
+          onClose={onTogglePermissions}
+        />
       )}
     </article>
   );
@@ -679,30 +664,16 @@ function UserRow({
       {showPermissions && !isProtected && catalog.length > 0 && (
         <tr>
           <td colSpan={isSuperAdmin ? 6 : 5} className="border-b border-white/5 bg-white/[0.02] px-4 py-4">
-            <ModulePermissionPicker
+            <UserPermissionEditor
               role={row.role}
+              modules={row.modules ?? null}
               catalog={catalog}
               roleDefaults={roleDefaults}
               roleCeilings={roleCeilings}
-              custom={custom}
-              selected={selected}
-              onCustomChange={setCustom}
-              onSelectedChange={setSelected}
-              disabled={busy}
+              busy={busy}
+              onSave={onSaveModules}
+              onClose={onTogglePermissions}
             />
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                className="btn-primary text-sm"
-                disabled={busy || (custom && !selected.length)}
-                onClick={() => onSaveModules(custom ? selected : null)}
-              >
-                Guardar permisos
-              </button>
-              <button type="button" className="btn-ghost text-sm" onClick={onTogglePermissions}>
-                Cerrar
-              </button>
-            </div>
           </td>
         </tr>
       )}

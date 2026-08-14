@@ -542,7 +542,9 @@ async def export_calls_csv(
 
 @app.get("/api/api-keys")
 async def list_api_keys(ctx=Depends(require_tenant_context)):
-    return {"api_keys": get_platform_store().list_api_keys(ctx.tenant.id)}
+    from call_management.tenancy import api_key_store
+
+    return {"api_keys": api_key_store.list_api_keys(ctx.tenant.id)}
 
 
 @app.post("/api/api-keys")
@@ -557,7 +559,9 @@ async def create_api_key(payload: ApiKeyCreate, ctx=Depends(require_tenant_conte
         raise HTTPException(status_code=400, detail="Al menos un scope válido requerido")
     raw = f"cmk_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw.encode()).hexdigest()
-    created = get_platform_store().create_api_key(
+    from call_management.tenancy import api_key_store
+
+    created = api_key_store.create_api_key(
         ctx.tenant.id,
         name=payload.name,
         scopes=scopes,
@@ -569,7 +573,9 @@ async def create_api_key(payload: ApiKeyCreate, ctx=Depends(require_tenant_conte
 
 @app.delete("/api/api-keys/{key_id}")
 async def revoke_api_key(key_id: str, ctx=Depends(require_tenant_context)):
-    ok = get_platform_store().revoke_api_key(key_id, ctx.tenant.id)
+    from call_management.tenancy import api_key_store
+
+    ok = api_key_store.revoke_api_key(key_id, ctx.tenant.id)
     if not ok:
         raise HTTPException(status_code=404, detail="API key no encontrada")
     return {"revoked": key_id}

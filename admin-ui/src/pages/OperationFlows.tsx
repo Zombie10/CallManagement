@@ -156,9 +156,9 @@ export function OperationFlows() {
               Flujos / Operación
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-400 sm:text-base">
-              Documentación interactiva de la <strong className="font-medium text-slate-300">plantilla</strong>{" "}
-              del agente (no es el runtime en vivo). Elige un agente de la empresa o explora los
-              flujos de plataforma.
+              Documentación de plantillas (no es el runtime en vivo de la instancia). Elige un
+              agente de la empresa para ver la plantilla asociada, o explora los flujos de
+              plataforma.
               {tenant?.name ? (
                 <span className="text-slate-500"> · {tenant.name}</span>
               ) : null}

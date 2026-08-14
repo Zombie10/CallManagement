@@ -55,11 +55,12 @@ async def require_api_key(
     raw = x_api_key or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
     if not raw or not raw.startswith("cmk_"):
         raise HTTPException(status_code=401, detail="API key requerida (X-Api-Key)")
-    store = get_platform_store()
-    record = store.get_api_key_by_hash(_hash_key(raw))
+    from call_management.tenancy import api_key_store
+
+    record = api_key_store.get_api_key_by_hash(_hash_key(raw))
     if not record:
         raise HTTPException(status_code=401, detail="API key inválida")
-    store.touch_api_key(record["id"])
+    api_key_store.touch_api_key(record["id"])
     return record
 
 

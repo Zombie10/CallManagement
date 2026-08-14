@@ -569,7 +569,9 @@ async def list_webhook_deliveries(
     offset: int = 0,
     ctx: TenantContext = Depends(require_tenant_context),
 ):
-    return get_platform_store().list_webhook_deliveries(ctx.tenant.id, limit=limit, offset=offset)
+    from call_management.tenancy import webhook_store
+
+    return webhook_store.list_webhook_deliveries(ctx.tenant.id, limit=limit, offset=offset)
 
 
 def _public_webhook(hook: dict[str, Any], *, include_secret: bool = False) -> dict[str, Any]:
@@ -582,13 +584,17 @@ def _public_webhook(hook: dict[str, Any], *, include_secret: bool = False) -> di
 
 @router.get("/webhooks")
 async def list_webhooks(ctx: TenantContext = Depends(require_tenant_context)):
-    hooks = get_platform_store().list_webhooks(ctx.tenant.id)
+    from call_management.tenancy import webhook_store
+
+    hooks = webhook_store.list_webhooks(ctx.tenant.id)
     return {"webhooks": [_public_webhook(h) for h in hooks]}
 
 
 @router.post("/webhooks")
 async def create_webhook(payload: WebhookCreatePayload, ctx: TenantContext = Depends(require_tenant_context)):
-    created = get_platform_store().create_webhook(
+    from call_management.tenancy import webhook_store
+
+    created = webhook_store.create_webhook(
         ctx.tenant.id, url=payload.url, events=payload.events, secret=payload.secret
     )
     return _public_webhook(created, include_secret=True)
@@ -596,10 +602,12 @@ async def create_webhook(payload: WebhookCreatePayload, ctx: TenantContext = Dep
 
 @router.delete("/webhooks/{webhook_id}")
 async def delete_webhook(webhook_id: str, ctx: TenantContext = Depends(require_tenant_context)):
-    hooks = get_platform_store().list_webhooks(ctx.tenant.id)
+    from call_management.tenancy import webhook_store
+
+    hooks = webhook_store.list_webhooks(ctx.tenant.id)
     if not any(h["id"] == webhook_id for h in hooks):
         raise HTTPException(status_code=404, detail="Webhook no encontrado")
-    get_platform_store().delete_webhook(webhook_id)
+    webhook_store.delete_webhook(webhook_id)
     return {"deleted": webhook_id}
 
 

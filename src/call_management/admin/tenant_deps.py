@@ -59,16 +59,37 @@ def scoped_playground_context(
         except Exception as exc:
             raise HTTPException(status_code=401, detail="No autenticado") from exc
     try:
+        is_super = _is_super_admin(user) if user else auth_disabled()
+        # Non-super actors cannot select another tenant via the request body.
+        requested = tenant_id if is_super else (user.get("tenant_id") if user else tenant_id)
         return get_tenant_context(
-            tenant_id=tenant_id,
+            tenant_id=requested,
             agent_instance_id=agent_instance_id,
             user_tenant_id=user.get("tenant_id") if user else None,
-            is_super_admin=_is_super_admin(user) if user else auth_disabled(),
+            is_super_admin=is_super,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def playground_actor(request: Request) -> dict:
+    """Authenticated admin user, or a synthetic actor when auth is disabled (tests)."""
+    from call_management.admin.auth_middleware import auth_disabled
+
+    user = getattr(request.state, "user", None)
+    if user and user.get("id"):
+        return user
+    if auth_disabled():
+        return {"id": "auth-disabled", "role": "super_admin", "tenant_id": None}
+    try:
+        user = get_current_user(request)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="No autenticado") from exc
+    if not user or not user.get("id"):
+        raise HTTPException(status_code=401, detail="No autenticado")
+    return user
 
 
 def require_super_admin(request: Request) -> dict:

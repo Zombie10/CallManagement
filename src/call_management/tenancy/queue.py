@@ -4,14 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Literal
 
 _lock = asyncio.Lock()
-_active_tenant: dict[str, int] = defaultdict(int)
-_active_agent: dict[str, int] = defaultdict(int)
-_active_number: dict[str, int] = defaultdict(int)
 _active_calls: dict[str, dict[str, Any]] = {}
 
 def default_tenant_cap() -> int:
@@ -38,50 +34,38 @@ class QueueLimits:
         return items
 
 
-def _counter(kind: LayerKind) -> dict[str, int]:
-    if kind == "tenant":
-        return _active_tenant
-    if kind == "agent":
-        return _active_agent
-    return _active_number
+def _store():
+    from call_management.tenancy.platform_store import get_platform_store
+
+    return get_platform_store()
 
 
 async def try_acquire(limits: QueueLimits) -> tuple[bool, LayerKind | None]:
-    """Acquire slots on every configured layer. Returns (ok, blocked_layer)."""
-    async with _lock:
-        for kind, key, cap in limits.layers():
-            counter = _counter(kind)
-            if counter[key] >= cap:
-                return False, kind
-        for kind, key, _cap in limits.layers():
-            _counter(kind)[key] += 1
-        return True, None
+    """Acquire slots on every configured layer (SQLite, shared across workers)."""
+    ok, blocked = _store().try_acquire_layers(limits.layers())
+    return ok, blocked  # type: ignore[return-value]
 
 
 async def release(limits: QueueLimits | None) -> None:
     if not limits:
         return
-    async with _lock:
-        for kind, key, _cap in limits.layers():
-            counter = _counter(kind)
-            if counter[key] > 0:
-                counter[key] -= 1
+    _store().release_layers(limits.layers())
 
 
 def active_count(tenant_id: str) -> int:
-    return _active_tenant.get(tenant_id, 0)
+    return _store().slot_count("tenant", tenant_id)
 
 
 def agent_active_count(agent_instance_id: str) -> int:
-    return _active_agent.get(agent_instance_id, 0)
+    return _store().slot_count("agent", agent_instance_id)
 
 
 def number_active_count(phone_number: str) -> int:
-    return _active_number.get(phone_number, 0)
+    return _store().slot_count("number", phone_number)
 
 
 def global_active() -> int:
-    return sum(_active_tenant.values())
+    return sum(c.get("tenant_id") is not None for c in _active_calls.values())
 
 
 def build_queue_limits(
@@ -181,7 +165,7 @@ def list_active_calls(*, tenant_id: str | None = None) -> list[dict[str, Any]]:
 
 
 def _layer_status(kind: LayerKind, key: str, cap: int) -> dict[str, Any]:
-    active = _counter(kind).get(key, 0)
+    active = _store().slot_count(kind, key)
     return {
         "key": key,
         "active": active,
@@ -252,7 +236,44 @@ def supervisor_snapshot(
 
 def reset_queue_state() -> None:
     """Clear counters and registry (tests)."""
-    _active_tenant.clear()
-    _active_agent.clear()
-    _active_number.clear()
     _active_calls.clear()
+    try:
+        _store().reset_concurrency_slots()
+    except Exception:
+        pass
+
+
+@dataclass(frozen=True)
+class JobAdmission:
+    """Result of the inbound job gate. Tests call ``admit_inbound_job`` directly."""
+
+    allowed: bool
+    reason: str | None = None
+    queue_limits: QueueLimits | None = None
+
+
+def admit_inbound_job(
+    store: Any,
+    *,
+    tenant: Any,
+    agent_instance: Any | None,
+    dialed_number: str | None,
+) -> JobAdmission:
+    """Decide whether a new SIP/LiveKit job may become a normal served session.
+
+    Daily tenant cap and concurrency layers are real gates: a denied job must not
+    start ``_run_session``.
+    """
+    if tenant is not None and not store.tenant_within_call_limit(tenant.id):
+        return JobAdmission(allowed=False, reason="daily_limit")
+
+    limits = resolve_queue_limits_from_store(
+        store,
+        tenant_id=tenant.id,
+        agent_instance_id=agent_instance.id if agent_instance else None,
+        dialed_number=dialed_number,
+    )
+    ok, blocked = store.try_acquire_layers(limits.layers())
+    if not ok:
+        return JobAdmission(allowed=False, reason=blocked or "tenant", queue_limits=limits)
+    return JobAdmission(allowed=True, queue_limits=limits)

@@ -24,7 +24,6 @@ from call_management.agents import (
 from call_management.agents.catalog import is_valid_template, normalize_template
 from call_management.agents.runtime import build_runtime_agent
 from call_management.config import get_model_config, get_voice_for_agent
-from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
 from call_management.utils.time import utc_now_iso
 from call_management.xai.tools import attach_xai_provider_tools, get_xai_tools_config
@@ -39,6 +38,7 @@ class ManagedChatSession:
     session_id: str
     agent_session: AgentSession[CallContext]
     call_ctx: CallContext
+    user_id: str
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     created_at: str = field(default_factory=utc_now_iso)
 
@@ -141,16 +141,24 @@ class ChatSessionManager:
         tenant_id: str | None = None,
         agent_instance_id: str | None = None,
         vip: bool = False,
+        user_id: str | None = None,
     ) -> dict[str, Any]:
+        from call_management.admin.playground_sessions import register_lease
         from call_management.tenancy.context import resolve_crm_for_tenant
         from call_management.tenancy.platform_store import get_platform_store
+
+        if not tenant_id:
+            raise ValueError("tenant_id is required for playground chat")
+        if not user_id:
+            raise ValueError("user_id is required for playground chat")
 
         instance = None
         if agent_instance_id:
             instance = get_platform_store().get_agent(agent_instance_id)
             if instance:
+                if instance.tenant_id != tenant_id:
+                    raise ValueError("Agente no encontrado en esta empresa")
                 initial_agent = instance.template_id
-                tenant_id = instance.tenant_id
 
         initial_agent = normalize_template(initial_agent)
         if not is_valid_template(initial_agent):
@@ -165,10 +173,7 @@ class ChatSessionManager:
             preemptive_generation=cfg.preemptive_generation,
         )
 
-        if tenant_id:
-            crm = await resolve_crm_for_tenant(tenant_id)
-        else:
-            crm = await get_crm()
+        crm = await resolve_crm_for_tenant(tenant_id)
         customer = await crm.get_or_create_customer(phone_number)
         if customer_name:
             customer.name = customer_name
@@ -220,7 +225,9 @@ class ChatSessionManager:
             session_id=session_id,
             agent_session=session,
             call_ctx=call_ctx,
+            user_id=user_id,
         )
+        register_lease(session_id, user_id=user_id, tenant_id=tenant_id, kind="chat")
 
         return {
             "session_id": session_id,
@@ -233,10 +240,17 @@ class ChatSessionManager:
             "voice": get_voice_for_agent(initial_agent, cfg.provider),
         }
 
-    async def send_message(self, session_id: str, message: str) -> dict[str, Any]:
+    async def send_message(
+        self, session_id: str, message: str, *, user_id: str | None = None
+    ) -> dict[str, Any]:
+        from call_management.admin.playground_sessions import require_lease
+
+        if not user_id:
+            raise PermissionError("Sesión no encontrada o no te pertenece")
+        require_lease(session_id, user_id=user_id, kind="chat")
         managed = self._sessions.get(session_id)
-        if not managed:
-            raise ValueError("Chat session not found or expired. Start a new session.")
+        if not managed or managed.user_id != user_id:
+            raise PermissionError("Sesión no encontrada o no te pertenece")
 
         message = message.strip()
         if not message:
@@ -261,23 +275,33 @@ class ChatSessionManager:
         managed.call_ctx.agent_session = managed.agent_session
         await finalize_interaction(managed.call_ctx, enable_summary=True)
 
-    async def close(self, session_id: str) -> None:
+    async def close(self, session_id: str, *, user_id: str | None = None) -> None:
+        from call_management.admin.playground_sessions import drop_lease, require_lease
+
+        if user_id:
+            require_lease(session_id, user_id=user_id, kind="chat")
         managed = self._sessions.pop(session_id, None)
+        drop_lease(session_id)
         if managed:
             await self._persist_managed(managed)
             await managed.agent_session.aclose()
 
-    async def reset(self, session_id: str) -> dict[str, Any]:
+    async def reset(self, session_id: str, *, user_id: str | None = None) -> dict[str, Any]:
+        from call_management.admin.playground_sessions import require_lease
+
+        if not user_id:
+            raise PermissionError("Sesión no encontrada o no te pertenece")
+        require_lease(session_id, user_id=user_id, kind="chat")
         managed = self._sessions.get(session_id)
-        if not managed:
-            raise ValueError("Chat session not found")
+        if not managed or managed.user_id != user_id:
+            raise PermissionError("Sesión no encontrada o no te pertenece")
         phone = managed.call_ctx.from_number
         vip = managed.call_ctx.is_vip
         department = managed.call_ctx.department_hint
         initial = getattr(managed.agent_session.current_agent, "agent_name", "receptionist")
         tenant_id = managed.call_ctx.tenant_id
         agent_instance_id = managed.call_ctx.agent_instance_id
-        await self.close(session_id)
+        await self.close(session_id, user_id=user_id)
         return await self.create(
             phone_number=phone,
             department=department,
@@ -285,6 +309,7 @@ class ChatSessionManager:
             tenant_id=tenant_id,
             agent_instance_id=agent_instance_id,
             vip=vip,
+            user_id=user_id,
         )
 
 

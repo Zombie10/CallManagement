@@ -323,34 +323,7 @@ def build_voice_session_payload(
         else language_hint_for_agent(agent_name)
     )
 
-    threshold = _env_float("GROK_VOICE_VAD_THRESHOLD", 0.85)
-    threshold = max(0.1, min(0.9, threshold))
-    silence_ms = _env_int("GROK_VOICE_SILENCE_MS", 700) or 700
-    silence_ms = max(0, min(10_000, silence_ms))
-    prefix_ms = _env_int("GROK_VOICE_PREFIX_PADDING_MS", 333) or 333
-    prefix_ms = max(0, min(10_000, prefix_ms))
-    # Re-engage silent callers after assistant finishes (call-center default 10s).
-    idle_ms = _env_int("GROK_VOICE_IDLE_TIMEOUT_MS", 10_000)
-    if idle_ms is not None and idle_ms <= 0:
-        idle_ms = None
-
-    speed = _env_float("GROK_VOICE_OUTPUT_SPEED", 1.0)
-    speed = max(0.7, min(1.5, speed))
-
-    resumption = os.getenv("GROK_VOICE_RESUMPTION", "true").lower() == "true"
-    keyterms = parse_voice_keyterms()
-    replace = parse_voice_replace()
-    disclosure = os.getenv("GROK_VOICE_RECORDING_DISCLOSURE", "").strip()
-
-    turn_detection: dict[str, Any] = {
-        "type": "server_vad",
-        "threshold": threshold,
-        "silence_duration_ms": silence_ms,
-        "prefix_padding_ms": prefix_ms,
-    }
-    if idle_ms is not None:
-        turn_detection["idle_timeout_ms"] = idle_ms
-
+    extras = build_sip_voice_extras()
     payload: dict[str, Any] = {
         "model": model,
         "voice": voice,
@@ -363,13 +336,56 @@ def build_voice_session_payload(
             function_tools_override=function_tools_override,
             mcp_override=mcp_override,
         ),
-        "turn_detection": turn_detection,
-        # session.update uses reasoning.effort (high | none); default high for Think Fast.
+        "turn_detection": extras["turn_detection"],
         "reasoning_effort": "high" if model in THINK_FAST_MODELS else None,
+        "keyterms": extras["keyterms"],
+        "replace": extras["replace"],
+        "output_speed": extras["output_speed"],
+        "resumption_enabled": extras["resumption_enabled"],
+        "idle_timeout_ms": extras["idle_timeout_ms"],
+        "recording_disclosure": extras["recording_disclosure"],
+    }
+    return payload
+
+
+def build_sip_voice_extras() -> dict[str, Any]:
+    """Settings extras applied on both browser session.update and LiveKit/SIP."""
+    threshold = _env_float("GROK_VOICE_VAD_THRESHOLD", 0.85)
+    threshold = max(0.1, min(0.9, threshold))
+    silence_ms = _env_int("GROK_VOICE_SILENCE_MS", 700) or 700
+    silence_ms = max(0, min(10_000, silence_ms))
+    prefix_ms = _env_int("GROK_VOICE_PREFIX_PADDING_MS", 333) or 333
+    prefix_ms = max(0, min(10_000, prefix_ms))
+    idle_ms = _env_int("GROK_VOICE_IDLE_TIMEOUT_MS", 10_000)
+    if idle_ms is not None and idle_ms <= 0:
+        idle_ms = None
+    speed = _env_float("GROK_VOICE_OUTPUT_SPEED", 1.0)
+    speed = max(0.7, min(1.5, speed))
+    resumption = os.getenv("GROK_VOICE_RESUMPTION", "true").lower() == "true"
+    keyterms = parse_voice_keyterms()
+    replace = parse_voice_replace()
+    disclosure = os.getenv("GROK_VOICE_RECORDING_DISCLOSURE", "").strip()
+    turn_detection: dict[str, Any] = {
+        "type": "server_vad",
+        "threshold": threshold,
+        "silence_duration_ms": silence_ms,
+        "prefix_padding_ms": prefix_ms,
+    }
+    if idle_ms is not None:
+        turn_detection["idle_timeout_ms"] = idle_ms
+    return {
+        "idle_timeout_ms": idle_ms,
         "keyterms": keyterms or None,
         "replace": replace or None,
         "output_speed": speed,
         "resumption_enabled": resumption,
         "recording_disclosure": disclosure or None,
+        "turn_detection": turn_detection,
     }
-    return payload
+
+
+def apply_sip_voice_extras(call_ctx: Any) -> dict[str, Any]:
+    """Attach settings extras onto the LiveKit/SIP call context (shipped SIP path)."""
+    extras = build_sip_voice_extras()
+    call_ctx.voice_extras = extras
+    return extras

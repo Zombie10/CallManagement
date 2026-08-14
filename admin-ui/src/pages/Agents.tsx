@@ -22,6 +22,7 @@ import {
   type VoiceLibraryEntry,
 } from "../lib/api";
 import clsx from "clsx";
+import { AgentInstructionsEditor } from "../components/AgentInstructionsEditor";
 import { Select } from "../components/Select";
 import { VoicePreviewButton } from "../components/VoicePreviewButton";
 
@@ -110,8 +111,6 @@ function AgentEditor({
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [langFilter, setLangFilter] = useState("");
-  const [showDefaultInstructions, setShowDefaultInstructions] = useState(true);
-
   const filteredVoices = useMemo(
     () => filterVoices(catalog.voice_library || [], genderFilter, ageFilter, langFilter),
     [catalog.voice_library, genderFilter, ageFilter, langFilter],
@@ -411,48 +410,11 @@ function AgentEditor({
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-            <FileText className="h-3 w-3" /> Instrucciones del agente
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn-ghost px-2 py-1 text-xs"
-              onClick={() => setShowDefaultInstructions((v) => !v)}
-            >
-              {showDefaultInstructions ? "Ocultar default" : "Ver default xAI"}
-            </button>
-            {hasCustomInstructions && (
-              <button
-                type="button"
-                className="btn-ghost px-2 py-1 text-xs text-amber-300"
-                onClick={() => onChange({ ...draft, custom_instructions: "" })}
-              >
-                <RotateCcw className="mr-1 inline h-3 w-3" />
-                Restaurar default
-              </button>
-            )}
-          </div>
-        </div>
-        {showDefaultInstructions && (
-          <pre className="max-h-40 overflow-y-auto rounded-lg bg-black/30 p-3 text-xs text-slate-400 whitespace-pre-wrap">
-            {defaultInstructions}
-          </pre>
-        )}
-        <textarea
-          className="input-field min-h-[220px] resize-y font-mono text-sm leading-relaxed"
-          value={draft.custom_instructions || ""}
-          onChange={(e) => onChange({ ...draft, custom_instructions: e.target.value })}
-          placeholder="Vacío = usar instrucciones generadas por xAI/LiveKit. Puedes agregar o reemplazar el comportamiento del agente."
-        />
-        <p className="text-xs text-slate-500">
-          {hasCustomInstructions
-            ? "Usando instrucciones personalizadas (se añaden reglas de idioma y routing automáticamente)."
-            : "Usando instrucciones por defecto del sistema."}
-        </p>
-      </div>
+      <AgentInstructionsEditor
+        value={draft.custom_instructions || ""}
+        defaultInstructions={defaultInstructions}
+        onChange={(custom_instructions) => onChange({ ...draft, custom_instructions })}
+      />
 
       <div>
         <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">

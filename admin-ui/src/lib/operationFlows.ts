@@ -152,7 +152,7 @@ export function flowForAgent(
     ...base,
     id: `agent-flow-${agent.id}-${flowId}`,
     title: `${agent.display_name} · ${base.title}`,
-    summary: `Documentación de plantilla para “${agent.display_name}” (${template}). ${base.summary}`,
+    summary: `Documentación de plantilla (no runtime en vivo) para “${agent.display_name}” (${template}). ${base.summary}`,
     category: "agentes",
     durationHint: agent.status,
     steps: [intro, ...runtimeSteps, ...base.steps],

@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from call_management.tenancy.platform_store import get_platform_store
+
 
 logger = logging.getLogger("call-management.webhooks")
 
@@ -31,8 +31,9 @@ RETRY_DELAYS = (1.0, 3.0, 8.0)
 async def emit_event(tenant_id: str, event: str, payload: dict[str, Any]) -> None:
     if event not in WEBHOOK_EVENTS:
         logger.warning("Unknown webhook event: %s", event)
-    store = get_platform_store()
-    hooks = store.list_webhooks(tenant_id, event=event)
+    from call_management.tenancy import webhook_store
+
+    hooks = webhook_store.list_webhooks(tenant_id, event=event)
     if not hooks:
         return
 
@@ -54,7 +55,6 @@ async def _deliver_with_retries(
     event: str,
     body: str,
 ) -> None:
-    store = get_platform_store()
     url = hook["url"]
     secret = hook.get("secret")
     last_error: str | None = None
@@ -63,7 +63,7 @@ async def _deliver_with_retries(
     for attempt in range(MAX_RETRIES):
         status_code, last_error = await _post(client, url, body, secret)
         if status_code is not None and status_code < 400:
-            store.log_webhook_delivery(
+            webhook_store.log_webhook_delivery(
                 tenant_id=tenant_id,
                 webhook_id=hook["id"],
                 event=event,
@@ -77,7 +77,7 @@ async def _deliver_with_retries(
         if attempt < MAX_RETRIES - 1:
             await asyncio.sleep(RETRY_DELAYS[attempt])
 
-    store.log_webhook_delivery(
+    webhook_store.log_webhook_delivery(
         tenant_id=tenant_id,
         webhook_id=hook["id"],
         event=event,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolCallEntry } from "../components/ToolCallLog";
 import { useAudioRecorder } from "./useAudioRecorder";
+import { persistVoiceSession } from "./xai/persistTranscript";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
 import {
   base64PCM16ToFloat32,
@@ -437,30 +438,18 @@ export function useXaiVoice() {
     const info = sessionInfoRef.current;
     const lines = transcriptRef.current;
     if (!info?.call_id || !lines.length) return;
-    const body = lines
-      .filter((line) => line.text.trim())
-      .map((line) => {
-        const label =
-          line.role === "user" ? "Cliente" : line.role === "assistant" ? "Agente" : "Sistema";
-        return `[${label}] ${line.text.trim()}`;
-      })
-      .join("\n");
-    if (!body) return;
     try {
-      await api.completeVoiceSession({
-        call_id: info.call_id,
+      const recorded = await stopRecorder();
+      await persistVoiceSession({
+        session: info,
         agent: currentAgentRef.current,
+        lines,
         phone_number: callContextRef.current.phone_number,
         customer_name: callContextRef.current.customer_name,
         tenant_id: callContextRef.current.tenant_id,
         agent_instance_id: callContextRef.current.agent_instance_id,
-        start_time: info.start_time,
-        transcript: body,
+        recording: recorded,
       });
-      const recorded = await stopRecorder();
-      if (recorded && info.call_id) {
-        await api.uploadCallRecording(info.call_id, recorded.blob, recorded.ext);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la transcripción");
     }

@@ -143,7 +143,9 @@ def test_webhook_events_catalog():
 async def test_webhook_delivery_audit_log(tmp_path):
     store = get_platform_store()
     tenant = store.ensure_default_tenant()
-    logged = store.log_webhook_delivery(
+    from call_management.tenancy import webhook_store
+
+    logged = webhook_store.log_webhook_delivery(
         tenant_id=tenant.id,
         webhook_id="whk_test",
         event="call.ended",
@@ -154,7 +156,7 @@ async def test_webhook_delivery_audit_log(tmp_path):
         error=None,
     )
     assert logged["success"] is True
-    deliveries = store.list_webhook_deliveries(tenant.id)
+    deliveries = webhook_store.list_webhook_deliveries(tenant.id)
     assert deliveries["total"] == 1
     assert deliveries["items"][0]["event"] == "call.ended"
 
@@ -164,7 +166,9 @@ async def test_api_keys_and_public_api(tmp_path):
     store = get_platform_store()
     tenant = store.ensure_default_tenant()
     raw = "cmk_test_secret_key_12345"
-    created = store.create_api_key(
+    from call_management.tenancy import api_key_store
+
+    created = api_key_store.create_api_key(
         tenant.id,
         name="Test",
         scopes=["calls.read"],
@@ -172,7 +176,7 @@ async def test_api_keys_and_public_api(tmp_path):
         key_hash=hashlib.sha256(raw.encode()).hexdigest(),
     )
     assert created["api_key"] == raw
-    listed = store.list_api_keys(tenant.id)
+    listed = api_key_store.list_api_keys(tenant.id)
     assert len(listed) == 1
 
     transport = ASGITransport(app=app)

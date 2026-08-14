@@ -100,6 +100,8 @@ class CallContext:
     crm: CRMDatabase | None = None
     sip: SIPManager | None = None
     agents: dict[str, Agent] = field(default_factory=dict)
+    tenant_instances: dict[str, Any] = field(default_factory=dict)
+    voice_extras: dict[str, Any] | None = None
 
     def summarize(self) -> str:
         data = {
@@ -215,6 +217,12 @@ class BaseAgent(Agent):
         if not next_agent:
             logger.error("Agent '%s' not registered", agent_name)
             return self, f"I'm sorry, I cannot transfer you to {agent_name} right now."
+
+        instance = (ctx.tenant_instances or {}).get(agent_name)
+        if instance is not None:
+            from call_management.agents.runtime import apply_instance_overlay
+
+            apply_instance_overlay(next_agent, instance)
 
         ctx.previous_agent_name = self.agent_name
         ctx.transferred_to = agent_name
