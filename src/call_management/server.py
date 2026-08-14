@@ -149,9 +149,10 @@ def _build_session(
 
     if cfg.provider == "xai":
         if cfg.use_grok_realtime:
-            from call_management.xai.voice import apply_sip_voice_extras
+            from call_management.xai.voice import build_sip_realtime_model, build_sip_voice_extras
 
-            extras = apply_sip_voice_extras(call_ctx)
+            extras = build_sip_voice_extras()
+            call_ctx.voice_extras = extras
             initial_voice = voice_override or get_voice_for_agent(template_agent, cfg.provider)
             logger.info(
                 "Using xAI Grok Realtime (model=%s, voice=%s extras=%s)",
@@ -161,9 +162,10 @@ def _build_session(
             )
             return AgentSession[CallContext](
                 vad=vad,
-                llm=xai.realtime.RealtimeModel(
+                llm=build_sip_realtime_model(
                     model=cfg.grok_realtime_model,
                     voice=initial_voice,
+                    extras=extras,
                 ),
                 userdata=call_ctx,
                 max_tool_steps=cfg.max_tool_steps,

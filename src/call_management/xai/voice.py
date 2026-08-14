@@ -384,8 +384,112 @@ def build_sip_voice_extras() -> dict[str, Any]:
     }
 
 
-def apply_sip_voice_extras(call_ctx: Any) -> dict[str, Any]:
-    """Attach settings extras onto the LiveKit/SIP call context (shipped SIP path)."""
-    extras = build_sip_voice_extras()
-    call_ctx.voice_extras = extras
+def livekit_turn_detection(extras: dict[str, Any] | None = None) -> Any:
+    """Server VAD for LiveKit RealtimeModel, including xAI idle_timeout_ms."""
+    from openai.types.realtime.realtime_audio_input_turn_detection import ServerVad
+
+    extras = extras or build_sip_voice_extras()
+    td = extras["turn_detection"]
+    kwargs: dict[str, Any] = {
+        "type": "server_vad",
+        "threshold": td.get("threshold", 0.85),
+        "prefix_padding_ms": td.get("prefix_padding_ms", 333),
+        "silence_duration_ms": td.get("silence_duration_ms", 700),
+        "create_response": True,
+        "interrupt_response": True,
+    }
+    idle_ms = td.get("idle_timeout_ms")
+    if idle_ms is not None:
+        kwargs["idle_timeout_ms"] = idle_ms
+    return ServerVad(**kwargs)
+
+
+def livekit_input_transcription(extras: dict[str, Any] | None = None) -> Any:
+    """Input transcription options, including xAI ASR keyterms."""
+    from openai.types.realtime import AudioTranscription
+
+    extras = extras or build_sip_voice_extras()
+    payload: dict[str, Any] = {}
+    if extras.get("keyterms"):
+        payload["keyterms"] = list(extras["keyterms"])
+    return AudioTranscription(**payload)
+
+
+def sip_session_update_fields(extras: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Top-level session.update fields matching the browser sendSessionUpdate payload."""
+    extras = extras or build_sip_voice_extras()
+    fields: dict[str, Any] = {}
+    if extras.get("replace"):
+        fields["replace"] = dict(extras["replace"])
+    if extras.get("resumption_enabled"):
+        fields["resumption"] = {"enabled": True}
+    return fields
+
+
+def _merge_session_update(event: Any, fields: dict[str, Any]) -> Any:
+    if not fields:
+        return event
+    if isinstance(event, dict):
+        session = event.setdefault("session", {})
+        if isinstance(session, dict):
+            session.update(fields)
+        return event
+    session = getattr(event, "session", None)
+    if session is not None:
+        for key, value in fields.items():
+            setattr(session, key, value)
+    return event
+
+
+def attach_sip_session_update(realtime_model: Any, extras: dict[str, Any]) -> None:
+    """Inject replace/resumption into the LiveKit session.update LiveKit will send."""
+    fields = sip_session_update_fields(extras)
+    realtime_model._sip_session_update = fields
+    if not fields or getattr(realtime_model, "_sip_session_patched", False):
+        return
+
+    original_session = realtime_model.session
+
+    def session_with_extras(*args: Any, **kwargs: Any) -> Any:
+        sess = original_session(*args, **kwargs)
+        original_create = sess._create_session_update_event
+
+        def create_with_extras() -> Any:
+            return _merge_session_update(original_create(), fields)
+
+        sess._create_session_update_event = create_with_extras
+        return sess
+
+    realtime_model.session = session_with_extras
+    realtime_model._sip_session_patched = True
+
+
+def apply_sip_voice_extras(realtime_model: Any, extras: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Apply settings extras onto a LiveKit RealtimeModel (update_options + session.update)."""
+    extras = extras or build_sip_voice_extras()
+    realtime_model.update_options(
+        turn_detection=livekit_turn_detection(extras),
+        speed=extras["output_speed"],
+        input_audio_transcription=livekit_input_transcription(extras),
+    )
+    attach_sip_session_update(realtime_model, extras)
     return extras
+
+
+def build_sip_realtime_model(
+    *,
+    model: str,
+    voice: str,
+    extras: dict[str, Any] | None = None,
+) -> Any:
+    """Construct the xAI RealtimeModel used on the LiveKit/SIP path with extras applied."""
+    from livekit.plugins import xai
+
+    extras = extras or build_sip_voice_extras()
+    realtime = xai.realtime.RealtimeModel(
+        model=model,
+        voice=voice,
+        turn_detection=livekit_turn_detection(extras),
+    )
+    apply_sip_voice_extras(realtime, extras)
+    return realtime

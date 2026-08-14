@@ -6,10 +6,11 @@ import pytest
 
 from call_management.agents.base import CallContext
 from call_management.agents.receptionist import ReceptionistAgent
-from call_management.agents.runtime import apply_instance_overlay, resolve_instance_for_template
+from call_management.agents.runtime import resolve_instance_for_template
 from call_management.agents.support import SupportAgent
 from call_management.tenancy.platform_store import get_platform_store
-from call_management.xai.voice import apply_sip_voice_extras, build_sip_voice_extras
+from call_management.server import _build_session
+from call_management.xai.voice import build_sip_voice_extras
 
 
 @pytest.mark.asyncio
@@ -42,19 +43,46 @@ async def test_transfer_applies_tenant_instance_voice_and_instructions():
     assert resolved.id == instance.id
 
 
-def test_sip_extras_builder_reads_settings_env(monkeypatch):
+def _sip_extras_env(monkeypatch) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "test-sip-extras-key")
+    monkeypatch.setenv("MODEL_PROVIDER", "xai")
+    monkeypatch.setenv("USE_GROK_REALTIME", "true")
     monkeypatch.setenv("GROK_VOICE_IDLE_TIMEOUT_MS", "8000")
     monkeypatch.setenv("GROK_VOICE_KEYTERMS", "BAC,débito")
     monkeypatch.setenv("GROK_VOICE_REPLACE", '{"BAC":"be a ce"}')
     monkeypatch.setenv("GROK_VOICE_OUTPUT_SPEED", "1.2")
     monkeypatch.setenv("GROK_VOICE_RESUMPTION", "true")
+
+
+def test_sip_extras_builder_reads_settings_env(monkeypatch):
+    _sip_extras_env(monkeypatch)
     extras = build_sip_voice_extras()
     assert extras["idle_timeout_ms"] == 8000
     assert "BAC" in extras["keyterms"]
     assert extras["replace"]["BAC"] == "be a ce"
     assert extras["output_speed"] == 1.2
     assert extras["resumption_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_build_session_applies_extras_to_realtime_model(monkeypatch):
+    _sip_extras_env(monkeypatch)
     ctx = CallContext(call_id="sip1")
-    applied = apply_sip_voice_extras(ctx)
-    assert ctx.voice_extras["idle_timeout_ms"] == 8000
-    assert applied["resumption_enabled"] is True
+    job = type("Job", (), {"proc": type("Proc", (), {"userdata": {"vad": object()}})()})()
+    session = _build_session(ctx, job, voice_override="carina")
+    model = session.llm
+    assert model._opts.speed == 1.2
+    assert model._opts.turn_detection.idle_timeout_ms == 8000
+    assert "BAC" in list(model._opts.input_audio_transcription.keyterms)
+    rt_session = model.session()
+    try:
+        event = rt_session._create_session_update_event()
+        payload = event.model_dump()
+        body = payload["session"]
+        assert body["audio"]["input"]["turn_detection"]["idle_timeout_ms"] == 8000
+        assert "BAC" in body["audio"]["input"]["transcription"]["keyterms"]
+        assert body["audio"]["output"]["speed"] == 1.2
+        assert body["replace"]["BAC"] == "be a ce"
+        assert body["resumption"]["enabled"] is True
+    finally:
+        await rt_session.aclose()
