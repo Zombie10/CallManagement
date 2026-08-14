@@ -8,8 +8,8 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 
 | Guide | Contents |
 |-------|----------|
-| [**Flujogramas operativos**](docs/FLUJOS_OPERATIVOS.md) | Mapas de negocio, llamada PSTN, handoffs, cola, playgrounds |
-| [Admin console](docs/ADMIN.md) | Web UI, auth, roles, multi-tenant, playground |
+| [**Flujogramas operativos**](docs/FLUJOS_OPERATIVOS.md) | Mapas de negocio, llamada PSTN, handoffs, admisión, playgrounds |
+| [Admin console](docs/ADMIN.md) | Web UI, auth, roles, multi-tenant, playground, Flujos / Operación |
 | [Análisis y reportes](docs/ANALYTICS.md) | Filtros, pivot, export CSV, API `/api/reports/*` |
 | [Agents & tools](docs/AGENTS.md) | All agents, phone-call behavior, banking tools, handoffs |
 | [Deployment](docs/DEPLOYMENT.md) | VPS (nginx + systemd), worker, updates, demo seed |
@@ -23,7 +23,7 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 | Multi-agent handoff | Receptionist → support, sales, technical, banking, escalation |
 | Natural phone style | Agents listen first, one question at a time — no robotic intake forms |
 | BAC banking support | Account/card verification, temporary blocks, CRM lookup by phone |
-| Admin web console | Dashboard, CRM, agentes, análisis, webhooks, guía de inicio |
+| Admin web console | Dashboard, CRM, agentes, análisis, **Flujos / Operación**, webhooks |
 | **Análisis / reportes** | SLA, sentimiento, comparación agentes, pivot, export CSV — [docs/ANALYTICS.md](docs/ANALYTICS.md) |
 | **Supervisor** | Panel en tiempo real: llamadas activas, cola, alertas worker |
 | **Ficha cliente** | Historial unificado: llamadas, chats, citas, notas, escalaciones |
@@ -32,8 +32,8 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 | xAI tools | Built-in web search, MCP, code interpreter + custom CRM/SIP function tools |
 | Auth & RBAC | Password + WebAuthn; roles + módulos: `supervisor`, `export`, `audit`, `api_keys` |
 | Telephony | SIP inbound por DID, grabación Egress→S3, varios números por agente |
-| CRM | SQLite por tenant (Postgres opcional con `asyncpg`): customers, calls, appointments |
-| Cola y límites | Concurrentes por empresa (env), por agente y por DID; máximo diario por plan |
+| CRM | SQLite aislado por tenant: customers, calls, appointments (no hay backend Postgres) |
+| Cola y límites | Admisión real: cupo diario (día calendario del tenant) + 3 capas de concurrencia en SQLite compartido; si no hay cupo **no se abre sesión** |
 | Webhooks | `call.started`, `call.ended`, `appointment.*`, `agent.handoff` + auditoría y reintentos |
 | **API pública** | API keys por tenant (`/api/public/v1/*`) con scopes |
 | Observability | Post-call summaries, dashboard worker LiveKit, analytics accionables |
@@ -129,10 +129,12 @@ MODEL_PROVIDER=xai
 USE_GROK_REALTIME=true
 GROK_REALTIME_MODEL=grok-voice-think-fast-2.0
 GROK_REALTIME_VOICE=carina
-# Optional Speech-to-Speech extras: idle re-engage, ASR keyterms, pronunciation replace
+# Speech-to-Speech extras apply on the browser playground AND the LiveKit/SIP worker
 # GROK_VOICE_IDLE_TIMEOUT_MS=10000
 # GROK_VOICE_KEYTERMS=LiveKit,SIP,CRM
 # GROK_VOICE_REPLACE={"API":"A P I"}
+# GROK_VOICE_OUTPUT_SPEED=1.0
+# GROK_VOICE_RESUMPTION=true
 ```
 
 Built-in tools and per-agent profiles (including the full **26-voice** xAI library) are configured in `.env` and the **Agents** page in the admin UI. See [Agents & tools](docs/AGENTS.md).
@@ -148,11 +150,12 @@ CallManagement/
 │   ├── config.py
 │   ├── agents/               # receptionist, support, sales, technical,
 │   │                         # escalation, banking_support, phone_style
-│   ├── admin/                # FastAPI app, auth, chat, voice tools
+│   ├── admin/                # FastAPI, auth, playground leases, chat, voice
 │   ├── crm/                  # SQLite CRM + banking demo data
+│   ├── tenancy/              # tenants, admit_inbound_job, webhooks, API keys
 │   ├── telephony/            # SIP tools
 │   ├── scheduling/
-│   └── xai/                  # Voice API helpers, built-in tools, MCP
+│   └── xai/                  # Voice API + SIP extras on RealtimeModel
 ├── scripts/
 │   ├── init_crm.py
 │   ├── setup_livekit_inbound.py  # Dispatch rule → call-management
@@ -214,9 +217,10 @@ CI runs ruff + pytest on every push to `main`.
 See [.env.example](.env.example) for the full list. Key groups:
 
 - **LiveKit** — agent worker + LiveKit voice playground + SIP ([TELEPHONY.md](docs/TELEPHONY.md))
-- **xAI** — voice, LLM, built-in tools, remote MCP
+- **xAI** — voice, LLM, built-in tools, remote MCP; `GROK_VOICE_*` extras on SIP and browser
 - **Admin** — `ADMIN_HOST`, `ADMIN_PORT`, `ADMIN_RP_ID`, `ADMIN_ORIGIN`, auth DB paths
-- **CRM** — `CRM_DB_PATH`, `DEFAULT_LOCALE`, VIP routing, post-call summary
+- **Data** — `PLATFORM_DB_PATH`, `TENANTS_DATA_ROOT`, `AGENT_PROFILES_PATH`, `CRM_DB_PATH` (legacy)
+- **Límites** — `MAX_CONCURRENT_CALLS_PER_TENANT`; diario y timezone por empresa en **Tenants**
 
 ## Resources
 

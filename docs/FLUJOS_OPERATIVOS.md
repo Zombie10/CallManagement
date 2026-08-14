@@ -3,7 +3,7 @@
 Documento de referencia visual de **cómo opera la plataforma multi-empresa** y **cómo los agentes de voz atienden** las interacciones (teléfono, playground y chat).
 
 **Audiencia:** operación, producto, soporte y desarrollo.  
-**Estado del sistema:** multi-tenant + plantillas de agente + instancias por empresa + LiveKit SIP + xAI Grok Voice.
+**Estado del sistema:** multi-tenant + plantillas + instancias por empresa + LiveKit SIP + xAI Grok Voice. La página admin **Flujos / Operación** (`/operations`) documenta plantillas; no es un trazador de llamadas en vivo.
 
 ---
 
@@ -27,7 +27,7 @@ Documento de referencia visual de **cómo opera la plataforma multi-empresa** y 
 | 14 | [Playground LiveKit producción](#14-playground-livekit-producción) | Misma pipeline que PSTN |
 | 15 | [Chat de texto multi-agente](#15-chat-de-texto-multi-agente) | Texto en admin |
 | 16 | [Alta de empresa y agente](#16-alta-de-empresa-y-agente) | Setup operativo |
-| 17 | [Roles y permisos (admin)](#17-roles-y-permisos-admin) | Quién ve qué |
+| 17 | [Roles y permisos (admin)](#17-roles-y-permisos-admin) | Quién ve qué (incluye `/operations`) |
 | 18 | [Servicios en el VPS](#18-servicios-en-el-vps) | Admin + worker + nginx |
 
 ---
@@ -45,7 +45,7 @@ flowchart TB
     UI["Admin UI<br/>React"]
     API["Admin API<br/>FastAPI"]
     WORKER["Worker LiveKit<br/>agent_name = call-management"]
-    CRM["CRM por tenant<br/>SQLite / Postgres"]
+    CRM["CRM por tenant<br/>SQLite aislado"]
     PLATFORM["Platform DB<br/>tenants, agentes, DID"]
   end
 
@@ -174,9 +174,10 @@ sequenceDiagram
   LK->>W: Job de sesión RTC
   W->>W: Identifica from_number y to_number (DID)
   W->>W: resolve_dispatch(DID → tenant + instancia)
-  W->>Q: try_acquire (empresa / agente / DID)
+  Note over W: DID no enrutado → ValueError, se descarta el job
+  W->>Q: admit_inbound_job (diario TZ + 3 capas SQLite)
   alt Cupo lleno o límite diario
-    W->>XAI: Agente con mensaje de espera / límite
+    W-->>W: Log + return (no _run_session)
   else Cupo OK
     W->>CRM: get_or_create_customer(from_number)
     W->>WH: call.started (si configurado)
@@ -206,19 +207,16 @@ flowchart TD
   START["Llega llamada<br/>to_number = DID marcado"] --> DISP{"¿DID asignado a una<br/>instancia activa?"}
 
   DISP -->|Sí| TEN["Tenant = empresa dueña del DID"]
-  DISP -->|No| DEF["Tenant default / fallback<br/>plantilla receptionist"]
+  DISP -->|No y hay DID| DROP["Falla cerrado<br/>Número no enrutado<br/>no se atiende"]
 
   TEN --> INST["agent_instance = instancia del DID"]
   INST --> TPL["template_id<br/>receptionist | banking_support | …"]
   TPL --> VOICE["Voz xAI + locale + instrucciones<br/>de la instancia"]
 
-  DEF --> VOICE2["Config global / receptionist"]
-
   VOICE --> OUT["department_hint inicial"]
-  VOICE2 --> OUT
 ```
 
-**Regla práctica:** en **Mis agentes**, cada teléfono (DID) se enlaza a un agente. Ese es el “dueño” de la línea.
+**Regla práctica:** en **Mis agentes**, cada teléfono (DID) se enlaza a un agente. Ese es el “dueño” de la línea. Un DID desconocido no cae al receptionist global.
 
 ---
 
@@ -228,30 +226,20 @@ Tres capas; **todas** deben tener cupo (si la capa está definida):
 
 ```mermaid
 flowchart TD
-  IN["Nueva llamada concurrente"] --> L1{"Capa 1 · Empresa<br/>MAX_CONCURRENT_CALLS_PER_TENANT"}
-  L1 -->|lleno| BLOCK["queued = true<br/>Mensaje: agentes ocupados"]
-  L1 -->|ok| L2{"Capa 2 · Agente<br/>máx. simultáneas en instancia"}
-  L2 -->|lleno| BLOCK2["Mensaje: departamento al máximo"]
-  L2 -->|ok / sin límite| L3{"Capa 3 · DID<br/>máx. por número"}
-  L3 -->|lleno| BLOCK3["Mensaje: línea al máximo"]
-  L3 -->|ok / sin límite| OK["acquire slot<br/>Atiende normal"]
+  IN["Nueva llamada inbound"] --> DAY{"¿Dentro del límite diario?<br/>día calendario del tenant"}
+  DAY -->|no| REJECT["admit_inbound_job<br/>allowed=false · daily_limit<br/>no se abre sesión"]
+  DAY -->|sí| L1{"Capa 1 · Empresa<br/>MAX_CONCURRENT_CALLS_PER_TENANT"}
+  L1 -->|lleno| REJECT2["allowed=false · tenant"]
+  L1 -->|ok| L2{"Capa 2 · Agente"}
+  L2 -->|lleno| REJECT3["allowed=false · agent"]
+  L2 -->|ok / sin límite| L3{"Capa 3 · DID"}
+  L3 -->|lleno| REJECT4["allowed=false · number"]
+  L3 -->|ok / sin límite| OK["try_acquire_layers en SQLite<br/>_run_session"]
 
-  BLOCK --> AGENT["Sigue la sesión pero con nota de cola<br/>en instrucciones del agente"]
-  BLOCK2 --> AGENT
-  BLOCK3 --> AGENT
-  OK --> AGENT2["Sesión normal"]
-
-  AGENT --> END["Al colgar: release slot"]
-  AGENT2 --> END
+  OK --> END["Al colgar: release_layers"]
 ```
 
-Además del concurrente:
-
-```mermaid
-flowchart LR
-  D["Límite diario del plan<br/>tenant_within_call_limit"] -->|superado| MSG["Mensaje: no más llamadas hoy<br/>+ sugiere contactar mañana"]
-  D -->|ok| CONT["Continúa flujo normal"]
-```
+Los slots de concurrencia viven en `platform.db` (`concurrency_slots`) y se comparten entre procesos del worker. El diario usa `tenant.timezone`, no solo UTC.
 
 ---
 
@@ -270,7 +258,7 @@ flowchart TD
 
 ## 8. Atención de la llamada (diálogo)
 
-Estilo compartido (`phone_style` + Think Fast 2.0):
+Estilo compartido (`phone_style` + Think Fast 2.0). En SIP, `GROK_VOICE_*` (idle, keyterms, replace, speed, resumption) va en el primer `session.update` del `RealtimeModel`:
 
 ```mermaid
 flowchart TD
@@ -321,7 +309,8 @@ flowchart TD
   BANK --> H
   ESC --> H
 
-  H --> WH["Webhook agent.handoff"]
+  H --> OV["Overlay de instancia del tenant<br/>voz + instrucciones + tools"]
+  OV --> WH["Webhook agent.handoff"]
   H --> CONT["Continúa diálogo con especialista"]
 
   CONT --> BACK{"¿Vuelve a recepción?"}
@@ -456,6 +445,7 @@ sequenceDiagram
   participant CRM as CRM tenant
 
   User->>UI: Elige empresa + agente + Iniciar voz
+  Note over API: Lease user+tenant 30 min<br/>no es bearer token
   UI->>API: POST /api/voice/session
   API->>XAI: client_secrets efímero
   API-->>UI: token + model + voice + tools + instructions
@@ -499,8 +489,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  U["Operador"] --> S["POST /api/chat/sessions"]
-  S --> M["POST .../messages"]
+  U["Operador autenticado"] --> S["POST /api/chat/sessions<br/>requiere tenant + user"]
+  S --> LEASE["Lease 30 min (user+tenant)"]
+  LEASE --> M["POST .../messages<br/>solo el dueño del lease"]
   M --> LLM["LLM xAI / pipeline texto"]
   LLM --> T{"¿Tool / handoff?"}
   T -->|Sí| EX["Ejecuta tools CRM / routing"]
@@ -551,7 +542,7 @@ flowchart TD
   ROLE --> VW["viewer<br/>lectura"]
   ROLE --> PG["playground<br/>solo prueba"]
 
-  SA --> MOD["Módulos efectivos<br/>dashboard, agents, calls,<br/>analytics, supervisor, …"]
+  SA --> MOD["Módulos efectivos<br/>dashboard, agents, operations,<br/>calls, analytics, supervisor, …"]
   AD --> MOD
   VW --> MOD2["Subconjunto lectura"]
   PG --> MOD3["playground + limitado"]

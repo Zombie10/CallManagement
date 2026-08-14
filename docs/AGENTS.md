@@ -11,7 +11,7 @@
 | `technical` | en | Engineering, diagnostics, integrations |
 | `escalation` | en | Supervisor queue, empathy, tickets |
 
-Profiles are persisted in `data/agent_profiles.yaml` (editable in admin **Agents** page). Defaults live in `src/call_management/agents/`.
+Profiles are persisted in `data/agent_profiles.json` (override with `AGENT_PROFILES_PATH`). The store caches the file by mtime so lookups are not a disk read on every call. Edit in admin **Agents**. Defaults live in `src/call_management/agents/`.
 
 ## Phone-call behavior
 
@@ -59,7 +59,9 @@ Receptionist routes via function tools:
 
 Any agent can return to receptionist (`to_receptionist`) or escalate (`escalate_to_human`).
 
-Handoffs update `CallContext` (notes, purpose, previous agent) and swap the active LiveKit agent.
+Handoffs update `CallContext` (notes, purpose, previous agent) and swap the active LiveKit agent. If the tenant has an **active instance** of that template, the transfer applies that instance overlay (voice, custom instructions, tools) — not only the template class default.
+
+On the SIP / LiveKit worker path, settings extras (`GROK_VOICE_IDLE_TIMEOUT_MS`, keyterms, replace, output speed, resumption) are applied on the first `session.update` of `RealtimeModel`, same fields as the browser playground.
 
 ## xAI tools (per agent)
 

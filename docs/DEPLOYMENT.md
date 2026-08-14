@@ -81,14 +81,17 @@ ADMIN_ORIGIN=https://paymercadogo.com/callmgmt
 ADMIN_CORS_ORIGINS=https://paymercadogo.com,https://www.paymercadogo.com
 
 # Data (absolute paths)
+PLATFORM_DB_PATH=/opt/callmanagement/data/platform.db
+TENANTS_DATA_ROOT=/opt/callmanagement/data/tenants
 CRM_DB_PATH=/opt/callmanagement/data/crm.db
 ADMIN_AUTH_DB_PATH=/opt/callmanagement/data/admin_auth.db
 
 LOG_LEVEL=INFO
 DEFAULT_LOCALE=es
 
-# Multi-tenant limits (global per company; worker in-process)
+# Multi-tenant limits (SQLite slots in platform.db, shared across worker processes)
 MAX_CONCURRENT_CALLS_PER_TENANT=12
+# Daily cap uses the tenant timezone (Admin → Empresas → timezone)
 
 # Per-agent / per-DID limits are configured in Admin → Mis agentes
 # (max_concurrent_calls on agent instance; optional cap per phone number).
@@ -115,8 +118,7 @@ LIVEKIT_API_SECRET=...
 # RECORDINGS_S3_FORCE_PATH_STYLE=true
 # RECORDINGS_S3_PREFIX=callmanagement/recordings
 
-# Optional: Postgres CRM (requires: uv sync --extra postgres)
-# CRM_DATABASE_URL=postgresql://user:pass@host/db
+# CRM is SQLite per tenant (data/tenants/{id}/crm.db). No Postgres CRM backend.
 ```
 
 ### nginx
@@ -206,7 +208,8 @@ cd admin-ui && VITE_BASE=/callmgmt/ npm run build
 rsync -avz admin-ui/dist/ mercadogo-vps:/opt/callmanagement/admin-ui/dist/
 
 # 4. Sync Python deps on VPS (if pyproject.toml changed)
-ssh mercadogo-vps 'cd /opt/callmanagement && uv sync'
+# uv is typically ~/.local/bin/uv — not always on systemd/root PATH
+ssh mercadogo-vps 'cd /opt/callmanagement && export PATH="$HOME/.local/bin:$PATH" && uv sync'
 
 # 5. Restart stack
 ssh mercadogo-vps 'sudo systemctl restart callmanagement.target'
@@ -292,7 +295,7 @@ Healthcheck: `scripts/healthcheck.py`
 
 | File | Variable / path | Contents |
 |------|-----------------|----------|
-| Platform | `data/platform.db` | Tenants, agents, phone routes, schedules, webhooks |
+| Platform | `PLATFORM_DB_PATH` / `data/platform.db` | Tenants, agents, routes, concurrency slots, webhooks, API keys |
 | CRM per tenant | `data/tenants/{id}/crm.db` | Customers, calls, appointments |
 | Admin auth | `ADMIN_AUTH_DB_PATH` | Users, sessions, passkeys |
 | Legacy CRM | `CRM_DB_PATH` | Migrated to default tenant on startup |
@@ -305,7 +308,9 @@ uv run python scripts/init_crm.py
 
 Demo banking customers seed on admin startup (`demo_seed.py`).
 
-**PostgreSQL:** Set `CRM_DATABASE_URL` and install `asyncpg` (`uv sync --extra postgres`). Uses row-level `tenant_id` isolation. Without asyncpg, falls back to SQLite per tenant.
+**CRM:** SQLite only, one file per tenant under `TENANTS_DATA_ROOT`. There is no Postgres CRM adapter.
+
+**Admisión de llamadas:** el worker llama `admit_inbound_job` antes de `_run_session`. Sin cupo diario (día local del tenant) o sin slot de concurrencia, el job se registra en log y **termina** — no hay sesión atendida ni mensaje de “está en cola”.
 
 **SIP recordings:** Run `scripts/setup_recordings_minio.sh` (or `bootstrap_telephony.sh`). Worker starts LiveKit egress on connect; on hangup persists the call record and attaches `/api/calls/{id}/recording` when egress completes. See [TELEPHONY.md](TELEPHONY.md#grabación-sip).
 
@@ -351,6 +356,7 @@ sudo nginx -t && sudo systemctl reload nginx
 | Voice won't connect | `XAI_API_KEY`, `/api/chat/status` → `xai_voice_ready` |
 | LiveKit / SIP fails | `systemctl status callmanagement-worker`, `manage.sh logs worker`, `LIVEKIT_*` (WebSocket URL, not SIP subdomain) |
 | Call rings, no agent | Dispatch rule → `call-management`; worker Connected in LiveKit Agents |
+| Call drops immediately | DID no enrutado o `admit_inbound_job` rechazó (diario / concurrencia). Ver log `Rejecting inbound job` |
 | Wrong agent / no CRM route | DID en E.164 en **Mis agentes** (ej. `+15109379101`) |
 | No calls in analytics | Tenant context (`X-Tenant-Id`), data in `data/tenants/*/crm.db` |
 | Passkey fails | `ADMIN_ORIGIN` must be `https://paymercadogo.com/callmgmt` (no trailing issues) |

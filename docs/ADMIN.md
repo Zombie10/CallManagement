@@ -37,12 +37,13 @@ Default URL: **http://127.0.0.1:8080**
 |-------|-------------|-------|
 | `/tenants` | Crear y gestionar empresas, logo/color, métricas | `super_admin` |
 | `/my-agents` | Agentes por empresa: voz, teléfonos, horarios, estado | `super_admin`, `admin` |
+| `/operations` | Flujos / Operación — documentación interactiva de plantillas | `super_admin`, `admin`, `viewer` |
 | `/setup` | Guía primera llamada SIP (worker + dispatch + DID) | `super_admin`, `admin` |
 
 Cada empresa tiene:
 
 - CRM SQLite aislado: `data/tenants/{tenant_id}/crm.db`
-- Límites: `max_agents`, `max_calls_per_day`, concurrencia global (`MAX_CONCURRENT_CALLS_PER_TENANT`)
+- Límites: `max_agents`, `max_calls_per_day` (día calendario en `timezone` de la empresa), concurrencia global (`MAX_CONCURRENT_CALLS_PER_TENANT`)
 - Branding: `logo_url`, `brand_color` (visible en Playground)
 - Webhooks por tenant (`call.started`, `call.ended`, `appointment.*`, `agent.handoff`)
 - API keys para integraciones (`/api/public/v1/*`)
@@ -59,7 +60,9 @@ Las llamadas simultáneas se controlan en **tres capas** (todas deben tener cupo
 | Agente | **Mis agentes** → campo *Máx. llamadas simultáneas* | Banco 8, Recepción 4 |
 | Número (DID) | **Mis agentes** → columna *Máx.* junto a cada teléfono | Línea bancaria 6 |
 
-Vacío en agente o número = solo aplica el límite de empresa. El panel **Supervisor** muestra uso por empresa, agente y línea, con alertas cuando alguna capa está llena.
+Vacío en agente o número = solo aplica el límite de empresa. Los cupos concurrentes viven en SQLite (`platform.db`, tabla `concurrency_slots`) y se comparten entre procesos del worker. El día del límite diario es el **calendario de la empresa** (`timezone`, p. ej. `America/Guatemala`), no UTC.
+
+Si el diario o cualquier capa está llena, `admit_inbound_job` **rechaza el job**: no se abre sesión de voz ni se atiende con un mensaje de cola. El panel **Supervisor** muestra uso por empresa, agente y línea.
 
 **Header API:** `X-Tenant-Id` (super admin cambia empresa en la barra de contexto).  
 **Header opcional:** `X-Agent-Instance-Id` (playground con instancia concreta).
@@ -79,6 +82,7 @@ uv run python scripts/seed_demo_company.py
 | `/analytics` | Reportes interactivos, filtros, pivot, CSV | super_admin, admin, viewer |
 | `/tenants` | Orquestador de empresas | super_admin |
 | `/my-agents` | Agentes de la empresa activa | super_admin, admin |
+| `/operations` | Flujos de plantillas (documentación, no runtime en vivo) | super_admin, admin, viewer |
 | `/setup` | Wizard primera llamada SIP | super_admin, admin |
 | `/playground` | Voz (xAI / LiveKit) + chat texto | super_admin, admin, playground |
 | `/agents` | Plantillas de sistema (globales) | super_admin |
@@ -150,15 +154,18 @@ ADMIN_AUTH_DISABLED=true
 
 ## Playground
 
+Las sesiones de **chat** y **voz xAI** quedan ligadas al usuario autenticado y a su empresa (lease de **30 minutos**). El `session_id` no es un bearer token: otro usuario no puede `send` ni `complete` con un id ajeno. Un no-super no puede cambiar de empresa enviando `tenant_id` en el body. Crear chat sin tenant/usuario no escribe el CRM global.
+
 ### Voice — xAI direct
 
 - WebSocket vía token efímero (`/api/voice/session`).
 - Herramientas CRM en servidor (`/api/voice/tools/execute`).
 - Solo requiere `XAI_API_KEY`.
+- Completar la llamada exige el lease de voz de ese usuario.
 
 ### Voice — LiveKit production
 
-- Misma pipeline que llamadas SIP reales.
+- Misma pipeline que llamadas SIP reales (incluidos extras `GROK_VOICE_*` en el `RealtimeModel`).
 - Requiere `LIVEKIT_*` (WebSocket URL del proyecto, ver [TELEPHONY.md](TELEPHONY.md)) y worker activo (`callmanagement-worker`).
 - Llamadas PSTN además requieren dispatch rule en LiveKit y DID en **Mis agentes**.
 
@@ -212,7 +219,7 @@ Session cookie: `cm_admin_session` (httpOnly, path `/`).
 
 | Path | Purpose |
 |------|---------|
-| `data/platform.db` | Empresas, agentes, rutas, webhooks, API keys, auditoría webhook |
+| `data/platform.db` | Empresas, agentes, rutas, cupos de concurrencia, webhooks, API keys |
 | `data/tenants/{id}/crm.db` | CRM por empresa |
 | `data/admin_auth.db` | Usuarios, sesiones, passkeys |
 | `data/crm.db` | Legacy / tenant default (migración automática) |

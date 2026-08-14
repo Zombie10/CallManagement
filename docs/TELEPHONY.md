@@ -176,15 +176,19 @@ cd /opt/callmanagement
 
 [Testing guide LiveKit](https://docs.livekit.io/telephony/testing/)
 
-## Límites de concurrencia
+## Límites de concurrencia y admisión
 
-Tres capas (ver [ADMIN.md](ADMIN.md)):
+Tres capas (ver [ADMIN.md](ADMIN.md)). Los slots se guardan en `platform.db` y se comparten entre procesos del worker.
 
 | Capa | Config |
 |------|--------|
 | Empresa | `MAX_CONCURRENT_CALLS_PER_TENANT` en `.env` |
 | Agente | Mis agentes → máx. simultáneas |
 | DID | Mis agentes → máx. por número |
+
+El día del tope diario es el calendario de la empresa (`timezone`). Un DID no enrutado **falla cerrado** (`Número no enrutado`) y el job no arranca. Si diario o una capa está llena, `admit_inbound_job` rechaza el job (no se abre `AgentSession`).
+
+Los extras `GROK_VOICE_*` (idle, keyterms, replace, speed, resumption) se aplican en el primer `session.update` del `RealtimeModel` SIP, igual que en el playground xAI del browser.
 
 ## Grabación SIP
 

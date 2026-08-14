@@ -35,9 +35,11 @@ The `VITE_BASE` value must match the nginx location prefix. See [docs/DEPLOYMENT
 
 ## Structure
 
+Shared editors live in `src/components/` (`VoicePicker`, `AgentInstructionsEditor`, `UserPermissionEditor`). **Flujos / Operación** (`/operations`) is template documentation, not a live call tracer.
+
 ```
 src/
-├── pages/        # Dashboard, Playground, Agents, Customers, ...
+├── pages/        # Dashboard, Playground, Agents, OperationFlows, Customers, ...
 ├── components/   # Select, ToolCallLog, Layout, ...
 ├── hooks/        # useXaiVoice, useLiveKitVoice, useChatAutoScroll
 ├── lib/          # api.ts, agents.ts, audio.ts, webauthn.ts
@@ -49,5 +51,6 @@ src/
 - **xAI direct** — browser WebSocket to Grok Voice; tools via `/api/voice/tools/execute`
 - **LiveKit** — production agent worker pipeline
 - **Text** — multi-agent chat with tool log
+- Sessions are leased to the signed-in user + tenant (30 min); session ids are not transferable
 
 Full docs: [docs/ADMIN.md](../docs/ADMIN.md)
