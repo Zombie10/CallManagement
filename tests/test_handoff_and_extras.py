@@ -76,8 +76,10 @@ async def test_build_session_applies_extras_to_realtime_model(monkeypatch):
     assert "BAC" in list(model._opts.input_audio_transcription.keyterms)
     rt_session = model.session()
     try:
-        event = rt_session._create_session_update_event()
-        payload = event.model_dump()
+        queued = rt_session._msg_ch._queue
+        assert queued, "RealtimeSession.__init__ must queue the first session.update"
+        event = queued[0]
+        payload = event.model_dump() if hasattr(event, "model_dump") else event
         body = payload["session"]
         assert body["audio"]["input"]["turn_detection"]["idle_timeout_ms"] == 8000
         assert "BAC" in body["audio"]["input"]["transcription"]["keyterms"]

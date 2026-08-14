@@ -441,38 +441,46 @@ def _merge_session_update(event: Any, fields: dict[str, Any]) -> Any:
     return event
 
 
-def attach_sip_session_update(realtime_model: Any, extras: dict[str, Any]) -> None:
-    """Inject replace/resumption into the LiveKit session.update LiveKit will send."""
-    fields = sip_session_update_fields(extras)
-    realtime_model._sip_session_update = fields
-    if not fields or getattr(realtime_model, "_sip_session_patched", False):
-        return
+_SipRealtimeModel: Any | None = None
 
-    original_session = realtime_model.session
 
-    def session_with_extras(*args: Any, **kwargs: Any) -> Any:
-        sess = original_session(*args, **kwargs)
-        original_create = sess._create_session_update_event
+def _sip_realtime_model_cls() -> Any:
+    """xAI RealtimeModel whose session.update includes replace/resumption on the first event."""
+    global _SipRealtimeModel
+    if _SipRealtimeModel is not None:
+        return _SipRealtimeModel
 
-        def create_with_extras() -> Any:
-            return _merge_session_update(original_create(), fields)
+    from livekit.plugins import xai
 
-        sess._create_session_update_event = create_with_extras
-        return sess
+    class SipRealtimeSession(xai.realtime.RealtimeSession):
+        def _create_session_update_event(self) -> Any:
+            event = super()._create_session_update_event()
+            extras = getattr(self._realtime_model, "_sip_extras", None) or {}
+            return _merge_session_update(event, sip_session_update_fields(extras))
 
-    realtime_model.session = session_with_extras
-    realtime_model._sip_session_patched = True
+    class SipRealtimeModel(xai.realtime.RealtimeModel):
+        def __init__(self, *args: Any, sip_extras: dict[str, Any] | None = None, **kwargs: Any) -> None:
+            self._sip_extras = sip_extras or {}
+            super().__init__(*args, **kwargs)
+
+        def session(self) -> Any:
+            sess = SipRealtimeSession(self)
+            self._sessions.add(sess)
+            return sess
+
+    _SipRealtimeModel = SipRealtimeModel
+    return SipRealtimeModel
 
 
 def apply_sip_voice_extras(realtime_model: Any, extras: dict[str, Any] | None = None) -> dict[str, Any]:
     """Apply settings extras onto a LiveKit RealtimeModel (update_options + session.update)."""
     extras = extras or build_sip_voice_extras()
+    realtime_model._sip_extras = extras
     realtime_model.update_options(
         turn_detection=livekit_turn_detection(extras),
         speed=extras["output_speed"],
         input_audio_transcription=livekit_input_transcription(extras),
     )
-    attach_sip_session_update(realtime_model, extras)
     return extras
 
 
@@ -483,13 +491,12 @@ def build_sip_realtime_model(
     extras: dict[str, Any] | None = None,
 ) -> Any:
     """Construct the xAI RealtimeModel used on the LiveKit/SIP path with extras applied."""
-    from livekit.plugins import xai
-
     extras = extras or build_sip_voice_extras()
-    realtime = xai.realtime.RealtimeModel(
+    realtime = _sip_realtime_model_cls()(
         model=model,
         voice=voice,
         turn_detection=livekit_turn_detection(extras),
+        sip_extras=extras,
     )
     apply_sip_voice_extras(realtime, extras)
     return realtime
