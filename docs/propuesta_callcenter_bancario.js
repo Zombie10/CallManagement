@@ -74,8 +74,8 @@ async function build() {
   pres.subject = "Reducción de costos, mejoras y beneficios con Grok Voice, SIP y CRM";
 
   const chartBase = {
-    chartArea: { fill: { color: C.navy } },
-    plotArea: { fill: { color: C.navy } },
+    chartArea: { fill: { color: C.navy2 } },
+    plotArea: { fill: { color: C.navy2 } },
     catAxisLabelColor: C.body,
     valAxisLabelColor: C.mute,
     catAxisLabelFontFace: BF,
@@ -95,11 +95,21 @@ async function build() {
   function light() {
     const s = pres.addSlide();
     s.background = { color: C.navy };
+    s.addShape(pres.shapes.OVAL, {
+      x: -1.8, y: -2.2, w: 5.2, h: 5.2,
+      fill: { color: "0D9488", transparency: 88 }, line: { type: "none" },
+    });
+    s.addShape(pres.shapes.OVAL, {
+      x: 10.4, y: 4.2, w: 4.6, h: 4.6,
+      fill: { color: "38BDF8", transparency: 90 }, line: { type: "none" },
+    });
     s.addShape(pres.shapes.RECTANGLE, {
       x: 0, y: 0, w: SW, h: 0.08, fill: { color: C.teal }, line: { type: "none" },
     });
     return s;
   }
+  const glass = () => ({ color: "FFFFFF", transparency: 88 });
+  const glassLine = () => ({ color: "5EEAD4", transparency: 70, width: 0.75 });
   function footer(s, n, note) {
     s.addText(note || "Call Management  ·  propuesta ejecutiva  ·  rangos ilustrativos, no ROI auditado", {
       x: L, y: 7.12, w: W - 0.8, h: 0.22,
@@ -157,7 +167,7 @@ async function build() {
     kpis.forEach((k, i) => {
       const x = 0.7 + i * 4.05;
       s.addShape(pres.shapes.RECTANGLE, {
-        x, y: 4.55, w: 3.85, h: 1.85, fill: { color: C.navy2 }, line: { type: "none" },
+        x, y: 4.55, w: 3.85, h: 1.85, fill: glass(), line: glassLine(),
       });
       s.addShape(pres.shapes.RECTANGLE, {
         x, y: 4.55, w: 0.08, h: 1.85, fill: { color: C.teal }, line: { type: "none" },
@@ -193,8 +203,8 @@ async function build() {
     pains.forEach((p, i) => {
       const y = 1.65 + i * 1.2;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: L, y, w: 6.35, h: 1.08, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x: L, y, w: 6.35, h: 1.08, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addImage({ data: p.ic, x: L + 0.2, y: y + 0.32, w: 0.38, h: 0.38 });
       s.addText(p.t, {
@@ -239,8 +249,8 @@ async function build() {
     cols.forEach((c, i) => {
       const x = L + i * 3.1;
       s.addShape(pres.shapes.RECTANGLE, {
-        x, y: 1.25, w: 2.95, h: 5.5, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x, y: 1.25, w: 2.95, h: 5.5, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addShape(pres.shapes.RECTANGLE, {
         x, y: 1.25, w: 2.95, h: 0.1, fill: { color: C.teal }, line: { type: "none" },
@@ -287,8 +297,8 @@ async function build() {
         });
       }
       s.addShape(pres.shapes.RECTANGLE, {
-        x, y: 2.05, w: 2.35, h: 4.55, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x, y: 2.05, w: 2.35, h: 4.55, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addText(st.t, {
         x: x + 0.16, y: 2.25, w: 2.05, h: 0.55,
@@ -323,8 +333,8 @@ async function build() {
       const x = L + col * 4.15;
       const y = 1.65 + row * 2.45;
       s.addShape(pres.shapes.RECTANGLE, {
-        x, y, w: 3.98, h: 2.25, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x, y, w: 3.98, h: 2.25, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addImage({ data: ic.check, x: x + 0.22, y: y + 0.28, w: 0.32, h: 0.32 });
       s.addText(t.t, {
@@ -371,8 +381,8 @@ async function build() {
     notes.forEach((n, i) => {
       const y = 1.45 + i * 1.7;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: 8.7, y, w: 4.05, h: 1.55, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x: 8.7, y, w: 4.05, h: 1.55, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addText(n.t, {
         x: 8.9, y: y + 0.15, w: 3.7, h: 0.38,
@@ -414,8 +424,8 @@ async function build() {
     mix.forEach((m, i) => {
       const y = 1.45 + i * 1.7;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: 6.85, y, w: 5.9, h: 1.55, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x: 6.85, y, w: 5.9, h: 1.55, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addText(m.v, {
         x: 7.1, y: y + 0.18, w: 5.45, h: 0.5,
@@ -456,7 +466,7 @@ async function build() {
       valAxisMaxValue: 120,
     });
     s.addShape(pres.shapes.RECTANGLE, {
-      x: 8.85, y: 1.25, w: 3.9, h: 5.4, fill: { color: C.navy2 }, line: { type: "none" },
+      x: 8.85, y: 1.25, w: 3.9, h: 5.4, fill: glass(), line: glassLine(),
     });
     s.addText("QUÉ MEJORA", {
       x: 9.1, y: 1.5, w: 3.45, h: 0.3,
@@ -495,8 +505,8 @@ async function build() {
       const x = L + col * 4.15;
       const y = 1.2 + row * 2.75;
       s.addShape(pres.shapes.RECTANGLE, {
-        x, y, w: 3.98, h: 2.55, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x, y, w: 3.98, h: 2.55, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addShape(pres.shapes.OVAL, {
         x: x + 0.22, y: y + 0.22, w: 0.5, h: 0.5, fill: { color: C.navy2 }, line: { type: "none" },
@@ -527,8 +537,8 @@ async function build() {
     rows.forEach((r, i) => {
       const y = 1.2 + i * 1.35;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: L, y, w: W, h: 1.22, fill: { color: C.card },
-        line: { color: C.line, width: 1 }, shadow: shadow(),
+        x: L, y, w: W, h: 1.22, fill: glass(),
+        line: glassLine(), shadow: shadow(),
       });
       s.addShape(pres.shapes.RECTANGLE, {
         x: L, y, w: 0.1, h: 1.22, fill: { color: C.teal }, line: { type: "none" },
@@ -566,8 +576,8 @@ async function build() {
         fontSize: 18, fontFace: HF, bold: true, color: C.white, valign: "middle", margin: 0,
       });
       s.addShape(pres.shapes.RECTANGLE, {
-        x: L + 2.5, y, w: W - 2.5, h: 1.22, fill: { color: C.card },
-        line: { color: C.line, width: 1 },
+        x: L + 2.5, y, w: W - 2.5, h: 1.22, fill: glass(),
+        line: glassLine(),
       });
       s.addText(row.v, {
         x: L + 2.75, y: y + 0.18, w: 9.3, h: 0.4,
@@ -624,7 +634,7 @@ async function build() {
     side.forEach((k, i) => {
       const y = 0.55 + i * 2.15;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: 9.15, y, w: 3.7, h: 2.0, fill: { color: C.navy2 }, line: { type: "none" },
+        x: 9.15, y, w: 3.7, h: 2.0, fill: glass(), line: glassLine(),
       });
       s.addShape(pres.shapes.RECTANGLE, {
         x: 9.15, y, w: 0.08, h: 2.0, fill: { color: C.teal }, line: { type: "none" },

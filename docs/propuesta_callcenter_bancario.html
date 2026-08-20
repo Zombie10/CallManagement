@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Propuesta ejecutiva — Callcenter bancario · Call Management</title>
+  <style>
+    :root {
+      --bg: #05080f;
+      --teal: #2dd4bf;
+      --teal-d: #0d9488;
+      --sky: #38bdf8;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --body: #cbd5e1;
+      --glass: rgba(255,255,255,.07);
+      --glass-2: rgba(255,255,255,.11);
+      --stroke: rgba(94,234,212,.28);
+      --shadow: 0 18px 50px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .orbs {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(42rem 28rem at 8% -10%, rgba(13,148,136,.28), transparent 55%),
+        radial-gradient(36rem 30rem at 108% 20%, rgba(56,189,248,.18), transparent 50%),
+        radial-gradient(28rem 22rem at 70% 110%, rgba(45,212,191,.14), transparent 50%);
+    }
+    .deck { position: relative; z-index: 1; height: 100%; }
+    .slide {
+      display: none; height: 100%; padding: 3.2rem 4.2rem 5.6rem;
+      animation: in .45s ease;
+    }
+    .slide.on { display: flex; flex-direction: column; }
+    @keyframes in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .kicker { color: var(--teal); letter-spacing: .18em; font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+    h1 { font-size: clamp(2rem, 3.4vw, 2.7rem); font-weight: 750; letter-spacing: -.03em; line-height: 1.12; margin: .35rem 0 1.1rem; }
+    h1 em { color: var(--teal); font-style: normal; }
+    .lead { color: var(--body); max-width: 52rem; line-height: 1.5; font-size: 1.05rem; }
+    .glass {
+      background: var(--glass); border: 1px solid var(--stroke);
+      border-radius: 1.1rem; box-shadow: var(--shadow);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    }
+    .grid { display: grid; gap: 1rem; flex: 1; min-height: 0; }
+    .g2 { grid-template-columns: 1fr 1fr; }
+    .g3 { grid-template-columns: repeat(3, 1fr); }
+    .g4 { grid-template-columns: repeat(4, 1fr); }
+    .g5 { grid-template-columns: repeat(5, 1fr); }
+    .card { padding: 1.15rem 1.25rem; min-height: 0; }
+    .card h3 { font-size: 1.05rem; margin: .15rem 0 .4rem; }
+    .card p, .card li { color: var(--body); font-size: .95rem; line-height: 1.45; }
+    .num { color: var(--teal); font-weight: 800; font-size: 1.35rem; }
+    .kpi { font-size: 2rem; font-weight: 800; color: var(--teal); letter-spacing: -.03em; }
+    .note { margin-top: auto; color: var(--muted); font-size: .78rem; font-style: italic; padding-top: .8rem; }
+    .flow-n {
+      width: 2rem; height: 2rem; border-radius: 999px; background: var(--teal);
+      color: #042f2e; display: grid; place-items: center; font-weight: 800; margin-bottom: .7rem;
+    }
+    .hbar { display: grid; grid-template-columns: 10.5rem 1fr 2.4rem; gap: .6rem; align-items: center; margin: .55rem 0; }
+    .hbar span { color: var(--body); font-size: .85rem; }
+    .track { height: .7rem; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--teal-d), var(--teal)); }
+    .bars { display: flex; align-items: flex-end; gap: 1.1rem; height: 14rem; padding: 0 .4rem; }
+    .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; height: 100%; justify-content: flex-end; }
+    .pair { display: flex; gap: .25rem; width: 100%; height: 85%; align-items: flex-end; }
+    .pair i { display: block; width: 50%; border-radius: .4rem .4rem 0 0; }
+    .pair .a { background: #64748b; }
+    .pair .b { background: linear-gradient(180deg, var(--teal), var(--teal-d)); }
+    .col label { font-size: .72rem; color: var(--muted); text-align: center; line-height: 1.25; }
+    .donut-wrap { display: grid; grid-template-columns: 11rem 1fr; gap: 1rem; align-items: center; }
+    .legend { list-style: none; display: grid; gap: .45rem; font-size: .88rem; color: var(--body); }
+    .legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 99px; margin-right: .45rem; }
+    .split { display: grid; grid-template-columns: 1.35fr .9fr; gap: 1.2rem; flex: 1; min-height: 0; }
+    .ask { display: flex; gap: .75rem; align-items: flex-start; margin: .7rem 0; }
+    .ask b { min-width: 1.8rem; height: 1.8rem; border-radius: 99px; background: var(--teal); color: #042f2e; display: grid; place-items: center; }
+    /* controls */
+    .hud {
+      position: fixed; left: 50%; bottom: 1.1rem; transform: translateX(-50%);
+      z-index: 5; display: flex; align-items: center; gap: .55rem;
+      padding: .45rem .7rem; border-radius: 999px;
+    }
+    .hud button {
+      appearance: none; border: 0; background: rgba(255,255,255,.08); color: var(--text);
+      width: 2.2rem; height: 2.2rem; border-radius: 999px; cursor: pointer; font-size: 1rem;
+    }
+    .hud button:hover { background: rgba(45,212,191,.25); color: var(--teal); }
+    .dots { display: flex; gap: .28rem; }
+    .dots button {
+      width: .55rem; height: .55rem; padding: 0; background: rgba(255,255,255,.22);
+    }
+    .dots button.on { background: var(--teal); width: 1.25rem; border-radius: 99px; }
+    .count { color: var(--muted); font-size: .78rem; min-width: 2.6rem; text-align: center; }
+    .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--teal); z-index: 6; width: 0; }
+    .help {
+      position: fixed; right: 1.1rem; bottom: 1.1rem; z-index: 5;
+      font-size: .72rem; color: var(--muted); background: var(--glass); border: 1px solid var(--stroke);
+      border-radius: .8rem; padding: .55rem .7rem; backdrop-filter: blur(12px);
+    }
+    kbd { background: rgba(255,255,255,.1); border-radius: .3rem; padding: 0 .28rem; }
+    .overview {
+      display: none; position: fixed; inset: 0; z-index: 8; background: rgba(5,8,15,.82);
+      backdrop-filter: blur(10px); padding: 2rem; overflow: auto;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1rem;
+    }
+    .overview.on { display: grid; }
+    .overview button {
+      text-align: left; border: 1px solid var(--stroke); background: var(--glass);
+      color: var(--text); border-radius: .9rem; padding: .9rem; cursor: pointer;
+    }
+    .overview button:hover, .overview button.on { border-color: var(--teal); }
+    .overview small { color: var(--teal); letter-spacing: .12em; font-size: .65rem; }
+    @media (max-width: 900px) {
+      .slide { padding: 1.4rem 1.1rem 5.4rem; }
+      .g2, .g3, .g4, .g5, .split, .donut-wrap { grid-template-columns: 1fr; }
+      .help { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orbs"></div>
+  <div class="progress" id="progress"></div>
+  <main class="deck" id="deck"></main>
+  <nav class="hud glass" aria-label="Controles de la propuesta">
+    <button type="button" id="prev" aria-label="Anterior">‹</button>
+    <div class="dots" id="dots"></div>
+    <button type="button" id="next" aria-label="Siguiente">›</button>
+    <span class="count" id="count">01 / 12</span>
+    <button type="button" id="full" aria-label="Pantalla completa">⛶</button>
+    <button type="button" id="grid" aria-label="Vista de todas las diapositivas">▦</button>
+  </nav>
+  <aside class="help">← → espacio · <kbd>F</kbd> pantalla · <kbd>G</kbd> índice · <kbd>Esc</kbd></aside>
+  <div class="overview" id="overview"></div>
+
+  <script>
+    const slides = [
+      {
+        kicker: "Propuesta ejecutiva · callcenter bancario",
+        title: "Menos costo de primera línea.<br><em>Más control. Misma voz de marca.</em>",
+        html: `
+          <p class="lead">Call Management atiende llamadas inbound por telefonía SIP con Grok Voice Think Fast 2.0, opera banking_support (identidad, cuenta, tarjeta) y deja rastro en CRM, supervisor y grabación.</p>
+          <div class="grid g3" style="margin-top:1.4rem">
+            <div class="glass card"><div class="kpi">−35 a −55%</div><p>Costo relativo de primer nivel (rango ilustrativo vs. 100% humano).</p></div>
+            <div class="glass card"><div class="kpi">24/7</div><p>Cobertura de voz sin abrir un segundo turno.</p></div>
+            <div class="glass card"><div class="kpi">CRM 1:1</div><p>Aislamiento por empresa, sin mezclar clientes.</p></div>
+          </div>
+          <p class="note">Rangos ilustrativos, no ROI auditado.</p>`
+      },
+      {
+        kicker: "El problema",
+        title: "El callcenter bancario paga de más por trabajo repetible",
+        html: `
+          <div class="split">
+            <div class="grid" style="grid-template-columns:1fr">
+              <div class="glass card"><h3>Colas y scripts</h3><p>IVR rígido. El caller se pierde antes de llegar a banca.</p></div>
+              <div class="glass card"><h3>Identidad cara</h3><p>Rehacer KYC en cada llamada. Riesgo si se asume quién llama.</p></div>
+              <div class="glass card"><h3>Fuera de horario</h3><p>Un segundo turno humano es el renglón más caro del P&L.</p></div>
+              <div class="glass card"><h3>Sin rastro único</h3><p>Bloqueo de tarjeta y consulta no quedan en CRM + audio.</p></div>
+            </div>
+            <div class="glass card">
+              <h3>Dónde se va el minuto · ilustrativo</h3>
+              <div class="donut-wrap" style="margin-top:1rem">
+                ${donut([28,22,18,32], ["#fbbf24","#94a3b8","#fb7185","#2dd4bf"])}
+                <ul class="legend">
+                  <li><i style="background:#fbbf24"></i>Espera / IVR 28%</li>
+                  <li><i style="background:#94a3b8"></i>Datos repetidos 22%</li>
+                  <li><i style="background:#fb7185"></i>Fuera de horario 18%</li>
+                  <li><i style="background:#2dd4bf"></i>Caso complejo 32%</li>
+                </ul>
+              </div>
+            </div>
+          </div>`
+      },
+      {
+        kicker: "La propuesta",
+        title: "Call Management: voz, banca, CRM y control",
+        html: `<div class="grid g4">
+          <div class="glass card"><div class="num">01</div><h3>Telefonía SIP</h3><p>El DID entra por LiveKit. Un número no enrutado no se atiende. Admisión real de cupo.</p></div>
+          <div class="glass card"><div class="num">02</div><h3>Grok Voice</h3><p>Think Fast 2.0. Escucha primero, una pregunta a la vez. 26 voces xAI para la marca.</p></div>
+          <div class="glass card"><div class="num">03</div><h3>banking_support</h3><p>Identidad, cuenta BAC, tarjeta débito, bloqueo temporal, resumen de productos, escalación.</p></div>
+          <div class="glass card"><div class="num">04</div><h3>Gobierno</h3><p>CRM aislado, supervisor, grabación Egress, RBAC, tope diario y 3 capas de concurrencia.</p></div>
+        </div>`
+      },
+      {
+        kicker: "Cómo opera",
+        title: "Del DID al especialista — con admisión, no cola ficticia",
+        html: `<div class="grid g5">
+          ${step("1","Marca","PSTN → LiveKit Phone o trunk SIP.")}
+          ${step("2","Dispatch","Worker call-management toma el job.")}
+          ${step("3","Admisión","Día calendario del tenant + 3 capas SQLite.")}
+          ${step("4","Voz","Grok Voice con idle, keyterms, replace, speed.")}
+          ${step("5","Banca","Handoff con overlay de instancia (voz + instrucciones).")}
+        </div>
+        <p class="note">Si no hay cupo, admit_inbound_job rechaza el job. No se finge una espera.</p>`
+      },
+      {
+        kicker: "Capacidad bancaria",
+        title: "banking_support: identidad, cuenta, tarjeta y escalación",
+        html: `<p class="lead">Apertura: «BAC Credomatic, buenos días, ¿en qué le puedo ayudar?» El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.</p>
+        <div class="grid g3" style="margin-top:1rem">
+          ${tool("lookup_customer","CRM del tenant con el teléfono dicho en voz.")}
+          ${tool("verify_bac_account","Últimos 4 de la cuenta. Nunca se recita el PAN completo.")}
+          ${tool("verify_debit_card","Últimos 4 del débito y vencimiento opcional.")}
+          ${tool("block_debit_card_temporarily","Bloqueo temporal con rastro en la llamada.")}
+          ${tool("get_account_summary","Productos después de verificar (ahorro, débito, sucursal).")}
+          ${tool("to_escalation","Pasa a humano cuando el caso deja de ser primer nivel.")}
+        </div>`
+      },
+      {
+        kicker: "Reducción de costos",
+        title: "Índice de costo de un minuto de primer nivel",
+        html: `<p class="lead">Modelo ilustrativo (base 100 = agente humano en sitio). No es un ROI auditado ni un precio de contrato.</p>
+        <div class="split" style="margin-top:1rem">
+          <div class="glass card">
+            ${hbar("100% humano", 100)}
+            ${hbar("Humano + IVR", 82)}
+            ${hbar("Híbrido voz + humano", 58)}
+            ${hbar("Voz 24/7 + escalación", 45)}
+          </div>
+          <div class="grid" style="grid-template-columns:1fr">
+            <div class="glass card"><h3>Qué baja el costo</h3><p>Menos minutos humanos en saldo, bloqueo, verificación y captura fuera de horario.</p></div>
+            <div class="glass card"><h3>Qué no prometemos</h3><p>Eliminar el equipo. Los casos complejos y quejas van a escalación humana.</p></div>
+            <div class="glass card"><h3>Palanca real</h3><p>Cubrir la cola repetible con Grok Voice y medir en supervisor + CRM.</p></div>
+          </div>
+        </div>`
+      },
+      {
+        kicker: "Mejoras de mix",
+        title: "Dónde trabaja el minuto cuando hay agente de voz",
+        html: `<p class="lead">Rango ilustrativo de operación bancaria de primer nivel. Calibrar con un piloto de 2–4 semanas.</p>
+        <div class="split" style="margin-top:1rem">
+          <div class="glass card">
+            <div class="donut-wrap">
+              ${donut([58,24,12,6], ["#2dd4bf","#38bdf8","#fbbf24","#94a3b8"])}
+              <ul class="legend">
+                <li><i style="background:#2dd4bf"></i>Voz primer nivel 58%</li>
+                <li><i style="background:#38bdf8"></i>Especialista humano 24%</li>
+                <li><i style="background:#fbbf24"></i>Fuera de horario / captura 12%</li>
+                <li><i style="background:#94a3b8"></i>Abandono / retrabajo 6%</li>
+              </ul>
+            </div>
+          </div>
+          <div class="grid" style="grid-template-columns:1fr">
+            <div class="glass card"><div class="kpi">55–70%</div><p>Llamadas de saldo, bloqueo y verificación que puede cerrar banking_support.</p></div>
+            <div class="glass card"><div class="kpi">1 línea</div><p>DID bancario con instancia, voz e instrucciones de la empresa.</p></div>
+            <div class="glass card"><div class="kpi">0 cola falsa</div><p>Sin cupo, admit_inbound_job rechaza el job.</p></div>
+          </div>
+        </div>`
+      },
+      {
+        kicker: "Mejoras operativas",
+        title: "Antes vs. con Call Management · índice 100 = operación actual",
+        html: `<div class="split">
+          <div class="glass card">
+            <div class="bars" aria-label="Comparativa de índices">
+              ${pair("Espera", 100, 55)}
+              ${pair("Retrabajo", 100, 40)}
+              ${pair("Fuera de horario", 100, 20)}
+              ${pair("Inconsistencia", 100, 25)}
+            </div>
+            <p class="note" style="padding-top:.4rem">Gris = hoy · teal = con voz + admisión</p>
+          </div>
+          <div class="glass card">
+            <h3>Qué mejora</h3>
+            <p style="margin:.6rem 0">Menos espera: la voz contesta al instante si hay cupo.</p>
+            <p style="margin:.6rem 0">Menos retrabajo: lookup una vez, con el teléfono dictado.</p>
+            <p style="margin:.6rem 0">Menos hueco nocturno: captura y bloqueo sin abrir turno.</p>
+            <p style="margin:.6rem 0">Más consistencia: misma plantilla, overlay de la empresa.</p>
+          </div>
+        </div>`
+      },
+      {
+        kicker: "Beneficios",
+        title: "Lo que gana dirección, operaciones y cumplimiento",
+        html: `<div class="grid g3">
+          <div class="glass card"><h3>Reducción de costos</h3><p>Menos FTE de primer nivel en consultas repetibles. El humano se reserva para excepciones.</p></div>
+          <div class="glass card"><h3>Velocidad</h3><p>Respuesta inmediata en SIP cuando hay slot. Sin IVR de siete opciones.</p></div>
+          <div class="glass card"><h3>Cobertura</h3><p>Voz 24/7 para bloqueo y captura. El turno humano cubre lo complejo.</p></div>
+          <div class="glass card"><h3>Cumplimiento</h3><p>Grabación, transcript, webhook y CRM por llamada. Identidad no inventada.</p></div>
+          <div class="glass card"><h3>Experiencia</h3><p>Español natural, una pregunta, voz de marca (26 voces xAI).</p></div>
+          <div class="glass card"><h3>Multi-empresa</h3><p>Varios bancos o marcas en un stack, CRM aislado, cupos independientes.</p></div>
+        </div>`
+      },
+      {
+        kicker: "Control",
+        title: "Supervisor, grabación, CRM y permisos desde el día uno",
+        html: `<div class="grid" style="grid-template-columns:1fr">
+          <div class="glass card"><h3>Supervisor</h3><p>Llamadas activas, cola, alertas del worker, uso por empresa / agente / DID.</p></div>
+          <div class="glass card"><h3>Grabación SIP</h3><p>LiveKit Egress a MinIO/S3. Audio en la ficha cuando termina el egress.</p></div>
+          <div class="glass card"><h3>CRM y transcript</h3><p>Registro por tenant: turnos, notas, outcome, resumen post-llamada.</p></div>
+          <div class="glass card"><h3>RBAC + playground</h3><p>Roles y módulos. Lease de 30 min: el session_id no es un bearer token.</p></div>
+        </div>`
+      },
+      {
+        kicker: "Límites y aislamiento",
+        title: "El ahorro no puede romper el cupo ni mezclar bancos",
+        html: `<div class="grid" style="grid-template-columns:1fr">
+          ${layer("Empresa","MAX_CONCURRENT_CALLS_PER_TENANT","Slots SQLite compartidos entre procesos del worker.")}
+          ${layer("Agente","Máx. simultáneas de la instancia","Banca puede tener un cupo distinto a recepción.")}
+          ${layer("DID","Máx. por número","La línea bancaria no se satura a costa de otra.")}
+          ${layer("Diario","max_calls_per_day + timezone","Día calendario de la empresa, no UTC a ciegas.")}
+        </div>`
+      },
+      {
+        kicker: "Siguiente paso",
+        title: "Autorizar un piloto de 30 días<br>y medir costo, mix y calidad.",
+        html: `<div class="split">
+          <div>
+            <div class="ask"><b>1</b><p>DID de prueba + instancia banking_support activa.</p></div>
+            <div class="ask"><b>2</b><p>Playground xAI y LiveKit con operaciones y cumplimiento.</p></div>
+            <div class="ask"><b>3</b><p>Tablero: % cerrado por voz, escalaciones, grabaciones, cupos.</p></div>
+            <div class="ask"><b>4</b><p>Decisión de producción con horarios, voz de marca y webhooks.</p></div>
+          </div>
+          <div class="grid" style="grid-template-columns:1fr">
+            <div class="glass card"><div class="kpi">Piloto</div><p>Una línea bancaria, un equipo de revisión.</p></div>
+            <div class="glass card"><div class="kpi">KPI</div><p>Costo/minuto, mix voz, NPS interno, incidentes.</p></div>
+            <div class="glass card"><div class="kpi">Go</div><p>Dirección autoriza y nombra un sponsor.</p></div>
+          </div>
+        </div>
+        <p class="note">Call Management · propuesta ejecutiva para callcenter bancario</p>`
+      }
+    ];
+
+    function step(n, t, d) {
+      return `<div class="glass card"><div class="flow-n">${n}</div><h3>${t}</h3><p>${d}</p></div>`;
+    }
+    function tool(t, d) { return `<div class="glass card"><h3>${t}</h3><p>${d}</p></div>`; }
+    function layer(k, v, d) {
+      return `<div class="glass card" style="display:grid;grid-template-columns:8rem 1fr;gap:1rem;align-items:center">
+        <strong style="color:var(--teal)">${k}</strong><div><h3>${v}</h3><p>${d}</p></div></div>`;
+    }
+    function hbar(label, v) {
+      return `<div class="hbar"><span>${label}</span><div class="track"><div class="fill" style="width:${v}%"></div></div><span>${v}</span></div>`;
+    }
+    function pair(label, a, b) {
+      const mh = Math.max(a, b);
+      return `<div class="col"><div class="pair"><i class="a" style="height:${(a/mh)*100}%"></i><i class="b" style="height:${(b/mh)*100}%"></i></div><label>${label}<br>${a} → ${b}</label></div>`;
+    }
+    function donut(vals, colors) {
+      const sum = vals.reduce((a,b)=>a+b,0);
+      let acc = 0;
+      const r = 42, c = 2 * Math.PI * r;
+      const arcs = vals.map((v,i) => {
+        const len = (v/sum)*c;
+        const dash = `${len} ${c-len}`;
+        const rot = (acc/sum)*360 - 90;
+        acc += v;
+        return `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${colors[i]}" stroke-width="12"
+          stroke-dasharray="${dash}" stroke-linecap="round" transform="rotate(${rot} 50 50)"></circle>`;
+      }).join("");
+      return `<svg viewBox="0 0 100 100" width="160" height="160" role="img" aria-label="Gráfico de mix">${arcs}</svg>`;
+    }
+
+    const deck = document.getElementById("deck");
+    const dots = document.getElementById("dots");
+    const overview = document.getElementById("overview");
+    let i = 0;
+
+    slides.forEach((s, idx) => {
+      const el = document.createElement("section");
+      el.className = "slide";
+      el.dataset.slide = String(idx);
+      el.innerHTML = `<div class="kicker">${s.kicker}</div><h1>${s.title}</h1>${s.html}`;
+      deck.appendChild(el);
+      const d = document.createElement("button");
+      d.type = "button";
+      d.setAttribute("aria-label", "Ir a diapositiva " + (idx+1));
+      d.addEventListener("click", () => go(idx));
+      dots.appendChild(d);
+      const o = document.createElement("button");
+      o.type = "button";
+      o.innerHTML = `<small>0${idx+1}</small><div>${s.kicker}</div>`;
+      o.addEventListener("click", () => { overview.classList.remove("on"); go(idx); });
+      overview.appendChild(o);
+    });
+
+    function go(n) {
+      i = (n + slides.length) % slides.length;
+      [...deck.children].forEach((el, k) => el.classList.toggle("on", k === i));
+      [...dots.children].forEach((el, k) => el.classList.toggle("on", k === i));
+      [...overview.children].forEach((el, k) => el.classList.toggle("on", k === i));
+      document.getElementById("count").textContent = String(i+1).padStart(2,"0") + " / " + String(slides.length).padStart(2,"0");
+      document.getElementById("progress").style.width = ((i+1)/slides.length*100) + "%";
+      history.replaceState(null, "", "#s" + (i+1));
+    }
+
+    document.getElementById("prev").onclick = () => go(i-1);
+    document.getElementById("next").onclick = () => go(i+1);
+    document.getElementById("full").onclick = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    };
+    document.getElementById("grid").onclick = () => overview.classList.toggle("on");
+
+    addEventListener("keydown", (e) => {
+      if (["ArrowRight","PageDown"," ","Enter"].includes(e.key)) { e.preventDefault(); go(i+1); }
+      if (["ArrowLeft","PageUp","Backspace"].includes(e.key)) { e.preventDefault(); go(i-1); }
+      if (e.key === "Home") go(0);
+      if (e.key === "End") go(slides.length-1);
+      if (e.key === "f" || e.key === "F") document.getElementById("full").click();
+      if (e.key === "g" || e.key === "G") overview.classList.toggle("on");
+      if (e.key === "Escape") overview.classList.remove("on");
+    });
+
+    let x0 = null;
+    addEventListener("touchstart", (e) => { x0 = e.changedTouches[0].screenX; }, { passive: true });
+    addEventListener("touchend", (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].screenX - x0;
+      if (dx < -40) go(i+1);
+      if (dx > 40) go(i-1);
+      x0 = null;
+    });
+
+    const hash = Number((location.hash.match(/s(\d+)/) || [])[1] || 1);
+    go(Math.max(0, hash-1));
+  </script>
+</body>
+</html>

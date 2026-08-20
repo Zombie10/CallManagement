@@ -52,3 +52,23 @@ def test_executive_proposal_pptx_is_spanish_banking_brief():
     assert "xxxx" not in text
     assert "lorem ipsum" not in text
     assert "click to add" not in text
+
+
+def test_executive_proposal_html_has_glass_controls_and_charts():
+    html_path = REPO / "docs" / "propuesta_callcenter_bancario.html"
+    html = html_path.read_text(encoding="utf-8").lower()
+    assert html_path.is_file()
+    assert "propuesta ejecutiva" in html
+    assert "callcenter bancario" in html
+    assert "grok voice" in html
+    assert "banking_support" in html
+    assert "lookup_customer" in html
+    assert "reducción de costos" in html or "reduccion de costos" in html
+    assert "beneficios" in html
+    assert "backdrop-filter" in html
+    assert 'id="prev"' in html
+    assert 'id="next"' in html
+    assert 'id="dots"' in html
+    assert "<svg" in html or "donut" in html
+    assert "xxxx" not in html
+    assert "lorem ipsum" not in html
