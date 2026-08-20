@@ -23,3 +23,4 @@ data/
 # Admin UI
 admin-ui/node_modules/
 admin-ui/dist/
+.pptx-node/

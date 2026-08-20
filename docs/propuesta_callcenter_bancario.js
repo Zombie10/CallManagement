@@ -19,21 +19,20 @@ async function iconPng(Icon, color) {
 }
 
 const C = {
-  navy: "0A1628",
-  navy2: "122A45",
-  teal: "0D9488",
+  navy: "070B14",
+  navy2: "101827",
+  card: "152033",
+  teal: "2DD4BF",
   tealL: "5EEAD4",
-  amber: "F59E0B",
-  green: "10B981",
-  red: "EF4444",
-  white: "FFFFFF",
-  bg: "F4F7FB",
-  card: "FFFFFF",
-  slate: "1E293B",
-  mid: "475569",
-  mute: "64748B",
-  line: "E2E8F0",
-  ink: "0F172A",
+  tealD: "0D9488",
+  amber: "FBBF24",
+  sky: "38BDF8",
+  rose: "FB7185",
+  green: "34D399",
+  white: "F8FAFC",
+  body: "CBD5E1",
+  mute: "94A3B8",
+  line: "2A4060",
 };
 
 const HF = "Calibri";
@@ -44,25 +43,25 @@ const L = 0.55;
 const W = SW - 1.1;
 
 function shadow() {
-  return { type: "outer", blur: 10, offset: 3, angle: 135, color: "0A1628", opacity: 0.08 };
+  return { type: "outer", blur: 12, offset: 2, angle: 135, color: "000000", opacity: 0.35 };
 }
 
 async function build() {
   const ic = {
-    phone: await iconPng(FaPhoneAlt, "#0D9488"),
-    bank: await iconPng(FaUniversity, "#0D9488"),
-    shield: await iconPng(FaShieldAlt, "#0D9488"),
-    head: await iconPng(FaHeadset, "#0D9488"),
-    id: await iconPng(FaIdCard, "#0D9488"),
-    lock: await iconPng(FaLock, "#0D9488"),
-    chart: await iconPng(FaChartLine, "#0D9488"),
-    clock: await iconPng(FaClock, "#0D9488"),
-    users: await iconPng(FaUsers, "#0D9488"),
-    check: await iconPng(FaCheckCircle, "#10B981"),
-    down: await iconPng(FaArrowDown, "#0D9488"),
-    bolt: await iconPng(FaBolt, "#F59E0B"),
-    bldg: await iconPng(FaBuilding, "#0D9488"),
-    mic: await iconPng(FaMicrophone, "#0D9488"),
+    phone: await iconPng(FaPhoneAlt, "#5EEAD4"),
+    bank: await iconPng(FaUniversity, "#5EEAD4"),
+    shield: await iconPng(FaShieldAlt, "#5EEAD4"),
+    head: await iconPng(FaHeadset, "#5EEAD4"),
+    id: await iconPng(FaIdCard, "#5EEAD4"),
+    lock: await iconPng(FaLock, "#5EEAD4"),
+    chart: await iconPng(FaChartLine, "#5EEAD4"),
+    clock: await iconPng(FaClock, "#5EEAD4"),
+    users: await iconPng(FaUsers, "#5EEAD4"),
+    check: await iconPng(FaCheckCircle, "#34D399"),
+    down: await iconPng(FaArrowDown, "#5EEAD4"),
+    bolt: await iconPng(FaBolt, "#FBBF24"),
+    bldg: await iconPng(FaBuilding, "#5EEAD4"),
+    mic: await iconPng(FaMicrophone, "#5EEAD4"),
     wbank: await iconPng(FaUniversity, "#5EEAD4"),
     wchart: await iconPng(FaChartLine, "#5EEAD4"),
   };
@@ -75,22 +74,27 @@ async function build() {
   pres.subject = "Reducción de costos, mejoras y beneficios con Grok Voice, SIP y CRM";
 
   const chartBase = {
-    chartArea: { fill: { color: C.white } },
-    plotArea: { fill: { color: C.white } },
-    catAxisLabelColor: C.mute,
+    chartArea: { fill: { color: C.navy } },
+    plotArea: { fill: { color: C.navy } },
+    catAxisLabelColor: C.body,
     valAxisLabelColor: C.mute,
     catAxisLabelFontFace: BF,
     valAxisLabelFontFace: BF,
-    catAxisLabelFontSize: 11,
+    catAxisLabelFontSize: 12,
     valAxisLabelFontSize: 11,
-    valGridLine: { color: C.line, size: 0.5 },
+    valGridLine: { color: C.line, size: 0.75 },
     catGridLine: { style: "none" },
-    chartColors: [C.teal, C.navy, C.amber, C.mute],
+    chartColors: [C.teal, C.sky, C.amber, C.rose],
+    showValue: true,
+    dataLabelColor: C.white,
+    dataLabelFontSize: 12,
+    dataLabelFontFace: BF,
+    dataLabelFontBold: true,
   };
 
   function light() {
     const s = pres.addSlide();
-    s.background = { color: C.bg };
+    s.background = { color: C.navy };
     s.addShape(pres.shapes.RECTANGLE, {
       x: 0, y: 0, w: SW, h: 0.08, fill: { color: C.teal }, line: { type: "none" },
     });
@@ -113,7 +117,7 @@ async function build() {
     });
     s.addText(title, {
       x: L, y: 0.48, w: W, h: 0.55,
-      fontSize: 26, fontFace: HF, bold: true, color: C.navy, margin: 0,
+      fontSize: 26, fontFace: HF, bold: true, color: C.white, margin: 0,
     });
   }
 
@@ -178,7 +182,7 @@ async function build() {
     const s = light();
     heading(s, "EL PROBLEMA", "El callcenter bancario paga de más por trabajo repetible");
     s.addText("Hoy el costo se va a espera, repetición de datos, turnos extra y retrabajo. No a la conversación que sí requiere un humano.", {
-      x: L, y: 1.08, w: 6.3, h: 0.5, fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+      x: L, y: 1.08, w: 6.3, h: 0.5, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     const pains = [
       { ic: ic.head, t: "Colas y scripts", d: "IVR rígido. El caller se pierde antes de llegar a banca." },
@@ -195,11 +199,11 @@ async function build() {
       s.addImage({ data: p.ic, x: L + 0.2, y: y + 0.32, w: 0.38, h: 0.38 });
       s.addText(p.t, {
         x: L + 0.72, y: y + 0.12, w: 5.4, h: 0.34,
-        fontSize: 16, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 16, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(p.d, {
         x: L + 0.72, y: y + 0.5, w: 5.4, h: 0.42,
-        fontSize: 13, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 13, fontFace: BF, color: C.body, margin: 0,
       });
     });
     s.addText("DÓNDE SE VA EL MINUTO  ·  ilustrativo", {
@@ -214,8 +218,10 @@ async function build() {
       ...chartBase,
       x: 7.05, y: 1.4, w: 5.7, h: 4.55,
       showPercent: true, showLegend: true, legendPos: "b",
-      legendColor: C.mid, legendFontSize: 11, legendFontFace: BF,
-      chartColors: [C.amber, C.mute, C.red, C.teal],
+      legendColor: C.body, legendFontSize: 12, legendFontFace: BF,
+      holeSize: 58,
+      showValue: false,
+      chartColors: [C.amber, C.mute, C.rose, C.teal],
     });
     footer(s, 2);
   }
@@ -245,11 +251,11 @@ async function build() {
       });
       s.addText(c.t, {
         x: x + 0.2, y: 2.1, w: 2.55, h: 0.9,
-        fontSize: 20, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 20, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(c.d, {
         x: x + 0.2, y: 3.15, w: 2.55, h: 3.2,
-        fontSize: 15, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 15, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 3);
@@ -286,11 +292,11 @@ async function build() {
       });
       s.addText(st.t, {
         x: x + 0.16, y: 2.25, w: 2.05, h: 0.55,
-        fontSize: 18, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 18, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(st.d, {
         x: x + 0.16, y: 2.9, w: 2.05, h: 3.3,
-        fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 14, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 4);
@@ -301,7 +307,7 @@ async function build() {
     const s = light();
     heading(s, "CAPACIDAD BANCARIA", "banking_support: identidad, cuenta, tarjeta y escalación");
     s.addText("Apertura: «BAC Credomatic, buenos días, ¿en qué le puedo ayudar?»  El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.", {
-      x: L, y: 1.1, w: W, h: 0.42, fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+      x: L, y: 1.1, w: W, h: 0.42, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     const tools = [
       { t: "lookup_customer", d: "CRM del tenant con el teléfono dicho en voz." },
@@ -323,11 +329,11 @@ async function build() {
       s.addImage({ data: ic.check, x: x + 0.22, y: y + 0.28, w: 0.32, h: 0.32 });
       s.addText(t.t, {
         x: x + 0.64, y: y + 0.24, w: 3.15, h: 0.4,
-        fontSize: 14, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 14, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(t.d, {
         x: x + 0.22, y: y + 0.85, w: 3.54, h: 1.15,
-        fontSize: 15, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 15, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 5);
@@ -338,7 +344,7 @@ async function build() {
     const s = light();
     heading(s, "REDUCCIÓN DE COSTOS", "Índice de costo de un minuto de primer nivel");
     s.addText("Modelo ilustrativo (base 100 = agente humano en sitio). No es un ROI auditado ni un precio de contrato.", {
-      x: L, y: 1.08, w: W, h: 0.32, fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+      x: L, y: 1.08, w: W, h: 0.32, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     s.addChart(pres.charts.BAR, [{
       name: "Índice de costo",
@@ -350,8 +356,8 @@ async function build() {
       barDir: "bar",
       showValue: true,
       dataLabelPosition: "outEnd",
-      dataLabelColor: C.navy,
-      dataLabelFontSize: 12,
+      dataLabelColor: C.tealL,
+      dataLabelFontSize: 13,
       dataLabelFontFace: BF,
       showLegend: false,
       chartColors: [C.teal],
@@ -370,11 +376,11 @@ async function build() {
       });
       s.addText(n.t, {
         x: 8.9, y: y + 0.15, w: 3.7, h: 0.38,
-        fontSize: 15, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 15, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(n.d, {
         x: 8.9, y: y + 0.55, w: 3.7, h: 0.85,
-        fontSize: 13, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 13, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 6);
@@ -385,7 +391,7 @@ async function build() {
     const s = light();
     heading(s, "MEJORAS DE MIX", "Dónde trabaja el minuto cuando hay agente de voz");
     s.addText("Rango ilustrativo de operación bancaria de primer nivel. Calibrar con un piloto de 2–4 semanas.", {
-      x: L, y: 1.08, w: W, h: 0.3, fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+      x: L, y: 1.08, w: W, h: 0.3, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     s.addChart(pres.charts.DOUGHNUT, [{
       name: "Mix",
@@ -395,8 +401,10 @@ async function build() {
       ...chartBase,
       x: L - 0.15, y: 1.3, w: 6.6, h: 5.4,
       showPercent: true, showLegend: true, legendPos: "b",
-      legendColor: C.mid, legendFontSize: 12, legendFontFace: BF,
-      chartColors: [C.teal, C.navy, C.amber, C.mute],
+      legendColor: C.body, legendFontSize: 12, legendFontFace: BF,
+      holeSize: 62,
+      showValue: false,
+      chartColors: [C.teal, C.sky, C.amber, C.mute],
     });
     const mix = [
       { v: "55–70%", l: "Llamadas de saldo, bloqueo y verificación que puede cerrar banking_support" },
@@ -415,7 +423,7 @@ async function build() {
       });
       s.addText(m.l, {
         x: 7.1, y: y + 0.72, w: 5.45, h: 0.65,
-        fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 14, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 7);
@@ -440,15 +448,15 @@ async function build() {
       ...chartBase,
       x: L, y: 1.2, w: 8.3, h: 5.5,
       barDir: "col",
-      chartColors: [C.mute, C.teal],
+      chartColors: ["64748B", C.teal],
       showLegend: true, legendPos: "b",
-      legendColor: C.mid, legendFontSize: 12, legendFontFace: BF,
+      legendColor: C.body, legendFontSize: 13, legendFontFace: BF,
       showValue: true, dataLabelPosition: "outEnd",
-      dataLabelColor: C.navy, dataLabelFontSize: 10, dataLabelFontFace: BF,
+      dataLabelColor: C.white, dataLabelFontSize: 11, dataLabelFontFace: BF,
       valAxisMaxValue: 120,
     });
     s.addShape(pres.shapes.RECTANGLE, {
-      x: 8.85, y: 1.25, w: 3.9, h: 5.4, fill: { color: C.navy }, line: { type: "none" },
+      x: 8.85, y: 1.25, w: 3.9, h: 5.4, fill: { color: C.navy2 }, line: { type: "none" },
     });
     s.addText("QUÉ MEJORA", {
       x: 9.1, y: 1.5, w: 3.45, h: 0.3,
@@ -491,16 +499,16 @@ async function build() {
         line: { color: C.line, width: 1 }, shadow: shadow(),
       });
       s.addShape(pres.shapes.OVAL, {
-        x: x + 0.22, y: y + 0.22, w: 0.5, h: 0.5, fill: { color: "ECFDF8" }, line: { type: "none" },
+        x: x + 0.22, y: y + 0.22, w: 0.5, h: 0.5, fill: { color: C.navy2 }, line: { type: "none" },
       });
       s.addImage({ data: b.ic, x: x + 0.32, y: y + 0.32, w: 0.3, h: 0.3 });
       s.addText(b.t, {
         x: x + 0.85, y: y + 0.28, w: 2.9, h: 0.4,
-        fontSize: 16, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 16, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(b.d, {
         x: x + 0.22, y: y + 0.95, w: 3.54, h: 1.35,
-        fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 14, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 9);
@@ -528,11 +536,11 @@ async function build() {
       s.addImage({ data: r.ic, x: L + 0.35, y: y + 0.38, w: 0.42, h: 0.42 });
       s.addText(r.t, {
         x: L + 0.95, y: y + 0.16, w: 11, h: 0.38,
-        fontSize: 18, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 18, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(r.d, {
         x: L + 0.95, y: y + 0.58, w: 11, h: 0.45,
-        fontSize: 15, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 15, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 10);
@@ -551,7 +559,7 @@ async function build() {
     layers.forEach((row, i) => {
       const y = 1.2 + i * 1.35;
       s.addShape(pres.shapes.RECTANGLE, {
-        x: L, y, w: 2.5, h: 1.22, fill: { color: C.navy }, line: { type: "none" },
+        x: L, y, w: 2.5, h: 1.22, fill: { color: C.navy2 }, line: { type: "none" },
       });
       s.addText(row.k, {
         x: L + 0.18, y, w: 2.15, h: 1.22,
@@ -563,11 +571,11 @@ async function build() {
       });
       s.addText(row.v, {
         x: L + 2.75, y: y + 0.18, w: 9.3, h: 0.4,
-        fontSize: 16, fontFace: HF, bold: true, color: C.navy, margin: 0,
+        fontSize: 16, fontFace: HF, bold: true, color: C.white, margin: 0,
       });
       s.addText(row.d, {
         x: L + 2.75, y: y + 0.62, w: 9.3, h: 0.42,
-        fontSize: 14, fontFace: BF, color: C.mid, margin: 0,
+        fontSize: 14, fontFace: BF, color: C.body, margin: 0,
       });
     });
     footer(s, 11);
