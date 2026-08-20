@@ -29,6 +29,10 @@ def test_executive_proposal_pptx_is_spanish_banking_brief():
         assert "[Content_Types].xml" in names
         slides = [n for n in names if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
         assert len(slides) >= 8
+        charts = [n for n in names if n.startswith("ppt/charts/") and n.endswith(".xml")]
+        assert charts, "expected at least one native Office chart part"
+        media = [n for n in names if n.startswith("ppt/media/")]
+        assert media, "expected slide icons/media"
         types = z.read("[Content_Types].xml").decode("utf-8", errors="replace")
         assert "presentationml.slide+xml" in types
         text = _slide_text(z).lower()
@@ -41,6 +45,10 @@ def test_executive_proposal_pptx_is_spanish_banking_brief():
     assert "crm" in text
     assert "grabación" in text or "grabacion" in text
     assert "lookup_customer" in text
+    assert "reducción de costos" in text or "reduccion de costos" in text
+    assert "beneficios" in text
+    assert "mejoras" in text
+    assert "ilustrativo" in text
     assert "xxxx" not in text
     assert "lorem ipsum" not in text
     assert "click to add" not in text
