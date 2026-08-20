@@ -56,19 +56,58 @@ def test_executive_proposal_pptx_is_spanish_banking_brief():
 
 def test_executive_proposal_html_has_glass_controls_and_charts():
     html_path = REPO / "docs" / "propuesta_callcenter_bancario.html"
-    html = html_path.read_text(encoding="utf-8").lower()
+    html = html_path.read_text(encoding="utf-8")
+    html_l = html.lower()
     assert html_path.is_file()
-    assert "propuesta ejecutiva" in html
-    assert "callcenter bancario" in html
-    assert "grok voice" in html
-    assert "banking_support" in html
-    assert "lookup_customer" in html
-    assert "reducción de costos" in html or "reduccion de costos" in html
-    assert "beneficios" in html
-    assert "backdrop-filter" in html
+    assert "type=\"module\"" not in html_l
+    assert "propuesta_charts.js" in html
+    assert "propuesta ejecutiva" in html_l
+    assert "callcenter bancario" in html_l
+    assert "grok voice" in html_l
+    assert "banking_support" in html_l
+    assert "lookup_customer" in html_l
+    assert "sip" in html_l
+    assert "crm" in html_l
+    assert "grabación" in html_l or "grabacion" in html_l
+    assert "reducción de costos" in html_l or "reduccion de costos" in html_l
+    assert "beneficios" in html_l
+    assert "mejoras" in html_l
     assert 'id="prev"' in html
     assert 'id="next"' in html
     assert 'id="dots"' in html
-    assert "<svg" in html or "donut" in html
-    assert "xxxx" not in html
-    assert "lorem ipsum" not in html
+    assert "xxxx" not in html_l
+    assert "lorem ipsum" not in html_l
+
+
+def test_html_charts_and_deck_controller_from_shipped_js():
+    import json
+    import subprocess
+
+    runner = REPO / "tests" / "run_propuesta_html.js"
+    proc = subprocess.run(
+        ["node", str(runner)],
+        cwd=str(REPO),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    data = json.loads(proc.stdout)
+    assert data["minuteN"] == 4
+    assert data["mixN"] == 4
+    assert data["minuteVals"] == [28, 22, 18, 32]
+    assert data["mixVals"] == [58, 24, 12, 6]
+    assert data["uniqueMinuteD"] == 4
+    assert data["uniqueMixD"] == 4
+    assert data["minuteHasArc"] is True
+    assert data["mixHasArc"] is True
+    assert "Espera / IVR" in data["minuteLabels"]
+    assert "Voz primer nivel" in data["mixLabels"]
+    assert data["barValues"] == [100, 82, 58, 45]
+    assert data["barWidths"][0] == 100
+    assert data["barWidths"][-1] < data["barWidths"][0]
+    assert data["deck0"] == 0
+    assert data["deck1"] == 1
+    assert data["deckWrap"] == 0
+    assert data["onAfterMount"] == 1
+    assert data["onAfterNext"] == [1]
