@@ -38,6 +38,8 @@ def test_executive_proposal_pptx_is_spanish_banking_brief():
         text = _slide_text(z).lower()
 
     assert "propuesta" in text
+    assert "bac" in text
+    assert "guatemala" in text
     assert "callcenter bancario" in text
     assert "grok voice" in text
     assert "banking_support" in text
@@ -62,6 +64,8 @@ def test_executive_proposal_html_has_glass_controls_and_charts():
     assert "type=\"module\"" not in html_l
     assert "propuesta_charts.js" in html
     assert "propuesta ejecutiva" in html_l
+    assert "bac" in html_l
+    assert "guatemala" in html_l
     assert "callcenter bancario" in html_l
     assert "grok voice" in html_l
     assert "banking_support" in html_l

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Propuesta ejecutiva — Callcenter bancario · Call Management</title>
+  <title>Propuesta ejecutiva — BAC Guatemala · Call Management</title>
   <style>
     :root {
       --bg: #06090f;
@@ -160,25 +160,25 @@
       <div id="progress"></div>
 
       <section class="slide" id="s1">
-        <div class="kicker">Propuesta ejecutiva · callcenter bancario</div>
-        <h1>Menos costo de primera línea.<br><span>Más control. Misma voz de marca.</span></h1>
-        <p class="lead">Call Management atiende llamadas inbound por telefonía SIP con Grok Voice Think Fast 2.0, opera banking_support (identidad, cuenta, tarjeta) y deja rastro en CRM, supervisor y grabación.</p>
+        <div class="kicker">Propuesta ejecutiva · BAC Guatemala · callcenter bancario</div>
+        <h1>Primera línea de voz para<br><span>BAC Credomatic Guatemala.</span></h1>
+        <p class="lead">Call Management atiende llamadas inbound por telefonía SIP con Grok Voice Think Fast 2.0, opera banking_support (identidad, cuenta BAC, tarjeta) y deja rastro en CRM, supervisor y grabación — con día calendario America/Guatemala.</p>
         <div class="row c3" style="margin-top:1.15rem">
-          <div class="panel"><div class="kpi">−35 a −55%</div><p>Costo relativo de primer nivel (rango ilustrativo vs. 100% humano).</p></div>
-          <div class="panel"><div class="kpi">24/7</div><p>Cobertura de voz sin abrir un segundo turno.</p></div>
-          <div class="panel"><div class="kpi">CRM 1:1</div><p>Aislamiento por empresa, sin mezclar clientes.</p></div>
+          <div class="panel"><div class="kpi">−35 a −55%</div><p>Costo relativo de primer nivel del contact center (rango ilustrativo vs. 100% humano).</p></div>
+          <div class="panel"><div class="kpi">24/7</div><p>Cobertura de voz en horario de Guatemala, sin abrir un segundo turno.</p></div>
+          <div class="panel"><div class="kpi">CRM 1:1</div><p>Tenant BAC Guatemala aislado: clientes y grabaciones no se mezclan.</p></div>
         </div>
-        <p class="foot">Rangos ilustrativos, no ROI auditado.</p>
+        <p class="foot">Rangos ilustrativos para dirección de BAC Guatemala, no ROI auditado.</p>
       </section>
 
       <section class="slide" id="s2">
         <div class="kicker">El problema</div>
-        <h1>El callcenter bancario paga de más por trabajo repetible</h1>
+        <h1>El callcenter bancario de BAC Guatemala paga de más por trabajo repetible</h1>
         <div class="row c2 fill">
           <div class="stack">
             <div class="panel"><h3>Colas y scripts</h3><p>IVR rígido. El caller se pierde antes de llegar a banca.</p></div>
             <div class="panel"><h3>Identidad cara</h3><p>Rehacer KYC en cada llamada. Riesgo si se asume quién llama.</p></div>
-            <div class="panel"><h3>Fuera de horario</h3><p>Un segundo turno humano es el renglón más caro del P&amp;L.</p></div>
+            <div class="panel"><h3>Fuera de horario</h3><p>Noche y feriados en America/Guatemala: un segundo turno humano es el renglón más caro.</p></div>
             <div class="panel"><h3>Sin rastro único</h3><p>Bloqueo de tarjeta y consulta no quedan en CRM + audio.</p></div>
           </div>
           <div class="panel" style="min-height:100%; align-self:stretch">
@@ -190,11 +190,11 @@
 
       <section class="slide" id="s3">
         <div class="kicker">La propuesta</div>
-        <h1>Call Management: voz, banca, CRM y control</h1>
+        <h1>Call Management para el contact center de BAC Guatemala</h1>
         <div class="row c4">
           <div class="panel"><div class="num">01</div><h3>Telefonía SIP</h3><p>El DID entra por LiveKit. Un número no enrutado no se atiende. Admisión real de cupo.</p></div>
           <div class="panel"><div class="num">02</div><h3>Grok Voice</h3><p>Think Fast 2.0. Escucha primero, una pregunta a la vez. 26 voces xAI para la marca.</p></div>
-          <div class="panel"><div class="num">03</div><h3>banking_support</h3><p>Identidad, cuenta BAC, tarjeta débito, bloqueo temporal, resumen y escalación.</p></div>
+          <div class="panel"><div class="num">03</div><h3>banking_support</h3><p>Identidad, cuenta BAC, tarjeta débito, bloqueo temporal, resumen y escalación en español.</p></div>
           <div class="panel"><div class="num">04</div><h3>Gobierno</h3><p>CRM aislado, supervisor, grabación Egress, RBAC, tope diario y 3 capas.</p></div>
         </div>
       </section>
@@ -205,7 +205,7 @@
         <div class="row c5">
           <div class="panel"><div class="stepn">1</div><h3>Marca</h3><p>PSTN → LiveKit Phone o trunk SIP.</p></div>
           <div class="panel"><div class="stepn">2</div><h3>Dispatch</h3><p>Worker call-management toma el job.</p></div>
-          <div class="panel"><div class="stepn">3</div><h3>Admisión</h3><p>Día calendario del tenant + 3 capas SQLite.</p></div>
+          <div class="panel"><div class="stepn">3</div><h3>Admisión</h3><p>Día calendario America/Guatemala + 3 capas SQLite.</p></div>
           <div class="panel"><div class="stepn">4</div><h3>Voz</h3><p>Grok Voice con idle, keyterms, replace, speed.</p></div>
           <div class="panel"><div class="stepn">5</div><h3>Banca</h3><p>Handoff con overlay de instancia (voz + instrucciones).</p></div>
         </div>
@@ -215,7 +215,7 @@
       <section class="slide" id="s5">
         <div class="kicker">Capacidad bancaria</div>
         <h1>banking_support: identidad, cuenta, tarjeta y escalación</h1>
-        <p class="lead">Apertura: «BAC Credomatic, buenos días, ¿en qué le puedo ayudar?» El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.</p>
+        <p class="lead">Apertura de la instancia Guatemala: «BAC Credomatic Guatemala, buenos días, ¿en qué le puedo ayudar?» El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.</p>
         <div class="row c3" style="margin-top:.7rem">
           <div class="panel"><h3>lookup_customer</h3><p>CRM del tenant con el teléfono dicho en voz.</p></div>
           <div class="panel"><h3>verify_bac_account</h3><p>Últimos 4 de la cuenta. Nunca se recita el PAN completo.</p></div>
@@ -243,12 +243,12 @@
       <section class="slide" id="s7">
         <div class="kicker">Mejoras de mix</div>
         <h1>Dónde trabaja el minuto cuando hay agente de voz</h1>
-        <p class="lead">Rango ilustrativo de operación bancaria de primer nivel. Calibrar con un piloto de 2–4 semanas.</p>
+        <p class="lead">Rango ilustrativo de primer nivel en el contact center de BAC Guatemala. Calibrar con un piloto de 2–4 semanas.</p>
         <div class="row c2 fill" style="margin-top:.7rem">
           <div class="panel" id="chart-mix"></div>
           <div class="stack">
             <div class="panel"><div class="kpi">55–70%</div><p>Llamadas de saldo, bloqueo y verificación que puede cerrar banking_support.</p></div>
-            <div class="panel"><div class="kpi">1 línea</div><p>DID bancario con instancia, voz e instrucciones de la empresa.</p></div>
+            <div class="panel"><div class="kpi">1 línea</div><p>DID de BAC Guatemala con instancia, voz e instrucciones locales.</p></div>
             <div class="panel"><div class="kpi">0 cola falsa</div><p>Sin cupo, admit_inbound_job rechaza el job.</p></div>
           </div>
         </div>
@@ -274,14 +274,14 @@
 
       <section class="slide" id="s9">
         <div class="kicker">Beneficios</div>
-        <h1>Lo que gana dirección, operaciones y cumplimiento</h1>
+        <h1>Lo que gana dirección de canales, operaciones y cumplimiento en BAC Guatemala</h1>
         <div class="row c3">
           <div class="panel"><h3>Reducción de costos</h3><p>Menos FTE de primer nivel en consultas repetibles. El humano se reserva para excepciones.</p></div>
           <div class="panel"><h3>Velocidad</h3><p>Respuesta inmediata en SIP cuando hay slot. Sin IVR de siete opciones.</p></div>
           <div class="panel"><h3>Cobertura</h3><p>Voz 24/7 para bloqueo y captura. El turno humano cubre lo complejo.</p></div>
           <div class="panel"><h3>Cumplimiento</h3><p>Grabación, transcript, webhook y CRM por llamada. Identidad no inventada.</p></div>
-          <div class="panel"><h3>Experiencia</h3><p>Español natural, una pregunta, voz de marca (26 voces xAI).</p></div>
-          <div class="panel"><h3>Multi-empresa</h3><p>Varios bancos o marcas en un stack, CRM aislado, cupos independientes.</p></div>
+          <div class="panel"><h3>Experiencia</h3><p>Español de Guatemala, una pregunta, voz de marca BAC (26 voces xAI).</p></div>
+          <div class="panel"><h3>Aislamiento</h3><p>Tenant BAC Guatemala con CRM propio; otras marcas no ven esos clientes.</p></div>
         </div>
       </section>
 
@@ -303,27 +303,27 @@
           <div class="panel"><h3>Empresa · MAX_CONCURRENT_CALLS_PER_TENANT</h3><p>Slots SQLite compartidos entre procesos del worker.</p></div>
           <div class="panel"><h3>Agente · máx. simultáneas de la instancia</h3><p>Banca puede tener un cupo distinto a recepción.</p></div>
           <div class="panel"><h3>DID · máx. por número</h3><p>La línea bancaria no se satura a costa de otra.</p></div>
-          <div class="panel"><h3>Diario · max_calls_per_day + timezone</h3><p>Día calendario de la empresa, no UTC a ciegas.</p></div>
+          <div class="panel"><h3>Diario · max_calls_per_day + America/Guatemala</h3><p>El tope diario sigue el calendario de Guatemala, no UTC a ciegas.</p></div>
         </div>
       </section>
 
       <section class="slide" id="s12">
         <div class="kicker">Siguiente paso</div>
-        <h1>Autorizar un piloto de 30 días<br><span>y medir costo, mix y calidad.</span></h1>
+        <h1>Autorizar un piloto de 30 días<br><span>en el callcenter de BAC Guatemala.</span></h1>
         <div class="row c2">
           <div>
-            <div class="ask"><b>1</b><p>DID de prueba + instancia banking_support activa.</p></div>
-            <div class="ask"><b>2</b><p>Playground xAI y LiveKit con operaciones y cumplimiento.</p></div>
+            <div class="ask"><b>1</b><p>DID de prueba de BAC Guatemala + instancia banking_support activa.</p></div>
+            <div class="ask"><b>2</b><p>Playground xAI y LiveKit con operaciones y cumplimiento de BAC.</p></div>
             <div class="ask"><b>3</b><p>Tablero: % cerrado por voz, escalaciones, grabaciones, cupos.</p></div>
-            <div class="ask"><b>4</b><p>Decisión de producción con horarios, voz de marca y webhooks.</p></div>
+            <div class="ask"><b>4</b><p>Producción con horario America/Guatemala, voz de marca y webhooks.</p></div>
           </div>
           <div class="stack">
-            <div class="panel"><div class="kpi">Piloto</div><p>Una línea bancaria, un equipo de revisión.</p></div>
+            <div class="panel"><div class="kpi">Piloto</div><p>Una línea de BAC Guatemala, un equipo de revisión.</p></div>
             <div class="panel"><div class="kpi">KPI</div><p>Costo/minuto, mix voz, NPS interno, incidentes.</p></div>
-            <div class="panel"><div class="kpi">Go</div><p>Dirección autoriza y nombra un sponsor.</p></div>
+            <div class="panel"><div class="kpi">Go</div><p>Dirección de BAC Guatemala autoriza y nombra un sponsor.</p></div>
           </div>
         </div>
-        <p class="foot">Call Management · propuesta ejecutiva para callcenter bancario</p>
+        <p class="foot">Call Management · propuesta ejecutiva para el callcenter bancario de BAC Guatemala</p>
       </section>
     </div>
 

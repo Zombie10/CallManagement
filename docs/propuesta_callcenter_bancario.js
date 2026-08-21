@@ -70,8 +70,8 @@ async function build() {
   pres.defineLayout({ name: "WIDE", width: SW, height: SH });
   pres.layout = "WIDE";
   pres.author = "Call Management";
-  pres.title = "Propuesta ejecutiva: callcenter bancario moderno";
-  pres.subject = "Reducción de costos, mejoras y beneficios con Grok Voice, SIP y CRM";
+  pres.title = "Propuesta ejecutiva: BAC Guatemala — callcenter bancario";
+  pres.subject = "Call Management para BAC Credomatic Guatemala: Grok Voice, SIP, CRM y grabación";
 
   const chartBase = {
     chartArea: { fill: { color: C.navy2 } },
@@ -111,7 +111,7 @@ async function build() {
   const glass = () => ({ color: "FFFFFF", transparency: 88 });
   const glassLine = () => ({ color: "5EEAD4", transparency: 70, width: 0.75 });
   function footer(s, n, note) {
-    s.addText(note || "Call Management  ·  propuesta ejecutiva  ·  rangos ilustrativos, no ROI auditado", {
+    s.addText(note || "Call Management  ·  BAC Guatemala  ·  rangos ilustrativos, no ROI auditado", {
       x: L, y: 7.12, w: W - 0.8, h: 0.22,
       fontSize: 10, fontFace: BF, italic: true, color: C.mute, margin: 0,
     });
@@ -147,22 +147,22 @@ async function build() {
       x: 0, y: 0, w: 0.14, h: SH, fill: { color: C.teal }, line: { type: "none" },
     });
     s.addImage({ data: ic.wbank, x: 0.7, y: 0.45, w: 0.4, h: 0.4 });
-    s.addText("PROPUESTA EJECUTIVA  ·  CALLCENTER BANCARIO", {
-      x: 1.22, y: 0.5, w: 10, h: 0.32,
-      fontSize: 12, fontFace: HF, bold: true, color: C.tealL, charSpacing: 1.6, margin: 0,
+    s.addText("PROPUESTA EJECUTIVA  ·  BAC GUATEMALA  ·  CALLCENTER BANCARIO", {
+      x: 1.22, y: 0.5, w: 11, h: 0.32,
+      fontSize: 12, fontFace: HF, bold: true, color: C.tealL, charSpacing: 1.4, margin: 0,
     });
-    s.addText("Menos costo de primera línea.\nMás control. Misma voz de marca.", {
-      x: 0.7, y: 1.35, w: 9.4, h: 1.9,
-      fontSize: 34, fontFace: HF, bold: true, color: C.white, margin: 0,
+    s.addText("Primera línea de voz para\nBAC Credomatic Guatemala.", {
+      x: 0.7, y: 1.35, w: 9.6, h: 1.9,
+      fontSize: 32, fontFace: HF, bold: true, color: C.white, margin: 0,
     });
-    s.addText("Call Management atiende llamadas inbound por telefonía SIP con Grok Voice Think Fast 2.0, opera banking_support (identidad, cuenta, tarjeta) y deja rastro en CRM, supervisor y grabación.", {
-      x: 0.7, y: 3.45, w: 8.6, h: 0.85,
-      fontSize: 16, fontFace: BF, color: "CBD5E1", margin: 0,
+    s.addText("Call Management atiende llamadas inbound por telefonía SIP con Grok Voice Think Fast 2.0, opera banking_support (identidad, cuenta BAC, tarjeta) y deja rastro en CRM, supervisor y grabación — día calendario America/Guatemala.", {
+      x: 0.7, y: 3.4, w: 8.8, h: 0.9,
+      fontSize: 15, fontFace: BF, color: "CBD5E1", margin: 0,
     });
     const kpis = [
       { v: "−35 a −55%", l: "Costo relativo de primer nivel\n(rango ilustrativo vs. 100% humano)" },
-      { v: "24/7", l: "Cobertura de voz sin\nabrir un segundo turno" },
-      { v: "CRM 1:1", l: "Aislamiento por empresa\nsin mezclar clientes" },
+      { v: "24/7", l: "Cobertura de voz en horario\nde Guatemala, sin segundo turno" },
+      { v: "CRM 1:1", l: "Tenant BAC Guatemala aislado:\nclientes y grabaciones propios" },
     ];
     kpis.forEach((k, i) => {
       const x = 0.7 + i * 4.05;
@@ -190,14 +190,14 @@ async function build() {
   // ── 2 PROBLEMA + doughnut ──
   {
     const s = light();
-    heading(s, "EL PROBLEMA", "El callcenter bancario paga de más por trabajo repetible");
-    s.addText("Hoy el costo se va a espera, repetición de datos, turnos extra y retrabajo. No a la conversación que sí requiere un humano.", {
+    heading(s, "EL PROBLEMA", "El callcenter bancario de BAC Guatemala paga de más por trabajo repetible");
+    s.addText("Hoy el costo se va a espera, repetición de datos, turnos extra y retrabajo. No a la conversación que sí requiere un humano de BAC.", {
       x: L, y: 1.08, w: 6.3, h: 0.5, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     const pains = [
       { ic: ic.head, t: "Colas y scripts", d: "IVR rígido. El caller se pierde antes de llegar a banca." },
       { ic: ic.id, t: "Identidad cara", d: "Rehacer KYC en cada llamada. Riesgo si se asume quién llama." },
-      { ic: ic.clock, t: "Fuera de horario", d: "Un segundo turno humano es el renglón más caro del P&L." },
+      { ic: ic.clock, t: "Fuera de horario", d: "Noche y feriados en America/Guatemala: un segundo turno humano es el renglón más caro." },
       { ic: ic.lock, t: "Sin rastro único", d: "Bloqueo de tarjeta y consulta no quedan en CRM + audio." },
     ];
     pains.forEach((p, i) => {
@@ -239,11 +239,11 @@ async function build() {
   // ── 3 PROPUESTA ──
   {
     const s = light();
-    heading(s, "LA PROPUESTA", "Call Management: voz, banca, CRM y control en un sistema");
+    heading(s, "LA PROPUESTA", "Call Management para el contact center de BAC Guatemala");
     const cols = [
       { n: "01", t: "Telefonía SIP", d: "El DID entra por LiveKit. Un número no enrutado no se atiende. Admisión real de cupo." },
       { n: "02", t: "Grok Voice", d: "Think Fast 2.0. Escucha primero, una pregunta a la vez. 26 voces xAI para la marca." },
-      { n: "03", t: "banking_support", d: "Identidad, cuenta BAC, tarjeta débito, bloqueo temporal, resumen de productos, escalación." },
+      { n: "03", t: "banking_support", d: "Identidad, cuenta BAC, tarjeta débito, bloqueo temporal, resumen y escalación en español." },
       { n: "04", t: "Gobierno", d: "CRM aislado, supervisor, grabación Egress, RBAC, tope diario y 3 capas de concurrencia." },
     ];
     cols.forEach((c, i) => {
@@ -278,7 +278,7 @@ async function build() {
     const steps = [
       { n: "1", t: "Marca", d: "PSTN → LiveKit Phone o trunk SIP." },
       { n: "2", t: "Dispatch", d: "Worker call-management toma el job." },
-      { n: "3", t: "Admisión", d: "Día calendario del tenant + 3 capas SQLite." },
+      { n: "3", t: "Admisión", d: "Día calendario America/Guatemala + 3 capas SQLite." },
       { n: "4", t: "Voz", d: "Grok Voice con idle, keyterms, replace, speed." },
       { n: "5", t: "Banca", d: "Handoff con overlay de instancia (voz + instrucciones)." },
     ];
@@ -316,7 +316,7 @@ async function build() {
   {
     const s = light();
     heading(s, "CAPACIDAD BANCARIA", "banking_support: identidad, cuenta, tarjeta y escalación");
-    s.addText("Apertura: «BAC Credomatic, buenos días, ¿en qué le puedo ayudar?»  El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.", {
+    s.addText("Apertura de la instancia Guatemala: «BAC Credomatic Guatemala, buenos días, ¿en qué le puedo ayudar?» El agente no asume identidad. lookup_customer usa el teléfono que el caller dicta.", {
       x: L, y: 1.1, w: W, h: 0.42, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     const tools = [
@@ -400,7 +400,7 @@ async function build() {
   {
     const s = light();
     heading(s, "MEJORAS DE MIX", "Dónde trabaja el minuto cuando hay agente de voz");
-    s.addText("Rango ilustrativo de operación bancaria de primer nivel. Calibrar con un piloto de 2–4 semanas.", {
+    s.addText("Rango ilustrativo de primer nivel en el contact center de BAC Guatemala. Calibrar con un piloto de 2–4 semanas.", {
       x: L, y: 1.08, w: W, h: 0.3, fontSize: 14, fontFace: BF, color: C.body, margin: 0,
     });
     s.addChart(pres.charts.DOUGHNUT, [{
@@ -418,7 +418,7 @@ async function build() {
     });
     const mix = [
       { v: "55–70%", l: "Llamadas de saldo, bloqueo y verificación que puede cerrar banking_support" },
-      { v: "1 línea", l: "DID bancario con instancia, voz e instrucciones de la empresa — no un default genérico" },
+      { v: "1 línea", l: "DID de BAC Guatemala con instancia, voz e instrucciones locales" },
       { v: "0 cola falsa", l: "Si no hay cupo, admit_inbound_job rechaza el job. No se finge una espera" },
     ];
     mix.forEach((m, i) => {
@@ -490,14 +490,14 @@ async function build() {
   // ── 9 BENEFICIOS ──
   {
     const s = light();
-    heading(s, "BENEFICIOS", "Lo que gana dirección, operaciones y cumplimiento");
+    heading(s, "BENEFICIOS", "Lo que gana dirección de canales y cumplimiento en BAC Guatemala");
     const bens = [
       { ic: ic.down, t: "Reducción de costos", d: "Menos FTE de primer nivel en consultas repetibles. El humano se reserva para excepciones." },
       { ic: ic.bolt, t: "Velocidad", d: "Respuesta inmediata en SIP cuando hay slot. Sin IVR de siete opciones." },
       { ic: ic.clock, t: "Cobertura", d: "Voz 24/7 para bloqueo y captura. El turno humano cubre lo complejo." },
       { ic: ic.shield, t: "Cumplimiento", d: "Grabación, transcript, webhook y CRM por llamada. Identidad no inventada." },
-      { ic: ic.users, t: "Experiencia", d: "Español natural, una pregunta, voz de marca (26 voces xAI)." },
-      { ic: ic.bldg, t: "Multi-empresa", d: "Varios bancos o marcas en un stack, CRM aislado, cupos independientes." },
+      { ic: ic.users, t: "Experiencia", d: "Español de Guatemala, una pregunta, voz de marca BAC (26 voces xAI)." },
+      { ic: ic.bldg, t: "Aislamiento", d: "Tenant BAC Guatemala con CRM propio; otras marcas no ven esos clientes." },
     ];
     bens.forEach((b, i) => {
       const col = i % 3;
@@ -564,7 +564,7 @@ async function build() {
       { k: "Empresa", v: "MAX_CONCURRENT_CALLS_PER_TENANT", d: "Slots SQLite compartidos entre procesos del worker." },
       { k: "Agente", v: "Máx. simultáneas de la instancia", d: "Banca puede tener un cupo distinto a recepción." },
       { k: "DID", v: "Máx. por número", d: "La línea bancaria no se satura a costa de otra." },
-      { k: "Diario", v: "max_calls_per_day + timezone", d: "Día calendario de la empresa, no UTC a ciegas." },
+      { k: "Diario", v: "max_calls_per_day + America/Guatemala", d: "El tope diario sigue el calendario de Guatemala, no UTC." },
     ];
     layers.forEach((row, i) => {
       const y = 1.2 + i * 1.35;
@@ -602,15 +602,15 @@ async function build() {
       x: 0.7, y: 0.4, w: 8, h: 0.3,
       fontSize: 12, fontFace: HF, bold: true, color: C.tealL, charSpacing: 2, margin: 0,
     });
-    s.addText("Autorizar un piloto de 30 días\ny medir costo, mix y calidad.", {
-      x: 0.7, y: 0.85, w: 8.2, h: 1.5,
-      fontSize: 28, fontFace: HF, bold: true, color: C.white, margin: 0,
+    s.addText("Autorizar un piloto de 30 días\nen el callcenter de BAC Guatemala.", {
+      x: 0.7, y: 0.85, w: 8.4, h: 1.5,
+      fontSize: 26, fontFace: HF, bold: true, color: C.white, margin: 0,
     });
     const asks = [
-      "DID de prueba + instancia banking_support activa.",
-      "Playground xAI y LiveKit con operaciones y cumplimiento.",
+      "DID de prueba de BAC Guatemala + instancia banking_support activa.",
+      "Playground xAI y LiveKit con operaciones y cumplimiento de BAC.",
       "Tablero: % cerrado por voz, escalaciones, grabaciones, cupos.",
-      "Decisión de producción con horarios, voz de marca y webhooks.",
+      "Producción con horario America/Guatemala, voz de marca y webhooks.",
     ];
     asks.forEach((a, i) => {
       const y = 2.55 + i * 0.72;
@@ -627,9 +627,9 @@ async function build() {
       });
     });
     const side = [
-      { v: "Piloto", l: "Una línea bancaria,\nun equipo de revisión" },
+      { v: "Piloto", l: "Una línea de BAC Guatemala,\nun equipo de revisión" },
       { v: "KPI", l: "Costo/minuto, mix voz,\nNPS interno, incidentes" },
-      { v: "Go", l: "Dirección autoriza\ny nombra un sponsor" },
+      { v: "Go", l: "Dirección de BAC Guatemala\nautoriza y nombra sponsor" },
     ];
     side.forEach((k, i) => {
       const y = 0.55 + i * 2.15;
@@ -648,7 +648,7 @@ async function build() {
         fontSize: 14, fontFace: BF, color: "94A3B8", margin: 0,
       });
     });
-    s.addText("Call Management  ·  propuesta ejecutiva para callcenter bancario", {
+    s.addText("Call Management  ·  propuesta ejecutiva para el callcenter bancario de BAC Guatemala", {
       x: 0.7, y: 7.12, w: 8, h: 0.22,
       fontSize: 11, fontFace: BF, italic: true, color: C.mute, margin: 0,
     });

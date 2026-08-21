@@ -8,8 +8,8 @@ AI voice agents for contact centers and business telephony: multi-agent routing,
 
 | Guide | Contents |
 |-------|----------|
-| [**Propuesta ejecutiva (PPTX)**](docs/Propuesta_Callcenter_Bancario.pptx) | Brief para dirección: callcenter bancario con Call Management |
-| [**Propuesta HTML**](docs/propuesta_callcenter_bancario.html) | Misma propuesta, tema oscuro translúcido, gráficos y controles de diapositiva |
+| [**Propuesta ejecutiva (PPTX)**](docs/Propuesta_Callcenter_Bancario.pptx) | Brief para dirección de BAC Guatemala |
+| [**Propuesta HTML**](docs/propuesta_callcenter_bancario.html) | Misma propuesta BAC Guatemala, deck oscuro con gráficos y controles |
 | [**Flujogramas operativos**](docs/FLUJOS_OPERATIVOS.md) | Mapas de negocio, llamada PSTN, handoffs, admisión, playgrounds |
 | [Admin console](docs/ADMIN.md) | Web UI, auth, roles, multi-tenant, playground, Flujos / Operación |
 | [Análisis y reportes](docs/ANALYTICS.md) | Filtros, pivot, export CSV, API `/api/reports/*` |
