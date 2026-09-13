@@ -589,6 +589,13 @@ def _mount_static() -> None:
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
+    favicon = ADMIN_UI_DIST / "favicon.svg"
+    if favicon.exists():
+
+        @app.get("/favicon.svg")
+        async def admin_favicon():
+            return FileResponse(favicon, media_type="image/svg+xml")
+
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
         if full_path.startswith("api/"):
