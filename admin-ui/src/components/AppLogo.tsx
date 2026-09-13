@@ -14,7 +14,7 @@ const SIZE: Record<NonNullable<AppLogoProps["size"]>, string> = {
   xl: "h-14 w-14",
 };
 
-/** Modern Call Management mark: soft bell + signal arcs on cyan→indigo gradient. */
+/** Call Management mark: open orbit (live channel) + waveform core. Not a bell. */
 export function AppLogoMark({ className, size = "md" }: Pick<AppLogoProps, "className" | "size">) {
   return (
     <div
@@ -25,37 +25,19 @@ export function AppLogoMark({ className, size = "md" }: Pick<AppLogoProps, "clas
       )}
       aria-hidden
     >
-      <svg viewBox="0 0 40 40" className="h-full w-full p-[18%]" fill="none">
+      <svg viewBox="0 0 40 40" className="h-full w-full p-[14%]" fill="none">
         <path
-          d="M20 6.5c-5.2 0-9.4 3.9-9.4 8.8v5.2c0 1.2-.4 2.4-1.2 3.3l-1.1 1.2c-.7.7-.2 1.9.8 1.9h21.8c1 0 1.5-1.2.8-1.9l-1.1-1.2c-.8-.9-1.2-2.1-1.2-3.3v-5.2c0-4.9-4.2-8.8-9.4-8.8z"
-          fill="white"
-          fillOpacity="0.95"
-        />
-        <path
-          d="M15.2 29.2c1.2 1.7 2.9 2.8 4.8 2.8s3.6-1.1 4.8-2.8"
+          d="M25.4 10.2A12 12 0 1 0 25.4 29.8"
           stroke="white"
-          strokeWidth="1.8"
+          strokeWidth="3.1"
           strokeLinecap="round"
-          opacity="0.9"
         />
-        <circle cx="20" cy="13.2" r="1.5" fill="#0e7490" />
-        {/* subtle signal rings */}
-        <path
-          d="M10 12.5c-1.8 2-2.8 4.4-2.8 7"
-          stroke="white"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          opacity="0.35"
-        />
-        <path
-          d="M30 12.5c1.8 2 2.8 4.4 2.8 7"
-          stroke="white"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          opacity="0.35"
-        />
+        <circle cx="25.4" cy="10.2" r="2.35" fill="white" />
+        <rect x="13.4" y="16.4" width="2.7" height="7.2" rx="1.35" fill="white" opacity="0.78" />
+        <rect x="18.65" y="12.2" width="2.7" height="15.6" rx="1.35" fill="white" />
+        <rect x="23.9" y="15" width="2.7" height="10" rx="1.35" fill="white" opacity="0.78" />
       </svg>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/15 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
     </div>
   );
 }
