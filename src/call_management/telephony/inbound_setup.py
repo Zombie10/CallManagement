@@ -152,7 +152,7 @@ async def ensure_livekit_phone_number_inbound(phone: str) -> dict[str, Any]:
             "phone": phone,
             "configured": False,
             "auto_setup": False,
-            "message": "LiveKit no configurado en el servidor (LIVEKIT_*)",
+            "message": "LiveKit no está configurado en el servidor.",
         }
 
     lk_numbers = list_livekit_phone_numbers()

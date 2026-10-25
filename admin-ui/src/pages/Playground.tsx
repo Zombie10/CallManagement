@@ -464,7 +464,7 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
 
         {!status?.xai_voice_ready && (
           <p className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
-            Configura <code>XAI_API_KEY</code> — no requiere LiveKit.
+            Configura la clave de xAI en Configuración. No requiere LiveKit.
           </p>
         )}
 
@@ -522,7 +522,7 @@ function VoicePlayground({ picker }: { picker: AgentPicker }) {
             <Zap className="h-4 w-4 text-violet-400" />
             <span className="font-medium">xAI directo</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Solo XAI_API_KEY · transcript en vivo</p>
+          <p className="mt-1 text-xs text-slate-500">Solo la clave de xAI · transcript en vivo</p>
         </button>
         <button
           type="button"
@@ -636,7 +636,7 @@ export function Playground() {
 
       {status?.requires_xai_key && (
         <div className="glass-card stagger-2 border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-          Configura <code className="text-amber-100">XAI_API_KEY</code> en Configuración.
+          Configura la clave de xAI en Configuración.
         </div>
       )}
 

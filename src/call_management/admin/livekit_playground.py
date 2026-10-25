@@ -20,7 +20,7 @@ AGENT_DISPATCH_NAME = "call-management"
 def livekit_playground_ready() -> tuple[bool, list[str]]:
     issues = check_livekit_env()
     if not os.getenv("XAI_API_KEY", "").strip():
-        issues.append("XAI_API_KEY is required for voice agents")
+        issues.append("Falta la clave de xAI para los agentes de voz.")
     return (len(issues) == 0, issues)
 
 

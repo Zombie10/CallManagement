@@ -52,7 +52,7 @@ def _build_text_llm():
 
         api_key = os.getenv("XAI_API_KEY")
         if not api_key:
-            raise ValueError("XAI_API_KEY is required for chat. Set it in .env or Admin → Configuración.")
+            raise ValueError("Falta la clave de xAI para el chat. Configúrala en Configuración.")
         return openai.LLM(
             model=cfg.xai_llm_model,
             base_url="https://api.x.ai/v1",

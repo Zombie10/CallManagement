@@ -105,7 +105,7 @@ def spanish_from_english_prose(line: str) -> str:
     if purposes:
         parts.append("sobre " + " y ".join(purposes))
     if len(parts) == 1:
-        return "Llamada registrada. El texto en inglés no se muestra."
+        return "Llamada registrada."
     return " ".join(parts) + "."
 
 

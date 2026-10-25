@@ -3,19 +3,15 @@ import { ArrowLeft, Clock, FileText, Phone, User } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { CallRecordingPlayer } from "../components/CallRecordingPlayer";
 import { useAuth } from "../contexts/AuthContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
 import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
-
-const CHANNEL_LABELS: Record<string, string> = {
-  sip: "Llamada telefónica",
-  chat: "Chat",
-  voice_xai: "Voz xAI",
-  voice_livekit: "Voz LiveKit",
-};
+import { channelLabel, formatDuration } from "../lib/reportDisplay";
 
 export function CallDetail() {
   const { user } = useAuth();
+  const { t, locale } = useUiLocale();
   const canPlay = canListenRecordings(user?.effective_modules);
   const { callId = "" } = useParams();
   const { data: call, isLoading, error } = useQuery({
@@ -25,31 +21,31 @@ export function CallDetail() {
   });
 
   if (isLoading) {
-    return <div className="glass-card p-8 text-slate-400">Cargando registro…</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("calls.loading")}</div>;
   }
 
   if (error || !call) {
     return (
       <div className="space-y-4">
         <Link to="/calls" className="btn-ghost inline-flex w-fit">
-          <ArrowLeft className="h-4 w-4" /> Volver a registros
+          <ArrowLeft className="h-4 w-4" /> {t("calls.back")}
         </Link>
-        <div className="glass-card p-8 text-red-300">No se encontró el registro.</div>
+        <div className="glass-card p-8 text-red-300">{t("calls.notFound")}</div>
       </div>
     );
   }
 
   const showRecording = canPlay && !!call.recording_url;
-  const channelLabel = CHANNEL_LABELS[call.channel || "sip"] || call.channel;
+  const channelText = channelLabel(call.channel, locale);
 
   return (
     <div className="animate-page-enter space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Link to="/calls" className="btn-ghost">
-          <ArrowLeft className="h-4 w-4" /> Registros
+          <ArrowLeft className="h-4 w-4" /> {t("nav.calls")}
         </Link>
         <span className="rounded-lg bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-200">
-          {channelLabel}
+          {channelText}
         </span>
       </div>
 
@@ -68,29 +64,29 @@ export function CallDetail() {
                 {formatAdminDateTime(call.start_time)}
               </span>
             )}
-            {call.duration_seconds != null && <span>{call.duration_seconds}s</span>}
+            {call.duration_seconds != null && <span>{formatDuration(call.duration_seconds)}</span>}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <span className="rounded-lg bg-white/5 px-3 py-1 text-sm capitalize text-slate-200">
-            {call.outcome?.replaceAll("_", " ") || "sin resultado"}
+            {call.outcome?.replaceAll("_", " ") || t("calls.noOutcome")}
           </span>
           {call.transferred_to && (
             <span className="rounded-lg bg-violet-500/10 px-3 py-1 text-sm text-violet-200">
-              Transferido a: {call.transferred_to}
+              {t("calls.transferredTo")}: {call.transferred_to}
             </span>
           )}
           {call.outcome === "escalated" && (
             <span className="rounded-lg bg-amber-500/15 px-3 py-1 text-sm text-amber-200">
-              Escalación a humano
+              {t("calls.escalated")}
             </span>
           )}
         </div>
 
         {call.summary && (
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("calls.summaryHeading")}</p>
             <p className="text-sm leading-relaxed text-slate-300">{call.summary}</p>
           </div>
         )}
@@ -104,7 +100,7 @@ export function CallDetail() {
         <section className="glass-card p-5 sm:p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
             <FileText className="h-4 w-4 text-cyan-400" />
-            Transcript completo
+            {t("calls.fullTranscript")}
           </h2>
           <pre className="max-h-[min(60vh,520px)] overflow-y-auto rounded-xl bg-black/30 p-4 font-mono text-xs leading-relaxed text-slate-300 whitespace-pre-wrap">
             {call.transcript}
@@ -116,7 +112,7 @@ export function CallDetail() {
         <section className="glass-card p-5 sm:p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
             <User className="h-4 w-4 text-cyan-400" />
-            Notas del agente
+            {t("calls.agentNotes")}
           </h2>
           <pre className="overflow-x-auto rounded-xl bg-black/20 p-4 text-xs text-slate-400 whitespace-pre-wrap">
             {call.agent_notes}

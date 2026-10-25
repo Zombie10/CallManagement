@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
+import { LocaleProvider } from "./contexts/LocaleContext";
 import { TenantProvider } from "./contexts/TenantContext";
 import "./index.css";
 
@@ -19,7 +20,9 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "") || undefined}>
           <AuthProvider>
             <TenantProvider>
-              <App />
+              <LocaleProvider>
+                <App />
+              </LocaleProvider>
             </TenantProvider>
           </AuthProvider>
         </BrowserRouter>

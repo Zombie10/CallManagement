@@ -2,6 +2,7 @@ import { ChevronDown, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { downloadCallsCsv, downloadReportXlsx } from "../../lib/exportReport";
+import { useUiLocale } from "../../contexts/LocaleContext";
 import type { ReportFiltersState } from "../../lib/reports";
 import clsx from "clsx";
 
@@ -14,6 +15,7 @@ type Props = {
 type MenuPos = { top: number; left: number; width: number };
 
 export function ExportReportMenu({ filters, tenantId, className }: Props) {
+  const { t } = useUiLocale();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<"xlsx" | "csv" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function ExportReportMenu({ filters, tenantId, className }: Props) {
           <button
             type="button"
             className="fixed inset-0 z-[280] cursor-default bg-black/50"
-            aria-label="Cerrar menú"
+            aria-label={t("analytics.exportClose")}
             onClick={() => setOpen(false)}
           />
           <div
@@ -70,7 +72,7 @@ export function ExportReportMenu({ filters, tenantId, className }: Props) {
             role="menu"
           >
             <p className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-              Usa los filtros actuales
+              {t("analytics.exportUsesFilters")}
             </p>
             <button
               type="button"
@@ -81,9 +83,9 @@ export function ExportReportMenu({ filters, tenantId, className }: Props) {
             >
               <FileSpreadsheet className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
               <span>
-                <span className="block text-sm font-medium text-slate-100">Reporte Excel</span>
+                <span className="block text-sm font-medium text-slate-100">{t("analytics.exportExcel")}</span>
                 <span className="text-xs text-slate-400">
-                  Resumen, outcomes, series, pivot y hasta 500 llamadas
+                  {t("analytics.exportExcelHint")}
                 </span>
               </span>
             </button>
@@ -96,9 +98,9 @@ export function ExportReportMenu({ filters, tenantId, className }: Props) {
             >
               <FileText className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
               <span>
-                <span className="block text-sm font-medium text-slate-100">CSV de llamadas</span>
+                <span className="block text-sm font-medium text-slate-100">{t("analytics.exportCallsCsv")}</span>
                 <span className="text-xs text-slate-400">
-                  Columnas en español, UTF-8, hasta 5 000 filas
+                  {t("analytics.exportCsvHint")}
                 </span>
               </span>
             </button>
@@ -119,7 +121,7 @@ export function ExportReportMenu({ filters, tenantId, className }: Props) {
         aria-haspopup="menu"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-        Exportar
+        {t("analytics.export")}
         <ChevronDown className={clsx("h-3.5 w-3.5 transition", open && "rotate-180")} />
       </button>
       {menu}

@@ -1,5 +1,6 @@
 import { ChevronRight, Home } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 
 function decodeSegment(segment: string): string {
@@ -10,37 +11,43 @@ function decodeSegment(segment: string): string {
   }
 }
 
-const ROUTE_LABELS: Record<string, string> = {
-  "": "Dashboard",
-  settings: "Configuración",
-  tenants: "Empresas",
-  "my-agents": "Mis agentes",
-  agents: "Plantillas sistema",
-  customers: "Clientes",
-  calls: "Registros",
-  analytics: "Análisis",
-  appointments: "Citas",
-  playground: "Probar agente",
-  profile: "Mi perfil",
-  users: "Usuarios",
-  setup: "Guía de inicio",
-  operations: "Flujos / Operación",
-  supervisor: "Supervisor",
+const ROUTE_KEYS: Record<string, string> = {
+  "": "nav.dashboard",
+  settings: "nav.settings",
+  tenants: "nav.tenants",
+  "my-agents": "nav.my_agents",
+  agents: "nav.agents",
+  customers: "nav.customers",
+  calls: "nav.calls",
+  analytics: "nav.analytics",
+  appointments: "nav.appointments",
+  playground: "nav.playground",
+  profile: "layout.myProfile",
+  users: "nav.users",
+  setup: "nav.setup",
+  operations: "nav.operations",
+  supervisor: "nav.supervisor",
 };
 
 export function Breadcrumbs() {
   const location = useLocation();
   const { tenant } = useTenant();
+  const { t } = useUiLocale();
   const segments = location.pathname.replace(/^\//, "").split("/").filter(Boolean);
 
   if (segments.length === 0) return null;
 
-  const crumbs: Array<{ label: string; to: string }> = [{ label: "Dashboard", to: "/" }];
+  const labelFor = (segment: string) => {
+    const key = ROUTE_KEYS[segment];
+    return key ? t(key) : segment;
+  };
+
+  const crumbs: Array<{ label: string; to: string }> = [{ label: t("nav.dashboard"), to: "/" }];
   let path = "";
   for (const seg of segments) {
     path += `/${seg}`;
     const decoded = decodeSegment(seg);
-    crumbs.push({ label: ROUTE_LABELS[decoded] || ROUTE_LABELS[seg] || decoded, to: path });
+    crumbs.push({ label: labelFor(decoded) || labelFor(seg), to: path });
   }
 
   return (

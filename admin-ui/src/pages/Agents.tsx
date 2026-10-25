@@ -23,6 +23,8 @@ import {
 } from "../lib/api";
 import clsx from "clsx";
 import { AgentInstructionsEditor } from "../components/AgentInstructionsEditor";
+import { useUiLocale } from "../contexts/LocaleContext";
+import { toolLabel } from "../lib/i18n";
 import { localeLabel } from "../lib/localeLabels";
 import { Select } from "../components/Select";
 import { VoicePreviewButton } from "../components/VoicePreviewButton";
@@ -37,13 +39,6 @@ const GENDER_LABELS: Record<string, string> = {
   female: "Femenina",
   male: "Masculina",
   neutral: "Neutra",
-};
-
-const TOOL_LABELS: Record<string, string> = {
-  web_search: "Web Search",
-  x_search: "X Search",
-  file_search: "File Search",
-  code_interpreter: "Code Interpreter",
 };
 
 function emptyDraft(): AgentProfileInput {
@@ -103,6 +98,7 @@ function AgentEditor({
   onDelete?: () => void;
   saving: boolean;
 }) {
+  const { locale } = useUiLocale();
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [langFilter, setLangFilter] = useState("");
@@ -457,7 +453,7 @@ function AgentEditor({
                     : "bg-white/5 text-slate-400 hover:bg-white/10"
                 }`}
               >
-                {TOOL_LABELS[tool] || tool}
+                {toolLabel(tool, locale)}
               </button>
             );
           })}
@@ -515,6 +511,7 @@ function AgentEditor({
 }
 
 export function Agents() {
+  const { locale } = useUiLocale();
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
   const [editing, setEditing] = useState<string | null>(null);
@@ -702,7 +699,7 @@ export function Agents() {
                   <div className="flex flex-wrap gap-1.5">
                     {profile.tools.map((t) => (
                       <span key={t} className="rounded-lg bg-white/5 px-2 py-1 text-xs text-cyan-200">
-                        {TOOL_LABELS[t] || t}
+                        {toolLabel(t, locale)}
                       </span>
                     ))}
                     {!profile.tools.length && <span className="text-slate-500">—</span>}

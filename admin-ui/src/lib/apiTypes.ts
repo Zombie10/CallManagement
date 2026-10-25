@@ -140,6 +140,7 @@ export interface ActionableAnalytics {
   topic_keywords: Record<string, number>;
   agent_comparison: Array<{
     agent_instance_id: string;
+    label: string;
     call_count: number;
     avg_duration_seconds: number;
     escalations: number;

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+_DAY_KEY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
 # utc_now_iso() stores an offset timestamp SQLite date()/datetime() reject.
 # The first 19 characters are YYYY-MM-DDTHH:MM:SS on every stored call.
@@ -85,7 +88,18 @@ def _dimension_expr(name: str) -> str:
     return DIMENSIONS[name][0]
 
 
+def format_report_day(key: str) -> str:
+    """Day-first label with the year. Series shows this instead of a raw ISO day."""
+    match = _DAY_KEY.match(str(key).strip())
+    if not match:
+        return str(key)
+    year, month, day = match.groups()
+    return f"{day}/{month}/{year}"
+
+
 def _label_key(key: str, dimension: str) -> str:
+    if dimension == "day":
+        return format_report_day(key)
     if dimension == "weekday" and str(key).isdigit():
         idx = int(key)
         if 0 <= idx < len(WEEKDAY_LABELS):

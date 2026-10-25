@@ -10,32 +10,15 @@ import { Link } from "react-router-dom";
 import { ListFilterBar } from "../components/ListFilterBar";
 import { Select } from "../components/Select";
 import { useAuth } from "../contexts/AuthContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type CallRecord } from "../lib/api";
 import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
-
-const CHANNEL_LABELS: Record<string, string> = {
-  sip: "Teléfono",
-  chat: "Chat",
-  voice_xai: "Voz xAI",
-  voice_livekit: "Voz LiveKit",
-};
-
-const CHANNEL_OPTIONS = [
-  { value: "all", label: "Todos los canales" },
-  { value: "sip", label: "Teléfono" },
-  { value: "chat", label: "Chat" },
-  { value: "voice_xai", label: "Voz xAI" },
-  { value: "voice_livekit", label: "Voz LiveKit" },
-];
-
-function channelLabel(channel?: string) {
-  if (!channel) return "Teléfono";
-  return CHANNEL_LABELS[channel] || channel;
-}
+import { channelFilterOptions, channelLabel, formatDuration } from "../lib/reportDisplay";
 
 function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
+  const { t, locale } = useUiLocale();
   const hasTranscript = !!call.transcript?.trim();
   const hasRecording = !!call.recording_url;
 
@@ -49,7 +32,7 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-mono text-sm text-cyan-300">{call.call_id}</p>
             <span className="rounded-md bg-violet-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-300">
-              {channelLabel(call.channel)}
+              {channelLabel(call.channel, locale)}
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-300">
@@ -67,12 +50,12 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
           <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-slate-500">
             {hasTranscript && (
               <span className="inline-flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-cyan-300/90">
-                <FileText className="h-3 w-3" /> Transcript
+                <FileText className="h-3 w-3" /> {t("calls.transcript")}
               </span>
             )}
             {hasRecording && canPlay && (
               <span className="inline-flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-emerald-300/90">
-                <Headphones className="h-3 w-3" /> Audio
+                <Headphones className="h-3 w-3" /> {t("calls.audio")}
               </span>
             )}
           </div>
@@ -82,7 +65,7 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
             {call.outcome?.replaceAll("_", " ") || "—"}
           </span>
           {call.duration_seconds != null && (
-            <span className="text-xs text-slate-500">{call.duration_seconds}s</span>
+            <span className="text-xs text-slate-500">{formatDuration(call.duration_seconds)}</span>
           )}
           <ChevronRight className="mt-1 h-4 w-4 text-slate-500" />
         </div>
@@ -94,6 +77,7 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
 export function Calls() {
   const { user } = useAuth();
   const { tenantId } = useTenant();
+  const { t, locale } = useUiLocale();
   const [search, setSearch] = useState("");
   const [channel, setChannel] = useState<string>("all");
   const [outcome, setOutcome] = useState<string>("all");
@@ -111,12 +95,17 @@ export function Calls() {
       if (call.outcome) set.add(call.outcome);
     }
     return [
-      { value: "all", label: "Todos los outcomes" },
+      { value: "all", label: t("calls.allOutcomes") },
       ...Array.from(set)
         .sort()
         .map((o) => ({ value: o, label: o.replaceAll("_", " ") })),
     ];
-  }, [data?.items]);
+  }, [data?.items, t]);
+
+  const channelOptions = useMemo(
+    () => [{ value: "all", label: t("calls.allChannels") }, ...channelFilterOptions(locale)],
+    [locale, t],
+  );
 
   const filtered = useMemo(() => {
     const items = data?.items || [];
@@ -135,18 +124,16 @@ export function Calls() {
   }, [channel, data?.items, outcome, search]);
 
   if (!tenantId || (isLoading && !data)) {
-    return <div className="glass-card p-8 text-slate-400">Cargando registros…</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("calls.loading")}</div>;
   }
 
   return (
     <div className="flex max-h-[calc(100dvh-7.5rem)] flex-col gap-4 sm:max-h-[calc(100dvh-6rem)]">
       <header className="shrink-0">
-        <h1 className="font-display text-xl font-semibold sm:text-3xl">
-          Registros de interacciones
-        </h1>
+        <h1 className="font-display text-xl font-semibold sm:text-3xl">{t("calls.title")}</h1>
         <p className="mt-1 text-sm text-slate-400 sm:text-base">
-          {data?.total ?? 0} registros · Transcripts, resúmenes
-          {canPlay ? " y grabaciones de audio" : ""}
+          {t("calls.summary", { count: data?.total ?? 0 })}
+          {canPlay ? t("calls.withAudio") : ""}
         </p>
       </header>
 
@@ -154,7 +141,7 @@ export function Calls() {
         <ListFilterBar
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Buscar por teléfono, ID o texto…"
+          searchPlaceholder={t("calls.searchPlaceholder")}
           resultCount={filtered.length}
           totalCount={data?.items.length ?? 0}
           onClear={() => {
@@ -166,7 +153,7 @@ export function Calls() {
             className="w-full sm:w-44"
             value={channel}
             onChange={setChannel}
-            options={CHANNEL_OPTIONS}
+            options={channelOptions}
             searchableFrom={0}
           />
           <Select
@@ -185,7 +172,7 @@ export function Calls() {
         ))}
         {filtered.length === 0 && (
           <div className="glass-card py-12 text-center text-slate-500">
-            Sin registros que coincidan
+            {t("calls.empty")}
           </div>
         )}
       </div>

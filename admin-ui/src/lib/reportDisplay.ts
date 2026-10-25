@@ -1,38 +1,30 @@
 import { agentLabel } from "./agents";
 import type { CallReportDetailRow } from "./api";
+import { translate, type AdminLocale } from "./i18n";
 
-const CHANNEL_LABELS: Record<string, string> = {
-  sip: "Teléfono",
-  voice_livekit: "Voz LiveKit",
-  voice_xai: "Voz xAI",
-  chat: "Chat",
-};
-
-const DIMENSION_LABELS: Record<string, string> = {
-  day: "Día",
-  hour: "Hora",
-  weekday: "Día semana",
-  outcome: "Outcome",
-  agent: "Agente instancia",
-  template: "Plantilla agente",
-  channel: "Canal",
-  month: "Mes",
-};
-
-export const CHANNEL_FILTER_OPTIONS = [
-  { value: "sip", label: "Teléfono" },
-  { value: "voice_livekit", label: "Voz LiveKit" },
-  { value: "voice_xai", label: "Voz xAI" },
-  { value: "chat", label: "Chat" },
-];
-
-export function channelLabel(channel?: string | null): string {
-  if (!channel) return "Teléfono";
-  return CHANNEL_LABELS[channel] || channel;
+export function channelLabel(channel?: string | null, locale?: AdminLocale): string {
+  const id = channel || "sip";
+  const key = `channel.${id}`;
+  const text = translate(key, locale);
+  if (text !== key) return text;
+  return channel || translate("channel.sip", locale);
 }
 
-export function dimensionLabel(id: string): string {
-  return DIMENSION_LABELS[id] || id;
+export function channelFilterOptions(locale?: AdminLocale) {
+  return [
+    { value: "sip", label: channelLabel("sip", locale) },
+    { value: "voice_livekit", label: channelLabel("voice_livekit", locale) },
+    { value: "voice_xai", label: channelLabel("voice_xai", locale) },
+    { value: "chat", label: channelLabel("chat", locale) },
+  ];
+}
+
+export const CHANNEL_FILTER_OPTIONS = channelFilterOptions();
+
+export function dimensionLabel(id: string, locale?: AdminLocale): string {
+  const key = `dimension.${id}`;
+  const text = translate(key, locale);
+  return text === key ? id : text;
 }
 
 export function templateAgentFromSummary(summary?: string | null): string | null {
@@ -89,6 +81,6 @@ export function formatMetricValue(
   value: number,
 ): string {
   if (metric === "count") return String(value);
-  if (metric === "sum_duration") return formatDuration(value);
-  return `${value}s prom.`;
+  if (metric === "sum_duration" || metric === "avg_duration") return formatDuration(value);
+  return String(value);
 }

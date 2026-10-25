@@ -31,14 +31,14 @@ def check_livekit_env() -> list[str]:
     secret = os.getenv("LIVEKIT_API_SECRET", "")
 
     if _is_placeholder(url):
-        issues.append("LIVEKIT_URL still has the placeholder from .env.example")
+        issues.append("La URL de LiveKit sigue con el valor de ejemplo.")
     if _is_placeholder(key):
-        issues.append("LIVEKIT_API_KEY is missing or still a placeholder")
+        issues.append("Falta la clave API de LiveKit.")
     if _is_placeholder(secret):
-        issues.append("LIVEKIT_API_SECRET is missing or still a placeholder")
+        issues.append("Falta el secreto API de LiveKit.")
 
     if url and not url.startswith(("wss://", "ws://")):
-        issues.append("LIVEKIT_URL must start with wss:// or ws://")
+        issues.append("La URL de LiveKit debe empezar por wss://.")
 
     return issues
 

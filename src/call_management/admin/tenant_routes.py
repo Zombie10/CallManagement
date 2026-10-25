@@ -564,8 +564,14 @@ async def tenant_analytics(
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     if not date_from and not date_to:
         date_from, date_to = default_period()
+    from call_management.crm.agent_labels import agent_refs
+
     analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
-    actionable = await crm.get_actionable_analytics(date_from=date_from, date_to=date_to)
+    actionable = await crm.get_actionable_analytics(
+        date_from=date_from,
+        date_to=date_to,
+        agents=agent_refs(get_platform_store().list_agents(ctx.tenant.id)),
+    )
     metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     from call_management.tenancy.queue import active_count
 

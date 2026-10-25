@@ -27,6 +27,7 @@ import {
   SummaryTiles,
   TabButton,
 } from "../components/reports/ReportCharts";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type CustomReportFilter } from "../lib/api";
 import {
@@ -42,8 +43,9 @@ import {
   type ReportPreset,
 } from "../lib/reports";
 import {
-  CHANNEL_FILTER_OPTIONS,
+  channelFilterOptions,
   dimensionLabel,
+  formatDuration,
 } from "../lib/reportDisplay";
 import clsx from "clsx";
 
@@ -62,6 +64,7 @@ function MultiCheck({
   selected: string[];
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useUiLocale();
   const toggle = (v: string) => {
     onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   };
@@ -84,7 +87,7 @@ function MultiCheck({
             {o.label}
           </button>
         ))}
-        {!options.length && <span className="text-xs text-slate-600">Sin opciones</span>}
+        {!options.length && <span className="text-xs text-slate-600">{t("analytics.noOptions")}</span>}
       </div>
     </div>
   );
@@ -92,6 +95,7 @@ function MultiCheck({
 
 export function Analytics() {
   const { tenant, tenantId } = useTenant();
+  const { t, locale } = useUiLocale();
   const [filters, setFilters] = useState<ReportFiltersState>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<ReportFiltersState>(defaultFilters);
   const [tab, setTab] = useState<TabId>("summary");
@@ -155,18 +159,18 @@ export function Analytics() {
     () =>
       (options?.dimensions || []).map((d) => ({
         value: d.id,
-        label: d.label,
+        label: dimensionLabel(d.id, locale),
       })),
-    [options?.dimensions],
+    [locale, options?.dimensions],
   );
 
   const metricOptions = useMemo(
     () =>
       (options?.metrics || []).map((m) => ({
         value: m.id,
-        label: m.label,
+        label: t(`metric.${m.id}`),
       })),
-    [options?.metrics],
+    [options?.metrics, t],
   );
 
   const agentInstances = useMemo(() => options?.agents || [], [options?.agents]);
@@ -225,7 +229,7 @@ export function Analytics() {
   if (!tenantId) {
     return (
       <div className="glass-card p-8 text-center text-slate-400">
-        Selecciona una empresa para ver análisis y reportes.
+        {t("analytics.needTenant")}
       </div>
     );
   }
@@ -234,9 +238,9 @@ export function Analytics() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Análisis y reportes</h1>
+          <h1 className="font-display text-3xl font-semibold">{t("analytics.title")}</h1>
           <p className="mt-1 text-slate-400">
-            {tenant?.name} · Filtros interactivos, series y tabla pivot
+            {tenant?.name} · {t("analytics.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -252,7 +256,7 @@ export function Analytics() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            Ejecutar reporte
+            {t("analytics.runReport")}
           </button>
         </div>
       </header>
@@ -260,19 +264,19 @@ export function Analytics() {
       {analyticsData?.actionable && (
         <section className="glass-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-xs text-slate-500">SLA</p>
+            <p className="text-xs text-slate-500">{t("analytics.sla")}</p>
             <p className="text-2xl font-semibold text-emerald-300">
               {analyticsData.actionable.sla_compliance_pct}%
             </p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">Escalaciones</p>
+            <p className="text-xs text-slate-500">{t("analytics.escalations")}</p>
             <p className="text-2xl font-semibold text-amber-200">
               {analyticsData.actionable.escalations}
             </p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">Sentimiento</p>
+            <p className="text-xs text-slate-500">{t("analytics.sentiment")}</p>
             <p className="text-2xl font-semibold capitalize">
               {analyticsData.actionable.sentiment_label}
             </p>
@@ -280,21 +284,18 @@ export function Analytics() {
           <AgentFleetStatus tenantId={tenantId} variant="compact" />
           {analyticsData.actionable.agent_comparison.length > 0 && (
             <div className="sm:col-span-2 lg:col-span-4">
-              <p className="mb-2 text-xs font-medium uppercase text-slate-500">Comparación agentes</p>
+              <p className="mb-2 text-xs font-medium uppercase text-slate-500">{t("analytics.agentComparison")}</p>
               <div className="flex flex-wrap gap-2">
                 {analyticsData.actionable.agent_comparison.map((a) => {
-                  const rawId = a.agent_instance_id;
-                  const named =
-                    rawId && rawId !== "unassigned" ? agentLabelMap.get(rawId) : undefined;
-                  const label = named || "Sin asignar";
-                  const calls = a.call_count === 1 ? "llamada" : "llamadas";
+                  const label = a.label || "—";
+                  const calls = a.call_count === 1 ? t("analytics.callOne") : t("analytics.callMany");
                   return (
                     <span
-                      key={rawId || "unassigned"}
+                      key={label}
                       className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300"
                     >
-                      {label}: {a.call_count} {calls} · {a.avg_duration_seconds}s avg
-                      {a.escalations > 0 && ` · ${a.escalations} escal.`}
+                      {label}: {a.call_count} {calls} · {formatDuration(a.avg_duration_seconds)} {t("analytics.avg")}
+                      {a.escalations > 0 && ` · ${a.escalations} ${t("analytics.escalationsShort")}`}
                     </span>
                   );
                 })}
@@ -315,7 +316,7 @@ export function Analytics() {
             <button
               type="button"
               className="btn-ghost w-full justify-center px-1 py-2"
-              title="Expandir filtros"
+              title={t("analytics.expandFilters")}
               onClick={() => setFiltersCollapsed(false)}
             >
               <PanelLeftOpen className="h-4 w-4 text-cyan-400" />
@@ -327,12 +328,12 @@ export function Analytics() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
               <Filter className="h-4 w-4 text-cyan-400" />
-              Filtros
+              {t("analytics.filters")}
             </div>
             <button
               type="button"
               className="btn-ghost px-2 py-1 text-xs"
-              title="Contraer filtros"
+              title={t("analytics.collapseFilters")}
               onClick={() => setFiltersCollapsed(true)}
             >
               <PanelLeftClose className="h-4 w-4" />
@@ -341,40 +342,40 @@ export function Analytics() {
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <DateField
-              label="Desde"
+              label={t("analytics.from")}
               value={filters.dateFrom}
               onChange={(dateFrom) => setFilters((f) => ({ ...f, dateFrom }))}
             />
             <DateField
-              label="Hasta"
+              label={t("analytics.to")}
               value={filters.dateTo}
               onChange={(dateTo) => setFilters((f) => ({ ...f, dateTo }))}
             />
           </div>
 
           <MultiCheck
-            label="Outcomes"
+            label={t("analytics.outcomes")}
             options={outcomeOptions}
             selected={filters.outcomes}
             onChange={(outcomes) => setFilters((f) => ({ ...f, outcomes }))}
           />
 
           <MultiCheck
-            label="Agentes"
+            label={t("analytics.agents")}
             options={agentOptions}
             selected={filters.agentIds}
             onChange={(agentIds) => setFilters((f) => ({ ...f, agentIds }))}
           />
 
           <MultiCheck
-            label="Canales"
-            options={CHANNEL_FILTER_OPTIONS}
+            label={t("analytics.channels")}
+            options={channelFilterOptions(locale)}
             selected={filters.channels}
             onChange={(channels) => setFilters((f) => ({ ...f, channels }))}
           />
 
           <label className="block space-y-1">
-            <span className="text-xs text-slate-500">Teléfono origen (contiene)</span>
+            <span className="text-xs text-slate-500">{t("analytics.fromContains")}</span>
             <input
               className="input-field w-full"
               placeholder="+502..."
@@ -385,7 +386,7 @@ export function Analytics() {
 
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="text-xs text-slate-500">Duración min (s)</span>
+              <span className="text-xs text-slate-500">{t("analytics.minDuration")}</span>
               <input
                 type="number"
                 className="input-field w-full"
@@ -394,7 +395,7 @@ export function Analytics() {
               />
             </label>
             <label className="space-y-1">
-              <span className="text-xs text-slate-500">Duración max (s)</span>
+              <span className="text-xs text-slate-500">{t("analytics.maxDuration")}</span>
               <input
                 type="number"
                 className="input-field w-full"
@@ -407,7 +408,7 @@ export function Analytics() {
           <div>
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Filtros personalizados
+                {t("analytics.customFilters")}
               </span>
               <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={addCustomFilter}>
                 <Plus className="h-3 w-3" />
@@ -422,7 +423,7 @@ export function Analytics() {
                     searchableFrom={0}
                     value={cf.field}
                     onChange={(field) => updateCustomFilter(i, { field })}
-                    options={FILTER_FIELDS.map((f) => ({ value: f.value, label: f.label }))}
+                    options={FILTER_FIELDS.map((f) => ({ value: f.value, label: t(`analytics.field.${f.value}`) }))}
                   />
                   <Select
                     className="w-24"
@@ -430,11 +431,11 @@ export function Analytics() {
                     searchableFrom={0}
                     value={cf.op}
                     onChange={(op) => updateCustomFilter(i, { op })}
-                    options={FILTER_OPS.map((o) => ({ value: o.value, label: o.label }))}
+                    options={FILTER_OPS.map((o) => ({ value: o.value, label: t(`analytics.op.${o.value}`) }))}
                   />
                   <input
                     className="input-field min-w-0 flex-1 text-xs"
-                    placeholder="valor"
+                    placeholder={t("analytics.valuePlaceholder")}
                     value={String(cf.value ?? "")}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -463,7 +464,7 @@ export function Analytics() {
 
           <div className="space-y-2 border-t border-white/5 pt-4">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Agrupación / Pivot
+              {t("analytics.grouping")}
             </p>
             <Select
               className="w-full"
@@ -474,7 +475,7 @@ export function Analytics() {
             />
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-[10px] text-slate-500">Pivot filas</span>
+                <span className="text-[10px] text-slate-500">{t("analytics.pivotRows")}</span>
                 <Select
                   className="w-full"
                   size="sm"
@@ -486,7 +487,7 @@ export function Analytics() {
                 />
               </div>
               <div>
-                <span className="text-[10px] text-slate-500">Pivot columnas</span>
+                <span className="text-[10px] text-slate-500">{t("analytics.pivotCols")}</span>
                 <Select
                   className="w-full"
                   size="sm"
@@ -512,17 +513,17 @@ export function Analytics() {
           <div className="border-t border-white/5 pt-4">
             <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase text-slate-500">
               <Bookmark className="h-3 w-3" />
-              Presets guardados
+              {t("analytics.savedPresets")}
             </p>
             <div className="mb-2 flex gap-1">
               <input
                 className="input-field min-w-0 flex-1 text-xs"
-                placeholder="Nombre del preset"
+                placeholder={t("analytics.presetName")}
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
               />
               <button type="button" className="btn-ghost px-2 text-xs" onClick={savePreset}>
-                Guardar
+                {t("analytics.save")}
               </button>
             </div>
             <ul className="space-y-1">
@@ -545,7 +546,7 @@ export function Analytics() {
                 </li>
               ))}
               {!presets.length && (
-                <li className="text-xs text-slate-600">Guarda combinaciones de filtros frecuentes</li>
+                <li className="text-xs text-slate-600">{t("analytics.noPresets")}</li>
               )}
             </ul>
           </div>
@@ -561,7 +562,7 @@ export function Analytics() {
 
           {!data && !reportLoading && (
             <div className="glass-card py-16 text-center text-slate-500">
-              Configura filtros y pulsa <strong className="text-slate-300">Ejecutar reporte</strong>
+              {t("analytics.emptyBefore")} <strong className="text-slate-300">{t("analytics.runReport")}</strong>
             </div>
           )}
 
@@ -571,30 +572,30 @@ export function Analytics() {
 
               <div className="flex flex-wrap gap-2">
                 <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>
-                  Resumen
+                  {t("analytics.tabSummary")}
                 </TabButton>
                 <TabButton active={tab === "series"} onClick={() => setTab("series")}>
-                  Series
+                  {t("analytics.tabSeries")}
                 </TabButton>
                 <TabButton active={tab === "pivot"} onClick={() => setTab("pivot")}>
-                  Pivot
+                  {t("analytics.tabPivot")}
                 </TabButton>
                 <TabButton active={tab === "detail"} onClick={() => setTab("detail")}>
-                  Detalle
+                  {t("analytics.tabDetail")}
                 </TabButton>
               </div>
 
               {tab === "summary" && (
                 <div className="space-y-4">
                   <div className="glass-card p-6">
-                    <h2 className="mb-4 font-display text-lg font-semibold">Distribución por outcome</h2>
+                    <h2 className="mb-4 font-display text-lg font-semibold">{t("analytics.outcomeDist")}</h2>
                     <OutcomeDonut series={data.outcome_breakdown} />
                     {!data.outcome_breakdown.length && (
-                      <p className="text-sm text-slate-500">Sin datos en el período</p>
+                      <p className="text-sm text-slate-500">{t("analytics.noPeriodData")}</p>
                     )}
                   </div>
                   <div className="glass-card p-6">
-                    <h2 className="mb-4 font-display text-lg font-semibold">Desglose del período</h2>
+                    <h2 className="mb-4 font-display text-lg font-semibold">{t("analytics.periodBreakdown")}</h2>
                     <SummaryBreakdown summary={data.summary} outcomeBreakdown={data.outcome_breakdown} />
                   </div>
                 </div>
@@ -605,16 +606,18 @@ export function Analytics() {
                 <div className="glass-card space-y-6 p-6">
                   <div>
                     <h2 className="mb-1 font-display text-lg font-semibold">
-                      Serie por {dimensionLabel(data.group_by)}
+                      {t("analytics.seriesBy", { dimension: dimensionLabel(data.group_by, locale) })}
                     </h2>
                     <p className="mb-4 text-sm text-slate-500">
-                      {data.series.length} períodos · métrica:{" "}
-                      {metricOptions.find((m) => m.value === appliedFilters.metric)?.label || appliedFilters.metric}
+                      {t("analytics.seriesMeta", {
+                        count: data.series.length,
+                        metric: metricOptions.find((m) => m.value === appliedFilters.metric)?.label || appliedFilters.metric,
+                      })}
                     </p>
                     <SeriesBarChart series={data.series} metric={appliedFilters.metric} />
                   </div>
                   <div>
-                    <h3 className="mb-3 text-sm font-medium text-slate-300">Tabla de la serie</h3>
+                    <h3 className="mb-3 text-sm font-medium text-slate-300">{t("analytics.seriesTable")}</h3>
                     <SeriesDataTable series={data.series} />
                   </div>
                 </div>
@@ -625,18 +628,18 @@ export function Analytics() {
                 <div className="glass-card p-6">
                   <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <h2 className="font-display text-lg font-semibold">Tabla pivot</h2>
+                      <h2 className="font-display text-lg font-semibold">{t("analytics.pivotTitle")}</h2>
                       {data.pivot && (
                         <p className="mt-1 text-sm text-slate-500">
-                          {dimensionLabel(data.pivot.row_dimension)} ×{" "}
-                          {dimensionLabel(data.pivot.col_dimension)} ·{" "}
+                          {dimensionLabel(data.pivot.row_dimension, locale)} ×{" "}
+                          {dimensionLabel(data.pivot.col_dimension, locale)} ·{" "}
                           {metricOptions.find((m) => m.value === data.pivot!.metric)?.label || data.pivot.metric}
                         </p>
                       )}
                     </div>
                     <div className="flex flex-wrap items-end gap-2">
                       <div>
-                        <span className="mb-1 block text-[10px] text-slate-500">Filas</span>
+                        <span className="mb-1 block text-[10px] text-slate-500">{t("analytics.rows")}</span>
                         <Select
                           className="w-36"
                           size="sm"
@@ -650,7 +653,7 @@ export function Analytics() {
                         />
                       </div>
                       <div>
-                        <span className="mb-1 block text-[10px] text-slate-500">Columnas</span>
+                        <span className="mb-1 block text-[10px] text-slate-500">{t("analytics.columns")}</span>
                         <Select
                           className="w-36"
                           size="sm"
@@ -664,7 +667,7 @@ export function Analytics() {
                         />
                       </div>
                       <div>
-                        <span className="mb-1 block text-[10px] text-slate-500">Métrica</span>
+                        <span className="mb-1 block text-[10px] text-slate-500">{t("analytics.metric")}</span>
                         <Select
                           className="w-40"
                           size="sm"
@@ -692,7 +695,7 @@ export function Analytics() {
                   {data.pivot ? (
                     <PivotTable pivot={data.pivot} agentLabels={agentLabelMap} />
                   ) : (
-                    <p className="text-sm text-slate-500">Configura dimensiones pivot en los filtros</p>
+                    <p className="text-sm text-slate-500">{t("analytics.pivotEmpty")}</p>
                   )}
                 </div>
               )}
@@ -703,7 +706,7 @@ export function Analytics() {
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 px-4 py-3">
                     <p className="flex items-center gap-2 text-sm text-slate-300">
                       <Table2 className="h-4 w-4 shrink-0" />
-                      {data.detail.length} filas (máx. 100)
+                      {t("analytics.detailRows", { count: data.detail.length })}
                     </p>
                     <button
                       type="button"
@@ -711,7 +714,7 @@ export function Analytics() {
                       onClick={() => exportDetailCsv(data.detail)}
                     >
                       <Download className="h-3.5 w-3.5" />
-                      Exportar CSV
+                      {t("analytics.exportCsv")}
                     </button>
                   </div>
                   <ReportDetailGrid

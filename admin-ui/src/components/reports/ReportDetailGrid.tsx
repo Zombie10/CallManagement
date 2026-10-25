@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { TableScroll } from "../TableScroll";
+import { useUiLocale } from "../../contexts/LocaleContext";
 import type { CallReportDetailRow } from "../../lib/api";
 import { formatAdminDateTime } from "../../lib/formatDateTime";
 import {
@@ -23,16 +24,17 @@ function hasNoteContent(row: CallReportDetailRow): boolean {
 }
 
 function DetailBadges({ row }: { row: CallReportDetailRow }) {
+  const { t } = useUiLocale();
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {row.has_transcript && (
         <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-cyan-300/90">
-          <FileText className="h-3 w-3" /> Transcript
+          <FileText className="h-3 w-3" /> {t("detail.transcript")}
         </span>
       )}
       {row.has_recording && (
         <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-emerald-300/90">
-          <Headphones className="h-3 w-3" /> Audio
+          <Headphones className="h-3 w-3" /> {t("detail.audio")}
         </span>
       )}
       {row.to_number && (
@@ -53,6 +55,7 @@ function NotePopup({
   agentInstances: AgentInstanceRef[];
   onClose: () => void;
 }) {
+  const { t } = useUiLocale();
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -82,7 +85,7 @@ function NotePopup({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 id="note-popup-title" className="font-display text-lg font-semibold text-slate-100">
-              Resumen de llamada
+              {t("detail.noteTitle")}
             </h3>
             <p className="mt-1 font-mono text-xs text-cyan-200/90">{row.from_number}</p>
             <p className="text-xs text-slate-500">
@@ -91,7 +94,7 @@ function NotePopup({
               {formatAgentsHandled(row, agentLabelMap, agentInstances)}
             </p>
           </div>
-          <button type="button" className="btn-ghost shrink-0 px-2" onClick={onClose} aria-label="Cerrar">
+          <button type="button" className="btn-ghost shrink-0 px-2" onClick={onClose} aria-label={t("detail.close")}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -100,16 +103,16 @@ function NotePopup({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
           {row.summary?.trim() ? (
             <section>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Resumen</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{t("detail.summary")}</p>
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{row.summary.trim()}</p>
             </section>
           ) : (
-            <p className="text-sm text-slate-500">Sin resumen generado para esta llamada.</p>
+            <p className="text-sm text-slate-500">{t("detail.noSummary")}</p>
           )}
 
           {row.agent_notes?.trim() && (
             <section>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Notas del agente</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{t("detail.agentNotes")}</p>
               <p className="whitespace-pre-wrap rounded-xl bg-white/[0.03] p-3 text-sm leading-relaxed text-slate-400">
                 {row.agent_notes.trim()}
               </p>
@@ -126,10 +129,10 @@ function NotePopup({
             onClick={onClose}
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            Ver registro completo
+            {t("detail.openRecord")}
           </Link>
           <button type="button" className="btn-ghost text-xs" onClick={onClose}>
-            Cerrar
+            {t("detail.close")}
           </button>
         </div>
       </div>
@@ -145,6 +148,7 @@ function NoteAction({
   row: CallReportDetailRow;
   onOpen: (row: CallReportDetailRow) => void;
 }) {
+  const { t } = useUiLocale();
   if (!hasNoteContent(row)) {
     return <DetailBadges row={row} />;
   }
@@ -157,7 +161,7 @@ function NoteAction({
         onClick={() => onOpen(row)}
       >
         <StickyNote className="h-3.5 w-3.5" />
-        Ver nota
+        {t("detail.viewNote")}
       </button>
       <DetailBadges row={row} />
     </div>
@@ -175,6 +179,7 @@ function DetailCard({
   agentInstances: AgentInstanceRef[];
   onOpenNote: (row: CallReportDetailRow) => void;
 }) {
+  const { t, locale } = useUiLocale();
   return (
     <article className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -196,11 +201,11 @@ function DetailCard({
 
       <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
         <div>
-          <dt className="text-slate-500">Canal</dt>
-          <dd className="text-slate-300">{channelLabel(row.channel)}</dd>
+          <dt className="text-slate-500">{t("detail.channel")}</dt>
+          <dd className="text-slate-300">{channelLabel(row.channel, locale)}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Agente(s)</dt>
+          <dt className="text-slate-500">{t("detail.agents")}</dt>
           <dd className="text-slate-300">{formatAgentsHandled(row, agentLabelMap, agentInstances)}</dd>
         </div>
       </dl>
@@ -213,12 +218,13 @@ function DetailCard({
 }
 
 export function ReportDetailGrid({ rows, agentLabelMap, agentInstances = [] }: Props) {
+  const { t, locale } = useUiLocale();
   const [noteRow, setNoteRow] = useState<CallReportDetailRow | null>(null);
   const openNote = useCallback((row: CallReportDetailRow) => setNoteRow(row), []);
   const closeNote = useCallback(() => setNoteRow(null), []);
 
   if (!rows.length) {
-    return <p className="px-4 py-10 text-center text-sm text-slate-500">Sin registros en el período</p>;
+    return <p className="px-4 py-10 text-center text-sm text-slate-500">{t("detail.noRows")}</p>;
   }
 
   return (
@@ -249,13 +255,13 @@ export function ReportDetailGrid({ rows, agentLabelMap, agentInstances = [] }: P
             </colgroup>
             <thead className="bg-white/[0.02] text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-3 py-2.5">Fecha</th>
-                <th className="px-3 py-2.5">Origen</th>
-                <th className="px-3 py-2.5">Canal</th>
-                <th className="px-3 py-2.5">Outcome</th>
-                <th className="px-3 py-2.5">Duración</th>
-                <th className="px-3 py-2.5">Agente(s)</th>
-                <th className="px-3 py-2.5">Extras</th>
+                <th className="px-3 py-2.5">{t("detail.date")}</th>
+                <th className="px-3 py-2.5">{t("detail.origin")}</th>
+                <th className="px-3 py-2.5">{t("detail.channel")}</th>
+                <th className="px-3 py-2.5">{t("detail.outcome")}</th>
+                <th className="px-3 py-2.5">{t("detail.duration")}</th>
+                <th className="px-3 py-2.5">{t("detail.agents")}</th>
+                <th className="px-3 py-2.5">{t("detail.extras")}</th>
               </tr>
             </thead>
             <tbody>
@@ -275,7 +281,7 @@ export function ReportDetailGrid({ rows, agentLabelMap, agentInstances = [] }: P
                     </Link>
                   </td>
                   <td className="px-3 py-3 font-mono text-xs text-cyan-200/90">{row.from_number}</td>
-                  <td className="px-3 py-3 text-xs text-slate-400">{channelLabel(row.channel)}</td>
+                  <td className="px-3 py-3 text-xs text-slate-400">{channelLabel(row.channel, locale)}</td>
                   <td className="px-3 py-3 text-xs capitalize">{row.outcome?.replaceAll("_", " ") || "—"}</td>
                   <td className="px-3 py-3 text-xs tabular-nums whitespace-nowrap">
                     {formatDuration(row.duration_seconds)}

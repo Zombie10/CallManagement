@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { CallReportSeries, CallReportSummary } from "../../lib/api";
+import { useUiLocale } from "../../contexts/LocaleContext";
 import { channelLabel, formatDuration, formatMetricValue } from "../../lib/reportDisplay";
 import clsx from "clsx";
 
@@ -10,13 +11,14 @@ export function SeriesBarChart({
   series: CallReportSeries[];
   metric: "count" | "sum_duration" | "avg_duration";
 }) {
+  const { t } = useUiLocale();
   const values = series.map((s) =>
     metric === "count" ? s.count : metric === "sum_duration" ? s.sum_duration : s.avg_duration,
   );
   const max = Math.max(1, ...values);
 
   if (!series.length) {
-    return <p className="py-8 text-center text-sm text-slate-500">Sin datos para el rango seleccionado</p>;
+    return <p className="py-8 text-center text-sm text-slate-500">{t("analytics.noSeries")}</p>;
   }
 
   return (
@@ -46,6 +48,7 @@ export function SeriesBarChart({
 }
 
 export function SeriesDataTable({ series }: { series: CallReportSeries[] }) {
+  const { t } = useUiLocale();
   if (!series.length) return null;
 
   const totals = series.reduce(
@@ -61,11 +64,11 @@ export function SeriesDataTable({ series }: { series: CallReportSeries[] }) {
       <table className="data-table min-w-[520px]">
         <thead className="bg-white/[0.02] text-xs uppercase text-slate-500">
           <tr>
-            <th className="px-4 py-2">Periodo</th>
-            <th className="px-4 py-2 text-right">Llamadas</th>
-            <th className="px-4 py-2 text-right">% del total</th>
-            <th className="px-4 py-2 text-right">Duración total</th>
-            <th className="px-4 py-2 text-right">Duración prom.</th>
+            <th className="px-4 py-2">{t("analytics.seriesPeriod")}</th>
+            <th className="px-4 py-2 text-right">{t("analytics.seriesCalls")}</th>
+            <th className="px-4 py-2 text-right">{t("analytics.seriesShare")}</th>
+            <th className="px-4 py-2 text-right">{t("analytics.seriesSum")}</th>
+            <th className="px-4 py-2 text-right">{t("analytics.seriesAvg")}</th>
           </tr>
         </thead>
         <tbody>
@@ -91,6 +94,7 @@ export function OutcomeDonut({
 }: {
   series: CallReportSeries[];
 }) {
+  const { t } = useUiLocale();
   const total = series.reduce((a, s) => a + s.count, 0);
   if (!total) return null;
 
@@ -133,7 +137,10 @@ export function OutcomeDonut({
               {s.count} ({Math.round((s.count / total) * 100)}%)
             </span>
             <span className="text-xs text-slate-600">
-              · prom. {formatDuration(s.avg_duration)} · total {formatDuration(s.sum_duration)}
+              {t("analytics.donutAvg", {
+                avg: formatDuration(s.avg_duration),
+                sum: formatDuration(s.sum_duration),
+              })}
             </span>
           </li>
         ))}
@@ -143,34 +150,39 @@ export function OutcomeDonut({
 }
 
 export function SummaryTiles({ summary }: { summary: CallReportSummary }) {
+  const { t } = useUiLocale();
   const handoffRate =
     summary.total_calls && summary.handoffs != null
       ? Math.round((summary.handoffs / summary.total_calls) * 100)
       : 0;
 
   const tiles = [
-    { label: "Llamadas", value: summary.total_calls, hint: "En el período filtrado" },
-    { label: "Llamantes únicos", value: summary.unique_callers, hint: "Teléfonos distintos" },
-    { label: "Duración prom.", value: formatDuration(summary.avg_duration_seconds), hint: "Por llamada" },
+    { id: "calls", label: t("analytics.tileCalls"), value: summary.total_calls, hint: t("analytics.tileCallsHint") },
+    { id: "callers", label: t("analytics.tileCallers"), value: summary.unique_callers, hint: t("analytics.tileCallersHint") },
+    { id: "avg", label: t("analytics.tileAvg"), value: formatDuration(summary.avg_duration_seconds), hint: t("analytics.tileAvgHint") },
     {
-      label: "Duración total",
+      id: "total",
+      label: t("analytics.tileTotal"),
       value: formatDuration(summary.total_duration_seconds),
-      hint: `${Math.round(summary.total_duration_seconds / 60)} min acumulados`,
+      hint: t("analytics.tileTotalHint", { minutes: Math.round(summary.total_duration_seconds / 60) }),
     },
     {
-      label: "Transferencias",
+      id: "handoffs",
+      label: t("analytics.tileHandoffs"),
       value: summary.handoffs ?? 0,
-      hint: summary.total_calls ? `${handoffRate}% de las llamadas` : "Cambios de agente",
+      hint: summary.total_calls
+        ? t("analytics.tileHandoffRate", { rate: handoffRate })
+        : t("analytics.tileHandoffEmpty"),
     },
   ];
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {tiles.map((t) => (
-        <div key={t.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <p className="text-xs uppercase tracking-wide text-slate-500">{t.label}</p>
-          <p className="mt-1 font-display text-2xl font-semibold text-cyan-200">{t.value}</p>
-          <p className="mt-0.5 text-[10px] text-slate-600">{t.hint}</p>
+      {tiles.map((tile) => (
+        <div key={tile.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-slate-500">{tile.label}</p>
+          <p className="mt-1 font-display text-2xl font-semibold text-cyan-200">{tile.value}</p>
+          <p className="mt-0.5 text-[10px] text-slate-600">{tile.hint}</p>
         </div>
       ))}
     </div>
@@ -184,34 +196,39 @@ export function SummaryBreakdown({
   summary: CallReportSummary;
   outcomeBreakdown: CallReportSeries[];
 }) {
+  const { t, locale } = useUiLocale();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {summary.channels && summary.channels.length > 0 && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">Por canal</p>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">{t("analytics.byChannel")}</p>
           <ul className="space-y-2">
-            {summary.channels.map((ch) => (
+            {summary.channels.map((ch) => {
+              const named = channelLabel(ch.key, locale);
+              const label = named !== ch.key ? named : ch.label || named;
+              return (
               <li key={ch.key} className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-slate-300">{ch.label || channelLabel(ch.key)}</span>
+                <span className="text-slate-300">{label}</span>
                 <span className="tabular-nums text-slate-400">
                   {ch.count}
                   {summary.total_calls ? ` (${Math.round((ch.count / summary.total_calls) * 100)}%)` : ""}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
 
       {outcomeBreakdown.length > 0 && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">Top outcomes</p>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">{t("analytics.topOutcomes")}</p>
           <ul className="space-y-2">
             {outcomeBreakdown.slice(0, 6).map((o) => (
               <li key={o.key} className="flex items-center justify-between gap-3 text-sm">
                 <span className="capitalize text-slate-300">{o.label}</span>
                 <span className="text-xs tabular-nums text-slate-400">
-                  {o.count} · prom. {formatDuration(o.avg_duration)}
+                  {t("analytics.outcomeAvg", { count: o.count, duration: formatDuration(o.avg_duration) })}
                 </span>
               </li>
             ))}

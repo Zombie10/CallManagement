@@ -238,7 +238,7 @@ async def synthesize_voice_preview(
 
     api_key = os.getenv("XAI_API_KEY")
     if not api_key:
-        raise ValueError("XAI_API_KEY is required for voice preview")
+        raise ValueError("Falta la clave de xAI para la vista previa de voz.")
 
     voice = normalize_xai_voice(voice_id)
     lang = resolve_tts_language(language)
@@ -276,7 +276,7 @@ async def create_ephemeral_voice_token(*, expires_seconds: int = 300) -> dict[st
 
     api_key = os.getenv("XAI_API_KEY")
     if not api_key:
-        raise ValueError("XAI_API_KEY is required for voice sessions")
+        raise ValueError("Falta la clave de xAI para la sesión de voz.")
 
     async with aiohttp.ClientSession() as session:
         async with session.post(

@@ -933,12 +933,15 @@ class CRMDatabase:
         sla_seconds: int = 30,
         date_from: str | None = None,
         date_to: str | None = None,
+        agents: list | None = None,
     ) -> dict:
         """SLA, sentiment, handoffs, and agent comparison for one period.
 
         Dashboard and Análisis pass the same window as the call count. With no
         dates the query stays all-time for callers that already ask for that.
+        Agent rows use the same label as Análisis Detalle.
         """
+        from call_management.crm.agent_labels import agent_handled_label
         from call_management.crm.reports import CallReportQuery, build_where
 
         where, params = build_where(CallReportQuery(date_from=date_from, date_to=date_to))
@@ -964,16 +967,12 @@ class CRMDatabase:
             within = sla_row["within_sla"] or 0
             async with db.execute(
                 f"""
-                SELECT COALESCE(agent_instance_id, 'unassigned') AS agent_id,
-                       COUNT(*) AS cnt,
-                       COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur,
-                       SUM(CASE WHEN outcome = 'escalated' THEN 1 ELSE 0 END) AS escalations
+                SELECT agent_instance_id, transferred_to, summary, duration_seconds, outcome
                 FROM call_records {where}
-                GROUP BY agent_id ORDER BY cnt DESC
                 """,
                 params,
             ) as cursor:
-                agent_rows = await cursor.fetchall()
+                labeled_rows = await cursor.fetchall()
             async with db.execute(
                 f"SELECT transcript, summary, agent_notes FROM call_records {text_where}",
                 params,
@@ -1000,6 +999,50 @@ class CRMDatabase:
         positive = keywords["gracias"] + keywords["satisfecho"]
         sentiment_score = positive - negative
 
+        buckets: dict[str, dict] = {}
+        for row in labeled_rows:
+            label = agent_handled_label(
+                agent_instance_id=row["agent_instance_id"],
+                transferred_to=row["transferred_to"],
+                summary=row["summary"],
+                agents=agents,
+            )
+            bucket = buckets.get(label)
+            if bucket is None:
+                bucket = {
+                    "call_count": 0,
+                    "duration_sum": 0,
+                    "duration_n": 0,
+                    "escalations": 0,
+                    "instance_ids": set(),
+                }
+                buckets[label] = bucket
+            bucket["call_count"] += 1
+            duration = row["duration_seconds"]
+            if duration is not None:
+                bucket["duration_sum"] += int(duration)
+                bucket["duration_n"] += 1
+            if row["outcome"] == "escalated":
+                bucket["escalations"] += 1
+            instance_id = (row["agent_instance_id"] or "").strip()
+            if instance_id and instance_id != "unassigned":
+                bucket["instance_ids"].add(instance_id)
+
+        agent_comparison = []
+        for label, bucket in sorted(buckets.items(), key=lambda item: (-item[1]["call_count"], item[0])):
+            instance_ids = bucket["instance_ids"]
+            agent_comparison.append(
+                {
+                    "agent_instance_id": next(iter(instance_ids)) if len(instance_ids) == 1 else "unassigned",
+                    "label": label,
+                    "call_count": bucket["call_count"],
+                    "avg_duration_seconds": (
+                        int(bucket["duration_sum"] / bucket["duration_n"]) if bucket["duration_n"] else 0
+                    ),
+                    "escalations": bucket["escalations"],
+                }
+            )
+
         return {
             "sla_seconds": sla_seconds,
             "sla_compliance_pct": round((within / total) * 100, 1) if total else 0.0,
@@ -1007,15 +1050,7 @@ class CRMDatabase:
             "total_calls": total,
             "handoffs": sla_row["handoffs"] or 0,
             "escalations": sla_row["escalated"] or 0,
-            "agent_comparison": [
-                {
-                    "agent_instance_id": r["agent_id"],
-                    "call_count": r["cnt"],
-                    "avg_duration_seconds": r["avg_dur"],
-                    "escalations": r["escalations"],
-                }
-                for r in agent_rows
-            ],
+            "agent_comparison": agent_comparison,
             "topic_keywords": keywords,
             "sentiment_score": sentiment_score,
             "sentiment_label": (

@@ -18,30 +18,56 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { moduleAllowed } from "../lib/permissions";
 import { AppLogo } from "./AppLogo";
+import type { AdminLocale } from "../lib/i18n";
 
-const ALL_NAV: Array<{ to: string; label: string; icon: typeof LayoutDashboard; module: string }> = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" },
-  { to: "/tenants", label: "Empresas", icon: Building2, module: "tenants" },
-  { to: "/my-agents", label: "Mis agentes", icon: Network, module: "my_agents" },
-  { to: "/setup", label: "Guía inicio", icon: Rocket, module: "setup" },
-  { to: "/operations", label: "Flujos / Operación", icon: GitBranch, module: "operations" },
-  { to: "/settings", label: "Configuración", icon: Settings2, module: "settings" },
-  { to: "/playground", label: "Probar agente", icon: MessageSquare, module: "playground" },
-  { to: "/agents", label: "Plantillas sistema", icon: Bot, module: "agents" },
-  { to: "/customers", label: "Clientes", icon: Users, module: "customers" },
-  { to: "/calls", label: "Registros", icon: Phone, module: "calls" },
-  { to: "/analytics", label: "Análisis", icon: BarChart3, module: "analytics" },
-  { to: "/supervisor", label: "Supervisor", icon: Eye, module: "supervisor" },
-  { to: "/appointments", label: "Citas", icon: Headphones, module: "appointments" },
-  { to: "/users", label: "Usuarios", icon: Users, module: "users" },
+const ALL_NAV: Array<{ to: string; icon: typeof LayoutDashboard; module: string }> = [
+  { to: "/", icon: LayoutDashboard, module: "dashboard" },
+  { to: "/tenants", icon: Building2, module: "tenants" },
+  { to: "/my-agents", icon: Network, module: "my_agents" },
+  { to: "/setup", icon: Rocket, module: "setup" },
+  { to: "/operations", icon: GitBranch, module: "operations" },
+  { to: "/settings", icon: Settings2, module: "settings" },
+  { to: "/playground", icon: MessageSquare, module: "playground" },
+  { to: "/agents", icon: Bot, module: "agents" },
+  { to: "/customers", icon: Users, module: "customers" },
+  { to: "/calls", icon: Phone, module: "calls" },
+  { to: "/analytics", icon: BarChart3, module: "analytics" },
+  { to: "/supervisor", icon: Eye, module: "supervisor" },
+  { to: "/appointments", icon: Headphones, module: "appointments" },
+  { to: "/users", icon: Users, module: "users" },
 ];
+
+function LanguageSwitch() {
+  const { locale, setLocale, t } = useUiLocale();
+  const choice = (id: AdminLocale, label: string) => (
+    <button
+      type="button"
+      aria-pressed={locale === id}
+      className={clsx(
+        "rounded-lg px-2 py-1 text-xs",
+        locale === id ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:bg-white/5",
+      )}
+      onClick={() => setLocale(id)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex gap-1" role="group" aria-label={t("language.label")}>
+      {choice("es", t("language.es"))}
+      {choice("en", t("language.en"))}
+    </div>
+  );
+}
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { t } = useUiLocale();
   const location = useLocation();
   const onPlayground = /\/playground\/?$/.test(location.pathname);
   const nav = ALL_NAV.filter(
@@ -55,7 +81,7 @@ export function Layout() {
           <AppLogo size="md" subtitle="Admin Console" />
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {nav.map(({ to, icon: Icon, module }) => (
             <NavLink
               key={to}
               to={to}
@@ -63,7 +89,7 @@ export function Layout() {
               className={({ isActive }) => clsx("nav-item", isActive && "nav-item-active")}
             >
               <Icon className="h-4 w-4" />
-              {label}
+              {t(`nav.${module}`)}
             </NavLink>
           ))}
         </nav>
@@ -76,22 +102,24 @@ export function Layout() {
             }
           >
             <p className="truncate text-sm font-medium text-slate-200">{user?.display_name}</p>
-            <p className="truncate text-xs text-slate-500">@{user?.username} · Perfil</p>
+            <p className="truncate text-xs text-slate-500">@{user?.username} · {t("layout.profile")}</p>
           </NavLink>
+          <LanguageSwitch />
           <NavLink to="/profile" className="btn-ghost w-full justify-start text-xs">
             <UserCircle className="h-4 w-4" />
-            Mi perfil
+            {t("layout.myProfile")}
           </NavLink>
           <button type="button" className="btn-ghost w-full justify-start text-xs text-red-300" onClick={() => logout()}>
             <LogOut className="h-4 w-4" />
-            Cerrar sesión
+            {t("layout.logout")}
           </button>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden">
         <nav className="glass-card flex gap-1 overflow-x-auto p-2 md:hidden">
-          {nav.map(({ to, label, icon: Icon }) => (
+          <LanguageSwitch />
+          {nav.map(({ to, icon: Icon, module }) => (
             <NavLink
               key={to}
               to={to}
@@ -101,7 +129,7 @@ export function Layout() {
               }
             >
               <Icon className="h-4 w-4" />
-              {label}
+              {t(`nav.${module}`)}
             </NavLink>
           ))}
         </nav>

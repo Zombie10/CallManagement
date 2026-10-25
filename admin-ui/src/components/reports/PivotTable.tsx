@@ -1,4 +1,5 @@
 import type { CallReportPivot } from "../../lib/api";
+import { useUiLocale } from "../../contexts/LocaleContext";
 import { dimensionLabel, formatMetricValue } from "../../lib/reportDisplay";
 import clsx from "clsx";
 
@@ -8,24 +9,31 @@ type Props = {
   showPercentages?: boolean;
 };
 
-function labelForKey(key: string, dimension: string, agentLabels?: Map<string, string>): string {
+function labelForKey(
+  key: string,
+  dimension: string,
+  unassigned: string,
+  agentLabels?: Map<string, string>,
+): string {
   if (dimension === "agent" && agentLabels?.has(key)) {
     return agentLabels.get(key)!;
   }
-  if (dimension === "agent" && key === "unassigned") return "Sin asignar";
+  if (dimension === "agent" && key === "unassigned") return unassigned;
   return key;
 }
 
 export function PivotTable({ pivot, agentLabels, showPercentages = true }: Props) {
+  const { t, locale } = useUiLocale();
   const max = Math.max(1, ...pivot.cells.flat());
   const grandTotal = pivot.cells.flat().reduce((a, b) => a + b, 0);
 
+  const unassigned = t("analytics.unassigned");
   const rowLabels = pivot.row_keys.map((key, i) => {
-    const mapped = labelForKey(key, pivot.row_dimension, agentLabels);
+    const mapped = labelForKey(key, pivot.row_dimension, unassigned, agentLabels);
     return mapped !== key ? mapped : pivot.row_labels[i];
   });
   const colLabels = pivot.col_keys.map((key, i) => {
-    const mapped = labelForKey(key, pivot.col_dimension, agentLabels);
+    const mapped = labelForKey(key, pivot.col_dimension, unassigned, agentLabels);
     return mapped !== key ? mapped : pivot.col_labels[i];
   });
 
@@ -51,7 +59,7 @@ export function PivotTable({ pivot, agentLabels, showPercentages = true }: Props
         <thead>
           <tr>
             <th className="sticky left-0 border border-white/10 bg-surface-900 px-3 py-2 text-left text-xs uppercase text-slate-500">
-              {dimensionLabel(pivot.row_dimension)} ↓ / {dimensionLabel(pivot.col_dimension)} →
+              {dimensionLabel(pivot.row_dimension, locale)} ↓ / {dimensionLabel(pivot.col_dimension, locale)} →
             </th>
             {colLabels.map((label, i) => (
               <th
@@ -62,7 +70,7 @@ export function PivotTable({ pivot, agentLabels, showPercentages = true }: Props
               </th>
             ))}
             <th className="border border-white/10 bg-cyan-500/10 px-3 py-2 text-center text-xs text-cyan-300">
-              Total fila
+              {t("analytics.rowTotal")}
             </th>
           </tr>
         </thead>
@@ -104,7 +112,7 @@ export function PivotTable({ pivot, agentLabels, showPercentages = true }: Props
         <tfoot>
           <tr>
             <td className="sticky left-0 border border-white/10 bg-surface-900 px-3 py-2 text-xs font-medium text-slate-400">
-              Total columna
+              {t("analytics.colTotal")}
             </td>
             {pivot.col_keys.map((_, ci) => {
               const colTotal = pivot.cells.reduce((s, row) => s + row[ci], 0);
