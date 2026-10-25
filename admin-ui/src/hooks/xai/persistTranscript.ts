@@ -2,9 +2,16 @@ import { api, type VoiceSessionResponse } from "../../lib/api";
 
 export type PersistableLine = { role: "user" | "assistant" | "system"; text: string };
 
+const ELLIPSIS_ONLY = /^[.\u2026\s]+$/;
+
 export function formatVoiceTranscript(lines: PersistableLine[]): string {
   return lines
-    .filter((line) => line.text.trim())
+    .filter((line) => {
+      const text = line.text.trim();
+      if (!text) return false;
+      if (line.role === "user" && ELLIPSIS_ONLY.test(text)) return false;
+      return true;
+    })
     .map((line) => {
       const label =
         line.role === "user" ? "Cliente" : line.role === "assistant" ? "Agente" : "Sistema";

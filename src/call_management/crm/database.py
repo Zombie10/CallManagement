@@ -917,36 +917,56 @@ class CRMDatabase:
             }
         )
 
-    async def get_actionable_analytics(self, *, sla_seconds: int = 30) -> dict:
-        """SLA proxy, sentiment keywords, agent comparison, handoff metrics."""
+    async def get_actionable_analytics(
+        self,
+        *,
+        sla_seconds: int = 30,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict:
+        """SLA, sentiment, handoffs, and agent comparison for one period.
+
+        Dashboard and Análisis pass the same window as the call count. With no
+        dates the query stays all-time for callers that already ask for that.
+        """
+        from call_management.crm.reports import CallReportQuery, build_where
+
+        where, params = build_where(CallReportQuery(date_from=date_from, date_to=date_to))
+        text_where = (
+            f"{where} AND (transcript IS NOT NULL OR summary IS NOT NULL OR agent_notes IS NOT NULL)"
+            if where
+            else "WHERE transcript IS NOT NULL OR summary IS NOT NULL OR agent_notes IS NOT NULL"
+        )
         async with self._connect() as db:
             async with db.execute(
-                """
+                f"""
                 SELECT
                     COUNT(*) AS total,
                     SUM(CASE WHEN duration_seconds IS NOT NULL AND duration_seconds <= ? THEN 1 ELSE 0 END) AS within_sla,
                     SUM(CASE WHEN outcome = 'escalated' THEN 1 ELSE 0 END) AS escalated,
                     SUM(CASE WHEN transferred_to IS NOT NULL AND transferred_to != '' THEN 1 ELSE 0 END) AS handoffs
-                FROM call_records
+                FROM call_records {where}
                 """,
-                (sla_seconds,),
+                (sla_seconds, *params),
             ) as cursor:
                 sla_row = await cursor.fetchone()
             total = sla_row["total"] or 0
             within = sla_row["within_sla"] or 0
             async with db.execute(
-                """
+                f"""
                 SELECT COALESCE(agent_instance_id, 'unassigned') AS agent_id,
                        COUNT(*) AS cnt,
                        COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur,
                        SUM(CASE WHEN outcome = 'escalated' THEN 1 ELSE 0 END) AS escalations
-                FROM call_records
+                FROM call_records {where}
                 GROUP BY agent_id ORDER BY cnt DESC
-                """
+                """,
+                params,
             ) as cursor:
                 agent_rows = await cursor.fetchall()
             async with db.execute(
-                "SELECT transcript, summary, agent_notes FROM call_records WHERE transcript IS NOT NULL OR summary IS NOT NULL"
+                f"SELECT transcript, summary, agent_notes FROM call_records {text_where}",
+                params,
             ) as cursor:
                 text_rows = await cursor.fetchall()
 

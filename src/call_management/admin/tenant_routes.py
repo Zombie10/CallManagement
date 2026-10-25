@@ -549,9 +549,12 @@ async def export_report_xlsx(
 
 @router.get("/analytics")
 async def tenant_analytics(ctx: TenantContext = Depends(require_tenant_context)):
+    from call_management.crm.reports import default_period
+
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
-    analytics = await crm.get_call_analytics()
-    actionable = await crm.get_actionable_analytics()
+    date_from, date_to = default_period()
+    analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
+    actionable = await crm.get_actionable_analytics(date_from=date_from, date_to=date_to)
     metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     from call_management.tenancy.queue import active_count
 

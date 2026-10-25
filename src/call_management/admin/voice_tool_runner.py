@@ -6,7 +6,13 @@ import time
 from typing import Any
 
 from call_management.agents.registry import resolve_handoff_target
-from call_management.crm.banking_data import format_customer_lookup, get_demo_customer, normalize_phone
+from call_management.crm.banking_data import (
+    account_summary_speech,
+    format_customer_lookup,
+    get_demo_customer,
+    normalize_phone,
+    redact_customer_notes,
+)
 
 
 # Generic playground defaults — not real callers until the agent collects a number.
@@ -25,7 +31,7 @@ def _tool_result(
 ) -> dict[str, Any]:
     elapsed = int((time.perf_counter() - started) * 1000)
     payload: dict[str, Any] = {
-        "output": output,
+        "output": redact_customer_notes(output) or "",
         "tool": function_name,
         "arguments": arguments,
         "status": status,
@@ -190,18 +196,9 @@ async def execute_voice_function(
                 started=started,
                 status="error",
             )
-        b = demo.banking
-        parts = [
-            f"{demo.name} — {b.institution}",
-            f"Cuenta {b.account_type}: ****{b.account_number[-4:]}",
-            f"Débito: ****{b.debit_card_last4}",
-        ]
-        if b.credit_card_last4:
-            parts.append(f"Crédito: ****{b.credit_card_last4}")
-        parts.append(f"Productos: {', '.join(b.products)}")
         return _tool_result(
             function_name=name,
-            output=". ".join(parts) + ".",
+            output=account_summary_speech(demo),
             arguments=args,
             started=started,
         )

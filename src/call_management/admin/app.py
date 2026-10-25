@@ -109,7 +109,7 @@ async def dashboard(ctx=Depends(require_tenant_context)):
     date_from, date_to = default_period()
     analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
     stats["calls"] = analytics["total_calls"]
-    actionable = await crm.get_actionable_analytics()
+    actionable = await crm.get_actionable_analytics(date_from=date_from, date_to=date_to)
     tenant_metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     cfg = get_model_config()
     mcp = load_remote_mcp_config()

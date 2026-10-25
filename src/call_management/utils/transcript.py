@@ -6,6 +6,15 @@ import re
 from typing import Any
 
 _ROLE_LINE = re.compile(r"^\[[^\]]+\]\s*(.*)$")
+_ELLIPSIS_ONLY = re.compile(r"^[.\u2026\s]+$")
+
+
+def is_spoken_text(text: str | None) -> bool:
+    """False for blank text and for a placeholder such as '...' before speech arrives."""
+    body = (text or "").strip()
+    if not body:
+        return False
+    return _ELLIPSIS_ONLY.fullmatch(body) is None
 
 ROLE_LABELS = {
     "user": "Cliente",
@@ -67,7 +76,7 @@ def transcript_from_agent_session(session: Any, *, agent_name: str | None = None
             if role not in ("user", "assistant"):
                 continue
             text = content_to_text(getattr(item, "content", None))
-            if not text:
+            if not is_spoken_text(text):
                 continue
             key = (role, text)
             if key in seen:
@@ -96,7 +105,7 @@ def transcript_line_has_speech(line: str) -> bool:
     match = _ROLE_LINE.match(stripped)
     if not match:
         return True
-    return bool(match.group(1).strip())
+    return is_spoken_text(match.group(1))
 
 
 def clean_transcript(text: str | None) -> str | None:

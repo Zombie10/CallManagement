@@ -94,6 +94,29 @@ def is_valid_customer_phone(phone: str | None) -> bool:
     return 10 <= len(digits) <= 15
 
 
+def present_caller_phone(phone: str | None) -> str:
+    """Label Registros shows. Invalid values use the same words as Clientes."""
+    raw = (phone or "").strip()
+    if is_valid_customer_phone(raw):
+        return raw
+    return "Teléfono inválido"
+
+
+def account_summary_speech(customer: DemoCustomer) -> str:
+    """What the voice agent says for get_account_summary. Last four only."""
+    banking = customer.banking
+    parts = [
+        f"{customer.name} — {banking.institution}",
+        f"Cuenta {banking.account_type}: {mask_last4(banking.account_number)}",
+        f"Débito: {mask_last4(banking.debit_card_masked)}",
+    ]
+    if banking.credit_card_masked:
+        parts.append(f"Crédito: {mask_last4(banking.credit_card_masked)}")
+    if banking.products:
+        parts.append(f"Productos: {', '.join(banking.products)}")
+    return redact_customer_notes(". ".join(parts) + ".") or ""
+
+
 DEMO_CUSTOMERS: list[DemoCustomer] = [
     DemoCustomer(
         phone_number="+15103750043",

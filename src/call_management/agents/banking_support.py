@@ -9,7 +9,11 @@ from pydantic import Field
 
 from call_management.agents.base import BaseAgent, RunContextT
 from call_management.config import get_model_config, get_voice_for_agent
-from call_management.crm.banking_data import get_demo_customer, normalize_phone
+from call_management.crm.banking_data import (
+    account_summary_speech,
+    get_demo_customer,
+    normalize_phone,
+)
 
 
 class BankingSupportAgent(BaseAgent):
@@ -127,13 +131,4 @@ class BankingSupportAgent(BaseAgent):
         profile = self._profile(context)
         if not profile:
             return "Primero usa lookup_customer para identificar al cliente."
-        b = profile.banking
-        parts = [
-            f"{profile.name} — {b.institution}",
-            f"Cuenta {b.account_type}: ****{b.account_number[-4:]}",
-            f"Débito: ****{b.debit_card_last4}",
-        ]
-        if b.credit_card_last4:
-            parts.append(f"Crédito: ****{b.credit_card_last4}")
-        parts.append(f"Productos: {', '.join(b.products)}")
-        return ". ".join(parts) + "."
+        return account_summary_speech(profile)

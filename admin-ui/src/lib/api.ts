@@ -56,7 +56,7 @@ import type {
   WebhookRecord,
 } from "./apiTypes";
 
-const API = `${import.meta.env.BASE_URL.replace(/\/?$/, "")}/api`;
+const API = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "")}/api`;
 
 let _tenantId: string | null = null;
 let _agentInstanceId: string | null = null;

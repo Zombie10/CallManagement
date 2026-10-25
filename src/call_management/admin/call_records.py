@@ -11,6 +11,7 @@ from call_management.recordings.store import (
     recording_api_url,
     save_recording_bytes,
 )
+from call_management.crm.banking_data import present_caller_phone, redact_customer_notes
 from call_management.tenancy.context import resolve_crm_for_tenant
 from call_management.utils.summary import present_call_summary
 from call_management.utils.transcript import clean_transcript
@@ -20,16 +21,16 @@ def _row_to_item(row: dict) -> dict:
     return {
         "call_id": row["call_id"],
         "room_name": row["room_name"],
-        "from_number": row["from_number"],
+        "from_number": present_caller_phone(row.get("from_number")),
         "to_number": row["to_number"],
         "start_time": row["start_time"],
         "end_time": row["end_time"],
         "outcome": row["outcome"],
-        "summary": present_call_summary(row.get("summary")),
+        "summary": redact_customer_notes(present_call_summary(row.get("summary"))),
         "duration_seconds": row["duration_seconds"],
         "transferred_to": row["transferred_to"],
-        "agent_notes": row.get("agent_notes"),
-        "transcript": clean_transcript(row.get("transcript")),
+        "agent_notes": redact_customer_notes(row.get("agent_notes")),
+        "transcript": redact_customer_notes(clean_transcript(row.get("transcript"))),
         "recording_url": row.get("recording_url"),
         "agent_instance_id": row.get("agent_instance_id"),
         "channel": row.get("channel") or "sip",
