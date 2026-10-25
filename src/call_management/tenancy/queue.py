@@ -56,6 +56,13 @@ def active_count(tenant_id: str) -> int:
     return _store().slot_count("tenant", tenant_id)
 
 
+def concurrency_status(tenant_id: str) -> dict[str, int]:
+    """Active slots and the tenant cap. Supervisor and Dashboard both read this."""
+    cap = default_tenant_cap()
+    active = active_count(tenant_id)
+    return {"active": active, "cap": cap}
+
+
 def agent_active_count(agent_instance_id: str) -> int:
     return _store().slot_count("agent", agent_instance_id)
 
@@ -183,8 +190,9 @@ def supervisor_snapshot(
     calls = list_active_calls(tenant_id=tenant_id)
     queued = sum(1 for c in calls if c.get("queued"))
     recording = sum(1 for c in calls if c.get("recording"))
-    tenant_active = active_count(tenant_id)
-    tenant_cap_value = default_tenant_cap()
+    tenant_conc = concurrency_status(tenant_id)
+    tenant_active = tenant_conc["active"]
+    tenant_cap_value = tenant_conc["cap"]
 
     agent_limits: list[dict[str, Any]] = []
     for agent in agents or []:

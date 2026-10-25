@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
+
+_ROLE_LINE = re.compile(r"^\[[^\]]+\]\s*(.*)$")
 
 ROLE_LABELS = {
     "user": "Cliente",
@@ -85,5 +88,24 @@ def transcript_from_agent_session(session: Any, *, agent_name: str | None = None
     return "\n".join(lines)
 
 
+def transcript_line_has_speech(line: str) -> bool:
+    """False for blank lines and role tags with no words, such as '[Cliente]'."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    match = _ROLE_LINE.match(stripped)
+    if not match:
+        return True
+    return bool(match.group(1).strip())
+
+
+def clean_transcript(text: str | None) -> str | None:
+    if text is None:
+        return None
+    kept = [line for line in text.splitlines() if transcript_line_has_speech(line)]
+    cleaned = "\n".join(kept).strip()
+    return cleaned or None
+
+
 def transcript_from_lines(lines: list[str]) -> str:
-    return "\n".join(line for line in lines if line.strip())
+    return clean_transcript("\n".join(lines)) or ""

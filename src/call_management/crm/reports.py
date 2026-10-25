@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+# utc_now_iso() stores an offset timestamp SQLite date()/datetime() reject.
+# The first 19 characters are YYYY-MM-DDTHH:MM:SS on every stored call.
+CALL_START_EXPR = "datetime(replace(substr(start_time, 1, 19), 'T', ' '))"
+
 DIMENSIONS: dict[str, tuple[str, str]] = {
-    "day": ("date(start_time)", "Día"),
-    "hour": ("CAST(strftime('%H', start_time) AS INTEGER)", "Hora"),
-    "weekday": ("strftime('%w', start_time)", "Día semana"),
+    "day": (f"date({CALL_START_EXPR})", "Día"),
+    "hour": (f"CAST(strftime('%H', {CALL_START_EXPR}) AS INTEGER)", "Hora"),
+    "weekday": (f"strftime('%w', {CALL_START_EXPR})", "Día semana"),
     "outcome": ("COALESCE(outcome, 'unknown')", "Outcome"),
-    "agent": ("COALESCE(agent_instance_id, 'unassigned')", "Agente instancia"),
+    "agent": ("COALESCE(NULLIF(agent_instance_id, ''), 'unassigned')", "Agente instancia"),
     "template": ("COALESCE(NULLIF(transferred_to, ''), 'sin_plantilla')", "Plantilla agente"),
     "channel": ("COALESCE(channel, 'sip')", "Canal"),
-    "month": ("strftime('%Y-%m', start_time)", "Mes"),
+    "month": (f"strftime('%Y-%m', {CALL_START_EXPR})", "Mes"),
 }
 
 WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
@@ -81,7 +86,7 @@ def _dimension_expr(name: str) -> str:
 
 
 def _label_key(key: str, dimension: str) -> str:
-    if dimension == "weekday" and key.isdigit():
+    if dimension == "weekday" and str(key).isdigit():
         idx = int(key)
         if 0 <= idx < len(WEEKDAY_LABELS):
             return WEEKDAY_LABELS[idx]
@@ -91,7 +96,23 @@ def _label_key(key: str, dimension: str) -> str:
         return CHANNEL_LABELS.get(key, key)
     if dimension == "template":
         return TEMPLATE_LABELS.get(key, key.replace("_", " "))
+    if dimension == "agent":
+        if key in {"unassigned", "None", ""}:
+            return "Sin asignar"
+        return key
     return key
+
+
+def default_period(*, days: int = 30) -> tuple[str, str]:
+    """Calendar window Análisis opens with, shared by the Dashboard call count."""
+    today = datetime.now(UTC).date()
+    return (today - timedelta(days=days)).isoformat(), today.isoformat()
+
+
+def _date_bound(value: str, *, end: bool) -> str:
+    if "T" in value:
+        return value
+    return f"{value}T23:59:59" if end else f"{value}T00:00:00"
 
 
 def build_where(query: CallReportQuery) -> tuple[str, list[Any]]:
@@ -99,11 +120,11 @@ def build_where(query: CallReportQuery) -> tuple[str, list[Any]]:
     params: list[Any] = []
 
     if query.date_from:
-        clauses.append("start_time >= ?")
-        params.append(query.date_from if "T" in query.date_from else f"{query.date_from}T00:00:00")
+        clauses.append(f"{CALL_START_EXPR} >= datetime(replace(substr(?, 1, 19), 'T', ' '))")
+        params.append(_date_bound(query.date_from, end=False))
     if query.date_to:
-        clauses.append("start_time <= ?")
-        params.append(query.date_to if "T" in query.date_to else f"{query.date_to}T23:59:59")
+        clauses.append(f"{CALL_START_EXPR} <= datetime(replace(substr(?, 1, 19), 'T', ' '))")
+        params.append(_date_bound(query.date_to, end=True))
     if query.outcomes:
         placeholders = ",".join("?" * len(query.outcomes))
         clauses.append(f"COALESCE(outcome, 'unknown') IN ({placeholders})")

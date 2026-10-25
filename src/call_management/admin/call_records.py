@@ -12,6 +12,8 @@ from call_management.recordings.store import (
     save_recording_bytes,
 )
 from call_management.tenancy.context import resolve_crm_for_tenant
+from call_management.utils.summary import present_call_summary
+from call_management.utils.transcript import clean_transcript
 
 
 def _row_to_item(row: dict) -> dict:
@@ -23,11 +25,11 @@ def _row_to_item(row: dict) -> dict:
         "start_time": row["start_time"],
         "end_time": row["end_time"],
         "outcome": row["outcome"],
-        "summary": row["summary"],
+        "summary": present_call_summary(row.get("summary")),
         "duration_seconds": row["duration_seconds"],
         "transferred_to": row["transferred_to"],
         "agent_notes": row.get("agent_notes"),
-        "transcript": row.get("transcript"),
+        "transcript": clean_transcript(row.get("transcript")),
         "recording_url": row.get("recording_url"),
         "agent_instance_id": row.get("agent_instance_id"),
         "channel": row.get("channel") or "sip",
@@ -36,7 +38,9 @@ def _row_to_item(row: dict) -> dict:
 
 async def list_calls_for_tenant(ctx, *, limit: int = 50, offset: int = 0) -> dict:
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
-    return await crm.list_call_records(limit=limit, offset=offset)
+    data = await crm.list_call_records(limit=limit, offset=offset)
+    data["items"] = [_row_to_item(row) for row in data["items"]]
+    return data
 
 
 async def get_call_for_tenant(ctx, call_id: str) -> dict:

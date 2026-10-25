@@ -15,6 +15,7 @@ export function Tenants() {
   const [form, setForm] = useState<TenantCreateInput>({ slug: "", name: "" });
   const [editing, setEditing] = useState<TenantRecord | null>(null);
   const [editDraft, setEditDraft] = useState<TenantUpdateInput>({});
+  const [activeNotice, setActiveNotice] = useState<string | null>(null);
 
   const create = useMutation({
     mutationFn: () => api.createTenant(form),
@@ -63,6 +64,11 @@ export function Tenants() {
           {platform?.tenant_count ?? 0} empresas · {platform?.total_agents ?? 0} agentes en total
         </p>
       </header>
+      {activeNotice && (
+        <p role="status" className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+          Empresa activa: {activeNotice}
+        </p>
+      )}
 
       <div className="glass-card p-4">
         <p className="mb-3 text-sm font-medium text-slate-300">Nueva empresa</p>
@@ -128,7 +134,8 @@ export function Tenants() {
                 className="btn-primary flex-1 text-sm"
                 onClick={() => {
                   setTenantId(t.id);
-                  navigate("/my-agents");
+                  setActiveNotice(t.name);
+                  navigate("/my-agents", { state: { activeCompanyNotice: t.name } });
                 }}
               >
                 Gestionar
@@ -141,7 +148,11 @@ export function Tenants() {
                   type="button"
                   className="btn-ghost text-red-300"
                   disabled={remove.isPending}
-                  onClick={() => remove.mutate(t.id)}
+                  onClick={() => {
+                    if (window.confirm(`¿Eliminar la empresa "${t.name}"?`)) {
+                      remove.mutate(t.id);
+                    }
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

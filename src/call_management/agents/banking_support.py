@@ -98,9 +98,8 @@ class BankingSupportAgent(BaseAgent):
             return "Los últimos 4 dígitos de la tarjeta no coinciden."
         if expiry.strip() and expiry.strip() != profile.banking.debit_card_exp:
             return "La tarjeta coincide parcialmente pero el vencimiento no es correcto."
-        masked = profile.banking.debit_card_masked
         context.userdata.call_notes.append(f"Debit card verified (****{last4})")
-        return f"Tarjeta débito verificada: {masked} (vence {profile.banking.debit_card_exp})."
+        return f"Tarjeta débito verificada: ****{last4}."
 
     @function_tool
     async def block_debit_card_temporarily(
@@ -132,9 +131,9 @@ class BankingSupportAgent(BaseAgent):
         parts = [
             f"{profile.name} — {b.institution}",
             f"Cuenta {b.account_type}: ****{b.account_number[-4:]}",
-            f"Débito: {b.debit_card_masked}",
+            f"Débito: ****{b.debit_card_last4}",
         ]
-        if b.credit_card_masked:
-            parts.append(f"Crédito: {b.credit_card_masked}")
+        if b.credit_card_last4:
+            parts.append(f"Crédito: ****{b.credit_card_last4}")
         parts.append(f"Productos: {', '.join(b.products)}")
         return ". ".join(parts) + "."

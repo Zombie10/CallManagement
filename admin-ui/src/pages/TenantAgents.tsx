@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { AgentInstructionsEditor } from "../components/AgentInstructionsEditor";
 import { TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
@@ -209,6 +210,8 @@ function AgentCard({
 
 export function TenantAgents() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const activeCompanyNotice = (location.state as { activeCompanyNotice?: string } | null)?.activeCompanyNotice;
   const { tenant, tenantId, isSuperAdmin, setTenantId } = useTenant();
   const { data: agentsCatalog } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
   const { data, isLoading, isFetching } = useQuery({
@@ -371,6 +374,11 @@ export function TenantAgents() {
             {tenant?.name || data?.tenant.name} — cada agente con su voz, teléfono y base de datos aislada
             {isFetching && <span className="ml-2 text-cyan-400/80">actualizando…</span>}
           </p>
+          {activeCompanyNotice && (
+            <p role="status" className="mt-3 rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+              Empresa activa: {activeCompanyNotice}
+            </p>
+          )}
         </div>
         <button type="button" className="btn-primary" onClick={openNew}>
           <Plus className="h-4 w-4" />

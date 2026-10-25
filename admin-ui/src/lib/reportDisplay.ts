@@ -37,7 +37,7 @@ export function dimensionLabel(id: string): string {
 
 export function templateAgentFromSummary(summary?: string | null): string | null {
   if (!summary) return null;
-  const match = summary.match(/Final agent:\s*([^\n]+)/i);
+  const match = summary.match(/(?:Final agent|Agente final):\s*([^\n]+)/i);
   return match?.[1]?.trim() || null;
 }
 

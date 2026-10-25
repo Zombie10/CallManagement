@@ -150,8 +150,6 @@ async def finalize_interaction(
             call_ctx.post_call_summary = build_structured_summary(call_ctx)
 
         summary = call_ctx.post_call_summary
-        if channel != "sip" and transcript:
-            summary = f"[{channel}] {summary or ''}".strip()
 
         record = CallRecord(
             call_id=call_ctx.call_id,

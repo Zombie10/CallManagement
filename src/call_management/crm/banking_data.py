@@ -45,6 +45,55 @@ def normalize_phone(phone: str) -> str:
     return f"+{digits}"
 
 
+_INVALID_PHONE_WORDS = frozenset(
+    {"unknown", "anonymous", "restricted", "private", "unavailable", "withheld", "null", "none"}
+)
+
+# 13–19 digit PANs, grouped or contiguous, plus an expiry only when it sits on that PAN.
+_PAN_WITH_EXPIRY = re.compile(
+    r"(?<!\d)"
+    r"(?P<pan>(?:\d{4}[ \t-]+){3}\d{1,7}|\d{13,19})"
+    r"(?!\d)"
+    r"(?:[ \t]*\([ \t]*vence[ \t]+\d{1,2}[/-]\d{4}[ \t]*\))?",
+    re.IGNORECASE,
+)
+# Account-length runs. A leading + keeps E.164 phones intact.
+_BARE_ACCOUNT = re.compile(r"(?<![+\d])\d{8,12}(?!\d)")
+
+
+def mask_last4(raw: str | None) -> str:
+    digits = re.sub(r"\D", "", raw or "")
+    if len(digits) < 4:
+        return "****"
+    return f"****{digits[-4:]}"
+
+
+def redact_customer_notes(text: str | None) -> str | None:
+    """Mask full account numbers and full PANs. Drop an expiry only when it follows a full PAN."""
+    if text is None:
+        return None
+    if not text:
+        return text
+
+    def _pan(match: re.Match[str]) -> str:
+        return mask_last4(match.group("pan"))
+
+    redacted = _PAN_WITH_EXPIRY.sub(_pan, text)
+    redacted = _BARE_ACCOUNT.sub(lambda match: mask_last4(match.group(0)), redacted)
+    return redacted
+
+
+def is_valid_customer_phone(phone: str | None) -> bool:
+    """True when the admin list may show this value as a phone number."""
+    raw = (phone or "").strip()
+    if not raw or raw.lower() in _INVALID_PHONE_WORDS:
+        return False
+    if re.search(r"[A-Za-z]", raw):
+        return False
+    digits = re.sub(r"\D", "", raw)
+    return 10 <= len(digits) <= 15
+
+
 DEMO_CUSTOMERS: list[DemoCustomer] = [
     DemoCustomer(
         phone_number="+15103750043",
@@ -109,11 +158,11 @@ def demo_customers_payload() -> list[dict[str, Any]]:
                 "email": customer.email,
                 "vip": customer.vip,
                 "institution": b.institution,
-                "account_masked": f"****{b.account_number[-4:]}",
+                "account_masked": mask_last4(b.account_number),
                 "account_type": b.account_type,
-                "debit_card_masked": b.debit_card_masked,
+                "debit_card_masked": mask_last4(b.debit_card_masked),
                 "debit_card_exp": b.debit_card_exp,
-                "credit_card_masked": b.credit_card_masked,
+                "credit_card_masked": mask_last4(b.credit_card_masked) if b.credit_card_masked else None,
                 "products": list(b.products),
                 "hint": "Pide al agente verificar tu cuenta o tarjeta para ver las tools en acción.",
             }
@@ -138,4 +187,4 @@ def format_customer_lookup(customer: DemoCustomer) -> str:
         lines.append(f"Productos: {', '.join(b.products)}")
     if customer.notes:
         lines.append(f"Notas: {customer.notes}")
-    return ". ".join(lines) + "."
+    return redact_customer_notes(". ".join(lines) + ".") or ""

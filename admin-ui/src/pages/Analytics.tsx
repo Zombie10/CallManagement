@@ -18,7 +18,7 @@ import { PivotTable } from "../components/reports/PivotTable";
 import { ReportDetailGrid } from "../components/reports/ReportDetailGrid";
 import { AgentFleetStatus } from "../components/AgentFleetStatus";
 import { ExportReportMenu } from "../components/reports/ExportReportMenu";
-import { ReportTabFilterBar } from "../components/reports/ReportTabFilterBar";
+
 import {
   OutcomeDonut,
   SeriesBarChart,
@@ -276,15 +276,22 @@ export function Analytics() {
             <div className="sm:col-span-2 lg:col-span-4">
               <p className="mb-2 text-xs font-medium uppercase text-slate-500">Comparación agentes</p>
               <div className="flex flex-wrap gap-2">
-                {analyticsData.actionable.agent_comparison.map((a) => (
-                  <span
-                    key={a.agent_instance_id}
-                    className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300"
-                  >
-                    {a.agent_instance_id}: {a.call_count} llamadas · {a.avg_duration_seconds}s avg
-                    {a.escalations > 0 && ` · ${a.escalations} escal.`}
-                  </span>
-                ))}
+                {analyticsData.actionable.agent_comparison.map((a) => {
+                  const rawId = a.agent_instance_id;
+                  const named =
+                    rawId && rawId !== "unassigned" ? agentLabelMap.get(rawId) : undefined;
+                  const label = named || "Sin asignar";
+                  const calls = a.call_count === 1 ? "llamada" : "llamadas";
+                  return (
+                    <span
+                      key={rawId || "unassigned"}
+                      className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300"
+                    >
+                      {label}: {a.call_count} {calls} · {a.avg_duration_seconds}s avg
+                      {a.escalations > 0 && ` · ${a.escalations} escal.`}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -573,15 +580,6 @@ export function Analytics() {
 
               {tab === "summary" && (
                 <div className="space-y-4">
-                  <ReportTabFilterBar
-                    filters={filters}
-                    setFilters={setFilters}
-                    onApply={runReport}
-                    isFetching={isFetching}
-                    outcomeOptions={outcomeOptions}
-                    agentOptions={agentOptions}
-                    resultLabel={`${data.summary.total_calls} llamadas en el período`}
-                  />
                   <div className="glass-card p-6">
                     <h2 className="mb-4 font-display text-lg font-semibold">Distribución por outcome</h2>
                     <OutcomeDonut series={data.outcome_breakdown} />
@@ -598,17 +596,6 @@ export function Analytics() {
 
               {tab === "series" && (
                 <div className="space-y-4">
-                  <ReportTabFilterBar
-                    filters={filters}
-                    setFilters={setFilters}
-                    onApply={runReport}
-                    isFetching={isFetching}
-                    outcomeOptions={outcomeOptions}
-                    agentOptions={agentOptions}
-                    showGroupBy
-                    dimensionOptions={dimensionOptions}
-                    resultLabel={`${data.series.length} períodos · ${data.summary.total_calls} llamadas`}
-                  />
                 <div className="glass-card space-y-6 p-6">
                   <div>
                     <h2 className="mb-1 font-display text-lg font-semibold">
@@ -706,15 +693,6 @@ export function Analytics() {
 
               {tab === "detail" && (
                 <div className="space-y-4">
-                  <ReportTabFilterBar
-                    filters={filters}
-                    setFilters={setFilters}
-                    onApply={runReport}
-                    isFetching={isFetching}
-                    outcomeOptions={outcomeOptions}
-                    agentOptions={agentOptions}
-                    resultLabel={`${data.detail.length} filas en detalle (máx. 100)`}
-                  />
                 <div className="glass-card min-w-0">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 px-4 py-3">
                     <p className="flex items-center gap-2 text-sm text-slate-300">

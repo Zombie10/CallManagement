@@ -13,6 +13,22 @@ const STEPS = [
   { id: 4, title: "Probar llamada", icon: Settings2 },
 ];
 
+function phoneDigits(value: string | null | undefined) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function chooseDidAgent<T extends { phone_number?: string | null; phone_numbers?: string[] | null }>(
+  agents: T[],
+  phone: string,
+): T | undefined {
+  const target = phoneDigits(phone);
+  if (!target) return undefined;
+  return agents.find((agent) => {
+    const numbers = [agent.phone_number, ...(agent.phone_numbers || [])].filter(Boolean) as string[];
+    return numbers.some((number) => phoneDigits(number) === target);
+  });
+}
+
 const DISPATCH_JSON = `{
   "name": "Call Management inbound",
   "rule": { "dispatchRuleIndividual": { "roomPrefix": "call-" } },
@@ -43,7 +59,8 @@ export function SetupWizard() {
   const savePhone = useMutation({
     mutationFn: async () => {
       const agents = agentsData?.agents || [];
-      const target = agents.find((a) => a.status === "active") || agents[0];
+      const owner = chooseDidAgent(agents, phone);
+      const target = owner || agents.find((a) => a.status === "active") || agents[0];
       if (!target) throw new Error("Crea un agente primero en Mis agentes");
       const normalized = phone.trim();
       const numbers = [...new Set([normalized, ...(target.phone_numbers || [])].filter(Boolean))];
@@ -67,7 +84,9 @@ export function SetupWizard() {
   const hasPhone = (agentsData?.agents || []).some(
     (a) => a.phone_number || (a.phone_numbers && a.phone_numbers.length > 0),
   );
-  const activeAgent = (agentsData?.agents || []).find((a) => a.status === "active");
+  const agents = agentsData?.agents || [];
+  const didOwner = chooseDidAgent(agents, phone);
+  const activeAgent = didOwner || agents.find((a) => a.status === "active");
 
   if (!tenantId) {
     return (
@@ -85,17 +104,6 @@ export function SetupWizard() {
           {tenant?.name} · LiveKit + dispatch rule + DID en el agente
         </p>
       </header>
-
-      <div className="glass-card border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-slate-300">
-        <p>
-          <strong className="text-cyan-200">Proyecto LiveKit:</strong> call management ·{" "}
-          <code className="text-xs">p_39db3sg0f79</code>
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Worker URL: <code>wss://call-management-6g9fmqf0.livekit.cloud</code> · SIP (trunks externos):{" "}
-          <code>sip:39db3sg0f79.sip.livekit.cloud</code>
-        </p>
-      </div>
 
       <div className="flex flex-wrap gap-2">
         {STEPS.map((s) => (
@@ -214,6 +222,7 @@ export function SetupWizard() {
           {activeAgent && (
             <p className="text-xs text-slate-500">
               Se asignará al agente: <strong>{activeAgent.display_name}</strong>
+              {didOwner ? ", que ya tiene este número." : "."}
             </p>
           )}
           {!agentsData?.agents.length && (

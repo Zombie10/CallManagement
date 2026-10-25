@@ -232,9 +232,9 @@ async def auth_status():
         "passkey_supported": True,
         "password_configured": password_configured,
         "hint": (
-            "Usa la pestaña Contraseña. Si no funciona, define ADMIN_PASSWORD en .env y reinicia el admin."
+            "Usa la pestaña Contraseña. Si no funciona, define la contraseña de administrador y reinicia el admin."
             if not password_configured
-            else "Inicia con tu ADMIN_PASSWORD o registra un passkey tras entrar."
+            else "Inicia con tu contraseña de administrador o registra un passkey tras entrar."
         ),
     }
 

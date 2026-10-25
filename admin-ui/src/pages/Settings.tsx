@@ -100,7 +100,7 @@ export function Settings() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold">Configuración</h1>
-          <p className="mt-1 text-sm text-slate-400">Archivo: {data.env_path}</p>
+          <p className="mt-1 text-sm text-slate-400">Variables del servidor de voz</p>
         </div>
         <button
           className="btn-primary"

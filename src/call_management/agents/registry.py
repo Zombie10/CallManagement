@@ -83,7 +83,7 @@ _FUNCTION_TOOL_LABELS: dict[str, str] = {
     "to_support": "Transferir a Soporte",
     "to_sales": "Transferir a Ventas",
     "to_technical": "Transferir a Técnico",
-    "to_scheduling": "Transferir a Citas",
+    "to_scheduling": "Agendar cita con Soporte",
     "to_escalation": "Transferir a Escalación",
     "to_receptionist": "Volver a Recepción",
     "to_banking_support": "Transferir a Soporte bancario",

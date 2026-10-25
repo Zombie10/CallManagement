@@ -168,7 +168,7 @@ def load_settings() -> dict[str, Any]:
             )
         sections[section_id] = section_fields
 
-    return {"env_path": str(ENV_PATH), "sections": sections}
+    return {"sections": sections}
 
 
 def save_settings(updates: dict[str, str]) -> dict[str, str]:

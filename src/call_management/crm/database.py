@@ -9,6 +9,7 @@ from pathlib import Path
 
 import aiosqlite
 
+from call_management.crm.banking_data import is_valid_customer_phone, redact_customer_notes
 from call_management.crm.models import Appointment, CallRecord, Customer
 from call_management.utils.time import utc_now_iso
 
@@ -18,6 +19,49 @@ DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 SCHEMA_VERSION = 4
+
+# Phones stay so the ficha can open. Call, session, room, and recording ids stay so
+# links are not rewritten when an 8–12 digit run looks like an account number.
+_UNREDACTED_KEYS = frozenset(
+    {
+        "phone_number",
+        "customer_phone",
+        "from_number",
+        "to_number",
+        "phone_display",
+        "call_id",
+        "session_id",
+        "room_name",
+        "recording_url",
+    }
+)
+
+
+def _customer_list_item(row) -> dict:
+    phone = row["phone_number"]
+    valid = is_valid_customer_phone(phone)
+    return {
+        "phone_number": phone,
+        "phone_valid": valid,
+        "phone_display": phone if valid else None,
+        "name": row["name"],
+        "email": row["email"],
+        "notes": redact_customer_notes(row["notes"]),
+        "vip": bool(row["vip"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def redact_admin_tree(value, key: str | None = None):
+    """Redact banking secrets in admin payloads. Identifier keys are left unchanged."""
+    if isinstance(value, dict):
+        return {k: redact_admin_tree(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_admin_tree(item) for item in value]
+    if isinstance(value, str) and key not in _UNREDACTED_KEYS:
+        return redact_customer_notes(value)
+    return value
 
 
 class CRMDatabase:
@@ -192,6 +236,7 @@ class CRMDatabase:
             )
 
     async def update_customer(self, customer: Customer) -> None:
+        customer.notes = redact_customer_notes(customer.notes)
         customer.updated_at = utc_now_iso()
         async with self._connect() as db:
             await db.execute(
@@ -342,18 +387,7 @@ class CRMDatabase:
                 (limit, offset),
             ) as cursor:
                 rows = await cursor.fetchall()
-        items = [
-            {
-                "phone_number": r["phone_number"],
-                "name": r["name"],
-                "email": r["email"],
-                "notes": r["notes"],
-                "vip": bool(r["vip"]),
-                "created_at": r["created_at"],
-                "updated_at": r["updated_at"],
-            }
-            for r in rows
-        ]
+        items = [_customer_list_item(r) for r in rows]
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
     async def list_call_records(self, limit: int = 50, offset: int = 0) -> dict:
@@ -609,31 +643,65 @@ class CRMDatabase:
             },
         }
 
-    async def get_call_analytics(self, *, days: int = 14) -> dict:
+    async def get_call_analytics(
+        self,
+        *,
+        days: int = 30,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict:
+        """Period count, average duration, and per-day series over the same rows.
+
+        Dashboard and Análisis both read this window (or ``query_call_report`` with the
+        same ``build_where`` predicate) so the two screens cannot disagree.
+        """
+        from call_management.crm.reports import CALL_START_EXPR, CallReportQuery, build_where
+
+        if date_from or date_to:
+            where, params = build_where(CallReportQuery(date_from=date_from, date_to=date_to))
+        else:
+            where = f"WHERE {CALL_START_EXPR} >= datetime('now', ?)"
+            params = [f"-{int(days)} days"]
+        day_expr = f"date({CALL_START_EXPR})"
         async with self._connect() as db:
             async with db.execute(
-                """
-                SELECT date(start_time) AS day, COUNT(*) AS c
-                FROM call_records
-                WHERE start_time >= datetime('now', ?)
+                f"""
+                SELECT COUNT(*) AS total,
+                       COALESCE(CAST(AVG(duration_seconds) AS INTEGER), 0) AS avg_dur
+                FROM call_records {where}
+                """,
+                params,
+            ) as cursor:
+                totals = await cursor.fetchone()
+            async with db.execute(
+                f"""
+                SELECT {day_expr} AS day, COUNT(*) AS c
+                FROM call_records {where}
                 GROUP BY day ORDER BY day
                 """,
-                (f"-{days} days",),
+                params,
             ) as cursor:
-                by_day = [{"day": r["day"], "count": r["c"]} for r in await cursor.fetchall()]
+                by_day = [
+                    {"day": r["day"], "count": r["c"]}
+                    for r in await cursor.fetchall()
+                    if r["day"]
+                ]
+            outcome_where = f"{where} AND outcome IS NOT NULL"
             async with db.execute(
-                """
+                f"""
                 SELECT outcome, COUNT(*) AS c FROM call_records
-                WHERE outcome IS NOT NULL GROUP BY outcome
-                """
+                {outcome_where}
+                GROUP BY outcome
+                """,
+                params,
             ) as cursor:
                 outcomes = {r["outcome"]: r["c"] for r in await cursor.fetchall()}
-            async with db.execute(
-                "SELECT AVG(duration_seconds) AS avg_dur FROM call_records WHERE duration_seconds IS NOT NULL"
-            ) as cursor:
-                row = await cursor.fetchone()
-                avg_duration = int(row["avg_dur"] or 0) if row else 0
-        return {"calls_by_day": by_day, "outcomes": outcomes, "avg_duration_seconds": avg_duration}
+        return {
+            "total_calls": int(totals["total"] or 0) if totals else 0,
+            "calls_by_day": by_day,
+            "outcomes": outcomes,
+            "avg_duration_seconds": int(totals["avg_dur"] or 0) if totals else 0,
+        }
 
     async def get_appointment(self, appt_id: str) -> Appointment | None:
         async with self._connect() as db:
@@ -822,15 +890,7 @@ class CRMDatabase:
                 row = await cursor.fetchone()
             if not row:
                 return None
-        customer = {
-            "phone_number": row["phone_number"],
-            "name": row["name"],
-            "email": row["email"],
-            "notes": row["notes"],
-            "vip": bool(row["vip"]),
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        }
+        customer = _customer_list_item(row)
         calls = await self.list_calls_for_customer(phone_number)
         chats = await self.list_chat_sessions_for_customer(phone_number)
         chat_calls = [
@@ -841,19 +901,21 @@ class CRMDatabase:
         appointments = await self.list_appointments_for_customer(phone_number)
         handoffs = sum(1 for c in calls if c.get("transferred_to"))
         escalations = sum(1 for c in calls if c.get("outcome") == "escalated")
-        return {
-            "customer": customer,
-            "calls": calls,
-            "chat_sessions": chats,
-            "playground_interactions": chat_calls,
-            "appointments": appointments,
-            "stats": {
-                "total_calls": len(calls),
-                "handoffs": handoffs,
-                "escalations": escalations,
-                "appointments": len(appointments),
-            },
-        }
+        return redact_admin_tree(
+            {
+                "customer": customer,
+                "calls": calls,
+                "chat_sessions": chats,
+                "playground_interactions": chat_calls,
+                "appointments": appointments,
+                "stats": {
+                    "total_calls": len(calls),
+                    "handoffs": handoffs,
+                    "escalations": escalations,
+                    "appointments": len(appointments),
+                },
+            }
+        )
 
     async def get_actionable_analytics(self, *, sla_seconds: int = 30) -> dict:
         """SLA proxy, sentiment keywords, agent comparison, handoff metrics."""

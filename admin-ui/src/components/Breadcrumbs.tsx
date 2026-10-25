@@ -2,6 +2,14 @@ import { ChevronRight, Home } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTenant } from "../contexts/TenantContext";
 
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 const ROUTE_LABELS: Record<string, string> = {
   "": "Dashboard",
   settings: "Configuración",
@@ -31,7 +39,8 @@ export function Breadcrumbs() {
   let path = "";
   for (const seg of segments) {
     path += `/${seg}`;
-    crumbs.push({ label: ROUTE_LABELS[seg] || seg, to: path });
+    const decoded = decodeSegment(seg);
+    crumbs.push({ label: ROUTE_LABELS[decoded] || ROUTE_LABELS[seg] || decoded, to: path });
   }
 
   return (

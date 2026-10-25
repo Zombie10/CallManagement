@@ -10,6 +10,11 @@ import { api } from "../lib/api";
 
 type VipFilter = "all" | "vip" | "normal";
 
+function shownPhone(phoneValid: boolean | undefined, phoneDisplay: string | null | undefined, phone: string) {
+  if (phoneValid === false || !phoneDisplay) return "Teléfono inválido";
+  return phoneDisplay || phone;
+}
+
 export function Customers() {
   const qc = useQueryClient();
   const { tenantId } = useTenant();
@@ -81,7 +86,9 @@ export function Customers() {
         {filtered.map((c) => (
           <article key={c.phone_number} className="glass-card space-y-3 p-4">
             <div>
-              <p className="font-mono text-sm text-cyan-200">{c.phone_number}</p>
+              <p className="font-mono text-sm text-cyan-200">
+                {shownPhone(c.phone_valid, c.phone_display, c.phone_number)}
+              </p>
               <Link
                 to={`/customers/${encodeURIComponent(c.phone_number)}`}
                 className="mt-1 block font-medium text-slate-100 hover:text-cyan-200"
@@ -132,13 +139,15 @@ export function Customers() {
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.phone_number} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-4 py-3 font-mono text-cyan-200">{c.phone_number}</td>
+                  <td className="px-4 py-3 font-mono text-cyan-200">
+                    {shownPhone(c.phone_valid, c.phone_display, c.phone_number)}
+                  </td>
                   <td className="px-4 py-3">
                     <Link
                       to={`/customers/${encodeURIComponent(c.phone_number)}`}
                       className="hover:text-cyan-200"
                     >
-                      {c.name || "Ver ficha"}
+                      {c.name || "Sin nombre"}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-400">{c.email || "—"}</td>

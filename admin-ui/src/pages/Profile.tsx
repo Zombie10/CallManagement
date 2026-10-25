@@ -181,7 +181,11 @@ export function Profile() {
                   type="button"
                   className="btn-ghost px-2 text-red-300"
                   disabled={removePasskey.isPending}
-                  onClick={() => removePasskey.mutate(pk.id)}
+                  onClick={() => {
+                    if (window.confirm(`¿Eliminar el passkey "${pk.device_name}"?`)) {
+                      removePasskey.mutate(pk.id);
+                    }
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

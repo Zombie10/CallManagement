@@ -332,7 +332,11 @@ export function Users() {
                 onSaveModules={(modules) =>
                   updateMutation.mutate({ id: row.id, patch: { modules } })
                 }
-                onDelete={() => deleteMutation.mutate(row.id)}
+                onDelete={() => {
+                  if (window.confirm(`¿Eliminar al usuario "${row.username}"?`)) {
+                    deleteMutation.mutate(row.id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -386,7 +390,11 @@ export function Users() {
                       onSaveModules={(modules) =>
                         updateMutation.mutate({ id: row.id, patch: { modules } })
                       }
-                      onDelete={() => deleteMutation.mutate(row.id)}
+                      onDelete={() => {
+                  if (window.confirm(`¿Eliminar al usuario "${row.username}"?`)) {
+                    deleteMutation.mutate(row.id);
+                  }
+                }}
                     />
                   ))}
                 </tbody>

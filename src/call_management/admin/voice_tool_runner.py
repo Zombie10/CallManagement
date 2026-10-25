@@ -162,10 +162,7 @@ async def execute_voice_function(
                 started=started,
                 status="error",
             )
-        output = (
-            f"Tarjeta débito verificada: {demo.banking.debit_card_masked} "
-            f"(vence {demo.banking.debit_card_exp})."
-        )
+        output = f"Tarjeta débito verificada: ****{last4}."
         return _tool_result(function_name=name, output=output, arguments=args, started=started)
 
     if name in ("block_debit_card", "block_debit_card_temporarily"):
@@ -197,10 +194,10 @@ async def execute_voice_function(
         parts = [
             f"{demo.name} — {b.institution}",
             f"Cuenta {b.account_type}: ****{b.account_number[-4:]}",
-            f"Débito: {b.debit_card_masked}",
+            f"Débito: ****{b.debit_card_last4}",
         ]
-        if b.credit_card_masked:
-            parts.append(f"Crédito: {b.credit_card_masked}")
+        if b.credit_card_last4:
+            parts.append(f"Crédito: ****{b.credit_card_last4}")
         parts.append(f"Productos: {', '.join(b.products)}")
         return _tool_result(
             function_name=name,

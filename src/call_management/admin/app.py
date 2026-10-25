@@ -101,11 +101,14 @@ async def dashboard(ctx=Depends(require_tenant_context)):
     from call_management.admin.chat_runner import get_chat_manager
     from call_management.admin.livekit_playground import livekit_playground_ready
     from call_management.recordings.livekit_egress import egress_configured
-    from call_management.tenancy.queue import active_count, global_active, supervisor_snapshot
+    from call_management.crm.reports import default_period
+    from call_management.tenancy.queue import concurrency_status, supervisor_snapshot
 
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     stats = await crm.get_dashboard_stats()
-    analytics = await crm.get_call_analytics(days=14)
+    date_from, date_to = default_period()
+    analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
+    stats["calls"] = analytics["total_calls"]
     actionable = await crm.get_actionable_analytics()
     tenant_metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     cfg = get_model_config()
@@ -113,6 +116,7 @@ async def dashboard(ctx=Depends(require_tenant_context)):
     chat_status = get_chat_manager().status()
     lk_ready, lk_issues = livekit_playground_ready()
     store = get_platform_store()
+    conc = concurrency_status(ctx.tenant.id)
     supervisor = supervisor_snapshot(
         ctx.tenant.id,
         agents=store.list_agents(ctx.tenant.id),
@@ -140,12 +144,11 @@ async def dashboard(ctx=Depends(require_tenant_context)):
             "livekit_issues": lk_issues,
             "xai_voice_ready": chat_status.get("xai_voice_ready", False),
             "requires_worker": chat_status.get("requires_worker", True),
-            "active_calls_tenant": active_count(ctx.tenant.id),
-            "active_calls_global": global_active(),
+            "active_calls_tenant": conc["active"],
+            "active_calls_cap": conc["cap"],
         },
         "recordings": {
             "egress_configured": egress_configured(),
-            "s3_bucket": os.getenv("RECORDINGS_S3_BUCKET", ""),
             "active_recordings": supervisor.get("recording_calls", 0),
         },
         "supervisor": supervisor,

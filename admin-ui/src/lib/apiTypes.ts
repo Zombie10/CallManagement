@@ -120,11 +120,11 @@ export interface DashboardResponse {
     xai_voice_ready: boolean;
     requires_worker: boolean;
     active_calls_tenant: number;
-    active_calls_global: number;
+    active_calls_cap: number;
+    active_calls_global?: number;
   };
   recordings?: {
     egress_configured: boolean;
-    s3_bucket?: string;
     active_recordings: number;
   };
   actionable?: ActionableAnalytics;
@@ -283,7 +283,7 @@ export interface SettingField {
 }
 
 export interface SettingsResponse {
-  env_path: string;
+  env_path?: string;
   sections: Record<string, SettingField[]>;
 }
 
@@ -376,6 +376,8 @@ export interface AgentsResponse {
 
 export interface Customer {
   phone_number: string;
+  phone_valid?: boolean;
+  phone_display?: string | null;
   name?: string;
   email?: string;
   notes?: string;

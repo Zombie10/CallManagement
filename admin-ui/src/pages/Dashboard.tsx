@@ -10,7 +10,7 @@ import clsx from "clsx";
 function CallsByDayChart({ data }: { data: Array<{ day: string; count: number }> }) {
   const max = Math.max(1, ...data.map((d) => d.count));
   if (!data.length) {
-    return <p className="text-sm text-slate-500">Sin datos de los últimos 14 días</p>;
+    return <p className="text-sm text-slate-500">Sin datos en el período</p>;
   }
   return (
     <div className="flex h-32 items-end gap-1">
@@ -95,7 +95,7 @@ export function Dashboard() {
             <div className="flex justify-between border-b border-white/5 pb-2">
               <dt className="text-slate-400">Llamadas activas</dt>
               <dd className="font-medium text-cyan-300">
-                {worker.active_calls_tenant} / {worker.active_calls_global} global
+                {worker.active_calls_tenant} / {worker.active_calls_cap}
               </dd>
             </div>
             <div className="flex justify-between">
@@ -161,7 +161,7 @@ export function Dashboard() {
             </div>
             <p className="text-sm text-slate-300">
               {recordings.egress_configured
-                ? `Egress S3 activo${recordings.s3_bucket ? ` (${recordings.s3_bucket})` : ""}`
+                ? "Egress S3 activo"
                 : "S3 no configurado — solo grabaciones locales/playground"}
             </p>
             <p className="mt-2 text-xs text-slate-500">

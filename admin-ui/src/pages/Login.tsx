@@ -22,6 +22,7 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"passkey" | "password">("password");
+  const [submitting, setSubmitting] = useState(false);
 
   const { data: authStatus } = useQuery({ queryKey: ["auth-status"], queryFn: api.authStatus });
   const canPasskey = passkeySupported();
@@ -37,13 +38,20 @@ export function Login() {
       navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo validar la sesión");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const passwordLogin = useMutation({
     mutationFn: () => api.login(username, password),
-    onSuccess: (data) => finishLogin(data),
-    onError: (err: Error) => setError(err.message),
+    onSuccess: (data) => {
+      void finishLogin(data);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+      setSubmitting(false);
+    },
   });
 
   const passkeyLogin = useMutation({
@@ -56,11 +64,16 @@ export function Login() {
       if (!credential) throw new Error("Inicio con passkey cancelado");
       return api.passkeyLoginVerify(challenge_id, credentialToJSON(credential));
     },
-    onSuccess: (data) => finishLogin(data),
-    onError: (err: Error) => setError(err.message),
+    onSuccess: (data) => {
+      void finishLogin(data);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+      setSubmitting(false);
+    },
   });
 
-  const busy = passwordLogin.isPending || passkeyLogin.isPending;
+  const busy = submitting;
 
   return (
     <div className="login-scene relative flex min-h-screen items-center justify-center overflow-hidden p-4">
@@ -129,7 +142,11 @@ export function Login() {
                 autoComplete="current-password"
                 disabled={busy}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && password) passwordLogin.mutate();
+                  if (e.key === "Enter" && password && !busy) {
+                    setError(null);
+                    setSubmitting(true);
+                    passwordLogin.mutate();
+                  }
                 }}
               />
             </label>
@@ -142,15 +159,12 @@ export function Login() {
               disabled={!canPasskey || busy}
               onClick={() => {
                 setError(null);
+                setSubmitting(true);
                 passkeyLogin.mutate();
               }}
             >
-              {passkeyLogin.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Fingerprint className="h-5 w-5" />
-              )}
-              Entrar con huella / Face ID
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Fingerprint className="h-5 w-5" />}
+              {busy ? "Entrando…" : "Entrar con huella / Face ID"}
             </button>
           ) : (
             <button
@@ -159,15 +173,12 @@ export function Login() {
               disabled={!password || busy}
               onClick={() => {
                 setError(null);
+                setSubmitting(true);
                 passwordLogin.mutate();
               }}
             >
-              {passwordLogin.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <KeyRound className="h-5 w-5" />
-              )}
-              Iniciar sesión
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-5 w-5" />}
+              {busy ? "Entrando…" : "Iniciar sesión"}
             </button>
           )}
 
@@ -195,16 +206,6 @@ export function Login() {
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
               <div className="space-y-1">
                 <p>{authStatus.hint}</p>
-                {!authStatus.password_configured && (
-                  <p className="text-amber-200/90">
-                    Terminal:{" "}
-                    <code className="text-amber-50">uv run python -m call_management.admin.reset_password</code>
-                  </p>
-                )}
-                <p>
-                  Passkey: usa <code className="text-cyan-200/80">http://localhost:8080</code>
-                  {authStatus.rp_id && <> · RP: <code className="text-cyan-200/80">{authStatus.rp_id}</code></>}
-                </p>
               </div>
             </div>
           )}
