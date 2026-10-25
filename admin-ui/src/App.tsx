@@ -14,6 +14,7 @@ import { Playground } from "./pages/Playground";
 import { Profile } from "./pages/Profile";
 import { Users } from "./pages/Users";
 import { SetupWizard } from "./pages/SetupWizard";
+import { SETUP_GUIDE_PATHS } from "./lib/setupGuide";
 import { OperationFlows } from "./pages/OperationFlows";
 import { Analytics } from "./pages/Analytics";
 import { CustomerDetail } from "./pages/CustomerDetail";
@@ -30,7 +31,9 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="tenants" element={<Tenants />} />
           <Route path="my-agents" element={<TenantAgents />} />
-          <Route path="setup" element={<SetupWizard />} />
+          {SETUP_GUIDE_PATHS.map((path) => (
+            <Route key={path} path={path} element={<SetupWizard />} />
+          ))}
           <Route path="operations" element={<OperationFlows />} />
           <Route path="agents" element={<Agents />} />
           <Route path="customers" element={<Customers />} />

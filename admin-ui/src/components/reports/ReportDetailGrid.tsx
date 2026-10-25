@@ -4,15 +4,18 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { TableScroll } from "../TableScroll";
 import type { CallReportDetailRow } from "../../lib/api";
+import { formatAdminDateTime } from "../../lib/formatDateTime";
 import {
   channelLabel,
   formatAgentsHandled,
   formatDuration,
+  type AgentInstanceRef,
 } from "../../lib/reportDisplay";
 
 type Props = {
   rows: CallReportDetailRow[];
   agentLabelMap: Map<string, string>;
+  agentInstances?: AgentInstanceRef[];
 };
 
 function hasNoteContent(row: CallReportDetailRow): boolean {
@@ -42,10 +45,12 @@ function DetailBadges({ row }: { row: CallReportDetailRow }) {
 function NotePopup({
   row,
   agentLabelMap,
+  agentInstances,
   onClose,
 }: {
   row: CallReportDetailRow;
   agentLabelMap: Map<string, string>;
+  agentInstances: AgentInstanceRef[];
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -81,9 +86,9 @@ function NotePopup({
             </h3>
             <p className="mt-1 font-mono text-xs text-cyan-200/90">{row.from_number}</p>
             <p className="text-xs text-slate-500">
-              {row.start_time ? new Date(row.start_time).toLocaleString() : "—"}
+              {formatAdminDateTime(row.start_time)}
               {" · "}
-              {formatAgentsHandled(row, agentLabelMap)}
+              {formatAgentsHandled(row, agentLabelMap, agentInstances)}
             </p>
           </div>
           <button type="button" className="btn-ghost shrink-0 px-2" onClick={onClose} aria-label="Cerrar">
@@ -162,10 +167,12 @@ function NoteAction({
 function DetailCard({
   row,
   agentLabelMap,
+  agentInstances,
   onOpenNote,
 }: {
   row: CallReportDetailRow;
   agentLabelMap: Map<string, string>;
+  agentInstances: AgentInstanceRef[];
   onOpenNote: (row: CallReportDetailRow) => void;
 }) {
   return (
@@ -176,7 +183,7 @@ function DetailCard({
             to={`/calls/${encodeURIComponent(row.call_id)}`}
             className="group text-sm font-medium text-slate-100 hover:text-cyan-200"
           >
-            {row.start_time ? new Date(row.start_time).toLocaleString() : "—"}
+            {formatAdminDateTime(row.start_time)}
             <ExternalLink className="ml-1 inline h-3.5 w-3.5 opacity-50 group-hover:opacity-100" />
           </Link>
           <p className="mt-0.5 font-mono text-xs text-cyan-200/90">{row.from_number}</p>
@@ -194,7 +201,7 @@ function DetailCard({
         </div>
         <div>
           <dt className="text-slate-500">Agente(s)</dt>
-          <dd className="text-slate-300">{formatAgentsHandled(row, agentLabelMap)}</dd>
+          <dd className="text-slate-300">{formatAgentsHandled(row, agentLabelMap, agentInstances)}</dd>
         </div>
       </dl>
 
@@ -205,7 +212,7 @@ function DetailCard({
   );
 }
 
-export function ReportDetailGrid({ rows, agentLabelMap }: Props) {
+export function ReportDetailGrid({ rows, agentLabelMap, agentInstances = [] }: Props) {
   const [noteRow, setNoteRow] = useState<CallReportDetailRow | null>(null);
   const openNote = useCallback((row: CallReportDetailRow) => setNoteRow(row), []);
   const closeNote = useCallback(() => setNoteRow(null), []);
@@ -218,7 +225,13 @@ export function ReportDetailGrid({ rows, agentLabelMap }: Props) {
     <>
       <div className="space-y-3 p-4 lg:hidden">
         {rows.map((row) => (
-          <DetailCard key={row.call_id} row={row} agentLabelMap={agentLabelMap} onOpenNote={openNote} />
+          <DetailCard
+            key={row.call_id}
+            row={row}
+            agentLabelMap={agentLabelMap}
+            agentInstances={agentInstances}
+            onOpenNote={openNote}
+          />
         ))}
       </div>
 
@@ -254,7 +267,7 @@ export function ReportDetailGrid({ rows, agentLabelMap }: Props) {
                       className="group block hover:text-cyan-200"
                     >
                       <span className="whitespace-nowrap">
-                        {row.start_time ? new Date(row.start_time).toLocaleString() : "—"}
+                        {formatAdminDateTime(row.start_time)}
                       </span>
                       <span className="mt-0.5 block max-w-[7.5rem] truncate font-mono text-[10px] text-slate-600 group-hover:text-cyan-300/80">
                         {row.call_id}
@@ -268,7 +281,7 @@ export function ReportDetailGrid({ rows, agentLabelMap }: Props) {
                     {formatDuration(row.duration_seconds)}
                   </td>
                   <td className="col-wrap px-3 py-3 text-xs text-slate-300">
-                    {formatAgentsHandled(row, agentLabelMap)}
+                    {formatAgentsHandled(row, agentLabelMap, agentInstances)}
                   </td>
                   <td className="px-3 py-3">
                     <NoteAction row={row} onOpen={openNote} />
@@ -280,7 +293,14 @@ export function ReportDetailGrid({ rows, agentLabelMap }: Props) {
         </TableScroll>
       </div>
 
-      {noteRow && <NotePopup row={noteRow} agentLabelMap={agentLabelMap} onClose={closeNote} />}
+      {noteRow && (
+        <NotePopup
+          row={noteRow}
+          agentLabelMap={agentLabelMap}
+          agentInstances={agentInstances}
+          onClose={closeNote}
+        />
+      )}
     </>
   );
 }

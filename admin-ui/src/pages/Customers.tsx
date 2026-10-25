@@ -7,6 +7,7 @@ import { Select } from "../components/Select";
 import { TableScroll } from "../components/TableScroll";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
+import { formatAdminDateTime } from "../lib/formatDateTime";
 
 type VipFilter = "all" | "vip" | "normal";
 
@@ -105,7 +106,7 @@ export function Customers() {
               >
                 <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : "Normal"}
               </button>
-              <p className="text-xs text-slate-500">{c.updated_at?.slice(0, 19) || "—"}</p>
+              <p className="text-xs text-slate-500">{formatAdminDateTime(c.updated_at)}</p>
             </div>
           </article>
         ))}
@@ -160,7 +161,7 @@ export function Customers() {
                       <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : "Normal"}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{c.updated_at?.slice(0, 19) || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{formatAdminDateTime(c.updated_at)}</td>
                 </tr>
               ))}
             </tbody>

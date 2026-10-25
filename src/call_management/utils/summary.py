@@ -26,6 +26,7 @@ _AGENT_NAMES = {
     "technical": "técnico",
     "escalation": "escalación",
 }
+_CALL_ID_TOKEN = re.compile(r"^call_[0-9a-f]{8,}$", re.IGNORECASE)
 _PURPOSE_PHRASES = (
     (re.compile(r"debit card block|block\w* (?:the |a )?debit card", re.IGNORECASE), "bloqueo de tarjeta de débito"),
     (re.compile(r"debit card", re.IGNORECASE), "tarjeta de débito"),
@@ -80,7 +81,14 @@ def _line_is_english_prose(line: str) -> bool:
 def spanish_from_english_prose(line: str) -> str:
     """Deterministic Spanish stand-in for a stored English sentence. No model call."""
     phone = re.search(r"\+\d{8,15}", line)
-    agent = re.search(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b", line)
+    agent_name = next(
+        (
+            token
+            for token in re.findall(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b", line)
+            if not _CALL_ID_TOKEN.match(token)
+        ),
+        None,
+    )
     purposes: list[str] = []
     for pattern, label in _PURPOSE_PHRASES:
         if label in purposes:
@@ -92,9 +100,8 @@ def spanish_from_english_prose(line: str) -> str:
     parts = ["Llamada"]
     if phone:
         parts.append(f"desde {phone.group(0)}")
-    if agent:
-        raw = agent.group(1)
-        parts.append(f"atendida por {_AGENT_NAMES.get(raw, raw.replace('_', ' '))}")
+    if agent_name:
+        parts.append(f"atendida por {_AGENT_NAMES.get(agent_name, agent_name.replace('_', ' '))}")
     if purposes:
         parts.append("sobre " + " y ".join(purposes))
     if len(parts) == 1:

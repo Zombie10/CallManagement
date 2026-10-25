@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolCallEntry } from "../components/ToolCallLog";
 import { useAudioRecorder } from "./useAudioRecorder";
-import { persistVoiceSession } from "./xai/persistTranscript";
+import { formatToolResultLine, persistVoiceSession } from "./xai/persistTranscript";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
 import {
   base64PCM16ToFloat32,
@@ -292,7 +292,7 @@ export function useXaiVoice() {
         ) {
           callContextRef.current.phone_number = confirmedPhone.trim();
         }
-        appendSystem(`🔧 ${result.tool || name} → ${result.output.slice(0, 120)}${result.output.length > 120 ? "…" : ""}`);
+        appendSystem(formatToolResultLine(result.tool || name, result.output));
         if (result.event?.type === "handoff" && result.event.detail) {
           appendSystem(`Transferencia de voz → ${result.event.detail}`);
         } else if (result.event) {

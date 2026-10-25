@@ -12,6 +12,7 @@ import { Select } from "../components/Select";
 import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api, type CallRecord } from "../lib/api";
+import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -57,7 +58,7 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
           </p>
           {call.start_time && (
             <p className="mt-0.5 text-xs text-slate-500">
-              {new Date(call.start_time).toLocaleString()}
+              {formatAdminDateTime(call.start_time)}
             </p>
           )}
           {call.summary && (

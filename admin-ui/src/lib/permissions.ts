@@ -1,4 +1,5 @@
 import type { AdminModule, AdminRole } from "./api";
+import { SETUP_GUIDE_PATHS } from "./setupGuide";
 
 /** Map nav route → module id */
 export const ROUTE_MODULE: Record<string, string> = {
@@ -21,10 +22,12 @@ export function routeAllowed(
   path: string,
   allowedRoutes?: string[] | null,
 ): boolean {
-  if (path === "/profile" || path.startsWith("/login")) return true;
+  const first = path.split("/").filter(Boolean)[0] ?? "";
+  const canonical = (SETUP_GUIDE_PATHS as readonly string[]).includes(first) ? "/setup" : path;
+  if (canonical === "/profile" || canonical.startsWith("/login")) return true;
   if (!allowedRoutes?.length) return false;
-  if (allowedRoutes.includes(path)) return true;
-  return allowedRoutes.some((route) => route !== "/" && path.startsWith(`${route}/`));
+  if (allowedRoutes.includes(canonical)) return true;
+  return allowedRoutes.some((route) => route !== "/" && canonical.startsWith(`${route}/`));
 }
 
 export function canListenRecordings(effectiveModules?: string[] | null): boolean {

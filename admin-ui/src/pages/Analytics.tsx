@@ -112,8 +112,12 @@ export function Analytics() {
   });
 
   const { data: analyticsData } = useQuery({
-    queryKey: ["analytics", tenantId],
-    queryFn: () => api.analytics(tenantId),
+    queryKey: ["analytics", tenantId, appliedFilters.dateFrom, appliedFilters.dateTo],
+    queryFn: () =>
+      api.analytics(tenantId, {
+        dateFrom: appliedFilters.dateFrom,
+        dateTo: appliedFilters.dateTo,
+      }),
     enabled: !!tenantId,
   });
 
@@ -165,9 +169,11 @@ export function Analytics() {
     [options?.metrics],
   );
 
+  const agentInstances = useMemo(() => options?.agents || [], [options?.agents]);
+
   const agentLabelMap = useMemo(
-    () => new Map((options?.agents || []).map((a) => [a.id, a.label])),
-    [options?.agents],
+    () => new Map(agentInstances.map((a) => [a.id, a.label])),
+    [agentInstances],
   );
 
   const addCustomFilter = () => {
@@ -708,7 +714,11 @@ export function Analytics() {
                       Exportar CSV
                     </button>
                   </div>
-                  <ReportDetailGrid rows={data.detail} agentLabelMap={agentLabelMap} />
+                  <ReportDetailGrid
+                    rows={data.detail}
+                    agentLabelMap={agentLabelMap}
+                    agentInstances={agentInstances}
+                  />
                 </div>
                 </div>
               )}

@@ -391,10 +391,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ schedules }),
     }),
-  analytics: (tenantId?: string | null) =>
-    request<AnalyticsResponse>("/analytics", {
+  analytics: (
+    tenantId?: string | null,
+    period?: { dateFrom?: string | null; dateTo?: string | null },
+  ) => {
+    const params = new URLSearchParams();
+    if (period?.dateFrom) params.set("date_from", period.dateFrom);
+    if (period?.dateTo) params.set("date_to", period.dateTo);
+    const query = params.toString();
+    return request<AnalyticsResponse>(`/analytics${query ? `?${query}` : ""}`, {
       headers: tenantId ? { "X-Tenant-Id": tenantId } : {},
-    }),
+    });
+  },
   reportOptions: (tenantId?: string | null) =>
     request<ReportOptionsResponse>("/reports/options", {
       headers: tenantId ? { "X-Tenant-Id": tenantId } : {},

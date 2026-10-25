@@ -104,7 +104,7 @@ def _label_key(key: str, dimension: str) -> str:
 
 
 def default_period(*, days: int = 30) -> tuple[str, str]:
-    """Calendar window Análisis opens with, shared by the Dashboard call count."""
+    """Calendar window Análisis opens with. The Dashboard uses full stored history."""
     today = datetime.now(UTC).date()
     return (today - timedelta(days=days)).isoformat(), today.isoformat()
 

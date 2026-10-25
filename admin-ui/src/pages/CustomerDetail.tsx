@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Calendar, FileText, MessageSquare, Phone, User } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { formatAdminDateTime } from "../lib/formatDateTime";
 
 export function CustomerDetail() {
   const { phone = "" } = useParams();
@@ -86,10 +87,10 @@ export function CustomerDetail() {
               to={`/calls/${encodeURIComponent(c.call_id)}`}
               className="block rounded-xl bg-white/5 px-4 py-3 text-sm hover:bg-white/10"
             >
-              <span className="font-mono text-cyan-200">{c.call_id}</span>
-              <span className="ml-2 text-slate-500">
-                {c.start_time?.slice(0, 16)} · {c.outcome || "—"}
-              </span>
+              <p className="font-mono text-cyan-200">{c.call_id}</p>
+              <p className="mt-1 text-slate-500">
+                {formatAdminDateTime(c.start_time)} · {c.outcome || "—"}
+              </p>
             </Link>
           ))}
           {!calls.length && <p className="text-sm text-slate-500">Sin llamadas</p>}
@@ -106,7 +107,7 @@ export function CustomerDetail() {
             <div key={s.session_id} className="rounded-xl bg-white/5 px-4 py-3 text-sm">
               <p className="font-mono text-slate-300">{s.session_id}</p>
               <p className="text-xs text-slate-500">
-                {s.started_at?.slice(0, 16)} · {s.message_count} mensajes
+                {formatAdminDateTime(s.started_at)} · {s.message_count} mensajes
               </p>
             </div>
           ))}

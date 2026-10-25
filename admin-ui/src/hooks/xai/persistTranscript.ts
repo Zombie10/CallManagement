@@ -4,6 +4,11 @@ export type PersistableLine = { role: "user" | "assistant" | "system"; text: str
 
 const ELLIPSIS_ONLY = /^[.\u2026\s]+$/;
 
+/** Full redacted tool line. The saved transcript keeps the whole result. */
+export function formatToolResultLine(tool: string, output: string): string {
+  return `🔧 ${tool} → ${output}`;
+}
+
 export function formatVoiceTranscript(lines: PersistableLine[]): string {
   return lines
     .filter((line) => {

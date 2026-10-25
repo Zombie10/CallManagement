@@ -9,7 +9,11 @@ from pathlib import Path
 
 import aiosqlite
 
-from call_management.crm.banking_data import is_valid_customer_phone, redact_customer_notes
+from call_management.crm.banking_data import (
+    is_valid_customer_phone,
+    present_caller_phone,
+    redact_customer_notes,
+)
 from call_management.crm.models import Appointment, CallRecord, Customer
 from call_management.utils.time import utc_now_iso
 
@@ -619,6 +623,7 @@ class CRMDatabase:
                 detail = []
                 for r in await cursor.fetchall():
                     row = dict(r)
+                    row["from_number"] = present_caller_phone(row.get("from_number"))
                     row["has_transcript"] = bool(row.pop("has_transcript", 0))
                     row["has_recording"] = bool(row.pop("has_recording", 0))
                     detail.append(row)
@@ -649,15 +654,18 @@ class CRMDatabase:
         days: int = 30,
         date_from: str | None = None,
         date_to: str | None = None,
+        unbounded: bool = False,
     ) -> dict:
         """Period count, average duration, and per-day series over the same rows.
 
-        Dashboard and Análisis both read this window (or ``query_call_report`` with the
-        same ``build_where`` predicate) so the two screens cannot disagree.
+        The Dashboard passes ``unbounded`` so stored history is the default window.
+        Análisis passes the report's ``date_from`` / ``date_to``.
         """
         from call_management.crm.reports import CALL_START_EXPR, CallReportQuery, build_where
 
-        if date_from or date_to:
+        if unbounded and not date_from and not date_to:
+            where, params = "", []
+        elif date_from or date_to:
             where, params = build_where(CallReportQuery(date_from=date_from, date_to=date_to))
         else:
             where = f"WHERE {CALL_START_EXPR} >= datetime('now', ?)"
@@ -686,7 +694,9 @@ class CRMDatabase:
                     for r in await cursor.fetchall()
                     if r["day"]
                 ]
-            outcome_where = f"{where} AND outcome IS NOT NULL"
+            outcome_where = (
+                f"{where} AND outcome IS NOT NULL" if where else "WHERE outcome IS NOT NULL"
+            )
             async with db.execute(
                 f"""
                 SELECT outcome, COUNT(*) AS c FROM call_records

@@ -213,14 +213,18 @@ async def test_period_metrics_ignore_history_outside_the_window():
         return dashboard, analytics
 
     dashboard, analytics = await payloads()
-    assert dashboard["stats"]["calls"] == dashboard["analytics"]["total_calls"] == 0
+    assert dashboard["stats"]["calls"] == dashboard["analytics"]["total_calls"] == 1
+    assert sum(day["count"] for day in dashboard["analytics"]["calls_by_day"]) == 1
+    assert dashboard["actionable"]["total_calls"] == 1
+    assert dashboard["actionable"]["handoffs"] == 1
+    assert dashboard["actionable"]["escalations"] == 0
     assert analytics["total_calls"] == 0
-    for actionable in (dashboard["actionable"], analytics["actionable"]):
-        assert actionable["total_calls"] == 0
-        assert actionable["handoffs"] == 0
-        assert actionable["sla_compliance_pct"] == 0.0
-        assert actionable["sentiment_label"] != "negative"
-        assert sum(row["call_count"] for row in actionable["agent_comparison"]) == 0
+    actionable = analytics["actionable"]
+    assert actionable["total_calls"] == 0
+    assert actionable["handoffs"] == 0
+    assert actionable["sla_compliance_pct"] == 0.0
+    assert actionable["sentiment_label"] != "negative"
+    assert sum(row["call_count"] for row in actionable["agent_comparison"]) == 0
 
     await crm.create_call_record(
         CallRecord(
@@ -235,13 +239,15 @@ async def test_period_metrics_ignore_history_outside_the_window():
         )
     )
     dashboard, analytics = await payloads()
-    assert dashboard["stats"]["calls"] == dashboard["analytics"]["total_calls"] == analytics["total_calls"] == 1
-    for actionable in (dashboard["actionable"], analytics["actionable"]):
-        assert actionable["total_calls"] == 1
-        assert actionable["handoffs"] == 0
-        assert actionable["sentiment_label"] != "negative"
-        assert actionable["sla_compliance_pct"] == 0.0
-        assert sum(row["call_count"] for row in actionable["agent_comparison"]) == actionable["total_calls"]
+    assert dashboard["stats"]["calls"] == dashboard["analytics"]["total_calls"] == 2
+    assert sum(day["count"] for day in dashboard["analytics"]["calls_by_day"]) == 2
+    assert analytics["total_calls"] == 1
+    actionable = analytics["actionable"]
+    assert actionable["total_calls"] == 1
+    assert actionable["handoffs"] == 0
+    assert actionable["sentiment_label"] != "negative"
+    assert actionable["sla_compliance_pct"] == 0.0
+    assert sum(row["call_count"] for row in actionable["agent_comparison"]) == actionable["total_calls"]
 
 
 @pytest.mark.asyncio

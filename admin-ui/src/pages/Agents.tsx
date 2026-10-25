@@ -23,14 +23,9 @@ import {
 } from "../lib/api";
 import clsx from "clsx";
 import { AgentInstructionsEditor } from "../components/AgentInstructionsEditor";
+import { localeLabel } from "../lib/localeLabels";
 import { Select } from "../components/Select";
 import { VoicePreviewButton } from "../components/VoicePreviewButton";
-
-const LOCALE_LABELS: Record<string, string> = {
-  en: "English",
-  es: "Español",
-  multi: "Multilingüe",
-};
 
 const PROVIDER_LABELS: Record<string, string> = {
   xai: "xAI / Grok",
@@ -216,7 +211,7 @@ function AgentEditor({
             searchableFrom={0}
             options={catalog.available_locales.map((l) => ({
               value: l,
-              label: LOCALE_LABELS[l] || l,
+              label: localeLabel(l),
             }))}
           />
         </label>
@@ -673,7 +668,7 @@ export function Agents() {
                     {profile.provider === "xai" &&
                       ` · ${voiceEntry?.name || profile.voice}`}
                     {" · "}
-                    {LOCALE_LABELS[profile.locale] || profile.locale}
+                    {localeLabel(profile.locale)}
                     {profile.has_custom_instructions && " · instrucciones custom"}
                   </p>
                 </div>

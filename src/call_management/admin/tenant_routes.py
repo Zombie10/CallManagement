@@ -459,7 +459,13 @@ async def report_options(ctx: TenantContext = Depends(require_tenant_context)):
     store = get_platform_store()
     agents = store.list_agents(ctx.tenant.id)
     options["agents"] = [
-        {"id": a.id, "label": a.display_name, "slug": a.slug} for a in agents
+        {
+            "id": a.id,
+            "label": a.display_name,
+            "slug": a.slug,
+            "template_id": a.template_id,
+        }
+        for a in agents
     ]
     return options
 
@@ -548,11 +554,16 @@ async def export_report_xlsx(
 
 
 @router.get("/analytics")
-async def tenant_analytics(ctx: TenantContext = Depends(require_tenant_context)):
+async def tenant_analytics(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    ctx: TenantContext = Depends(require_tenant_context),
+):
     from call_management.crm.reports import default_period
 
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
-    date_from, date_to = default_period()
+    if not date_from and not date_to:
+        date_from, date_to = default_period()
     analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
     actionable = await crm.get_actionable_analytics(date_from=date_from, date_to=date_to)
     metrics = get_platform_store().tenant_metrics(ctx.tenant.id)

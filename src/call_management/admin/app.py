@@ -101,15 +101,13 @@ async def dashboard(ctx=Depends(require_tenant_context)):
     from call_management.admin.chat_runner import get_chat_manager
     from call_management.admin.livekit_playground import livekit_playground_ready
     from call_management.recordings.livekit_egress import egress_configured
-    from call_management.crm.reports import default_period
     from call_management.tenancy.queue import concurrency_status, supervisor_snapshot
 
     crm = await resolve_crm_for_tenant(ctx.tenant.id)
     stats = await crm.get_dashboard_stats()
-    date_from, date_to = default_period()
-    analytics = await crm.get_call_analytics(date_from=date_from, date_to=date_to)
+    analytics = await crm.get_call_analytics(unbounded=True)
     stats["calls"] = analytics["total_calls"]
-    actionable = await crm.get_actionable_analytics(date_from=date_from, date_to=date_to)
+    actionable = await crm.get_actionable_analytics()
     tenant_metrics = get_platform_store().tenant_metrics(ctx.tenant.id)
     cfg = get_model_config()
     mcp = load_remote_mcp_config()

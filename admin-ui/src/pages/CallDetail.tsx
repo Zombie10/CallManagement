@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { CallRecordingPlayer } from "../components/CallRecordingPlayer";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
+import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -64,7 +65,7 @@ export function CallDetail() {
             {call.start_time && (
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
-                {new Date(call.start_time).toLocaleString()}
+                {formatAdminDateTime(call.start_time)}
               </span>
             )}
             {call.duration_seconds != null && <span>{call.duration_seconds}s</span>}

@@ -35,6 +35,14 @@ AVAILABLE_PROVIDERS: list[str] = ["xai", "inference", "direct"]
 AVAILABLE_XAI_VOICES: list[str] = [v["id"] for v in VOICE_LIBRARY]
 PROTECTED_AGENTS: frozenset[str] = frozenset({"receptionist"})
 AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+_BUILTIN_SPANISH_TITLES = {
+    "receptionist": "Recepción",
+    "support": "Soporte",
+    "sales": "Ventas",
+    "technical": "Técnico",
+    "escalation": "Escalación",
+    "banking_support": "Soporte bancario",
+}
 
 
 @dataclass
@@ -53,6 +61,31 @@ class AgentProfile:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _generated_english_title(name: str) -> str:
+    return name.replace("_", " ").title()
+
+
+def _present_builtin(profile: AgentProfile) -> AgentProfile:
+    """Spanish card title and locale for a built-in that still has the generated English defaults.
+
+    A display name the admin already changed is left as stored. Locale ``en`` on a
+    built-in becomes ``es`` so the card subtitle is not English.
+    """
+    if profile.name not in AGENT_TOOL_PROFILES:
+        return profile
+    generated = _generated_english_title(profile.name)
+    display = (profile.display_name or "").strip()
+    if not display or display == generated:
+        profile.display_name = _BUILTIN_SPANISH_TITLES.get(profile.name, generated)
+    if profile.locale == "en":
+        profile.locale = "es"
+    return profile
+
+
+def _present_profiles(profiles: dict[str, AgentProfile]) -> dict[str, AgentProfile]:
+    return {name: _present_builtin(profile) for name, profile in profiles.items()}
 
 
 def _default_profiles() -> dict[str, AgentProfile]:
@@ -131,7 +164,7 @@ def load_profiles(*, force_defaults: bool = False) -> dict[str, AgentProfile]:
     global _profiles_cache, _profiles_mtime
     defaults = _default_profiles()
     if force_defaults:
-        return defaults
+        return _present_profiles(defaults)
 
     try:
         mtime = _profiles_path().stat().st_mtime
@@ -142,9 +175,10 @@ def load_profiles(*, force_defaults: bool = False) -> dict[str, AgentProfile]:
 
     raw = _load_raw()
     if not raw:
-        _profiles_cache = defaults
+        presented = _present_profiles(defaults)
+        _profiles_cache = presented
         _profiles_mtime = mtime
-        return defaults
+        return presented
 
     merged = dict(defaults)
     for name, entry in raw.items():
@@ -164,9 +198,10 @@ def load_profiles(*, force_defaults: bool = False) -> dict[str, AgentProfile]:
             mcp_servers=list(entry.get("mcp_servers") or base.mcp_servers),
             enabled=bool(entry.get("enabled", base.enabled)),
         )
-    _profiles_cache = merged
+    presented = _present_profiles(merged)
+    _profiles_cache = presented
     _profiles_mtime = mtime
-    return merged
+    return presented
 
 
 def get_profile(agent_name: str) -> AgentProfile | None:
@@ -303,7 +338,7 @@ def upsert_profile(data: dict[str, Any]) -> AgentProfile:
         ),
         enabled=bool(data.get("enabled", existing.enabled if existing else True)),
     )
-    profile = _validate_profile(profile)
+    profile = _present_builtin(_validate_profile(profile))
 
     profiles = load_profiles()
     profiles[name] = profile

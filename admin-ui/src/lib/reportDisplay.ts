@@ -41,23 +41,29 @@ export function templateAgentFromSummary(summary?: string | null): string | null
   return match?.[1]?.trim() || null;
 }
 
+export type AgentInstanceRef = {
+  id: string;
+  label: string;
+  template_id?: string | null;
+};
+
 export function formatAgentsHandled(
   row: Pick<CallReportDetailRow, "agent_instance_id" | "transferred_to" | "summary">,
   agentMap: Map<string, string>,
+  instances: AgentInstanceRef[] = [],
 ): string {
-  const parts: string[] = [];
-
   if (row.agent_instance_id && row.agent_instance_id !== "unassigned") {
-    parts.push(agentMap.get(row.agent_instance_id) || row.agent_instance_id.slice(0, 8));
+    return agentMap.get(row.agent_instance_id) || row.agent_instance_id.slice(0, 8);
   }
 
-  const templateId = row.transferred_to || templateAgentFromSummary(row.summary);
+  const templateId = (row.transferred_to || templateAgentFromSummary(row.summary) || "").trim();
   if (templateId && templateId !== "unknown" && templateId !== "sin_plantilla") {
-    const tpl = agentLabel(templateId);
-    if (!parts.includes(tpl)) parts.push(tpl);
+    const matches = instances.filter((agent) => agent.template_id === templateId);
+    if (matches.length === 1) return matches[0].label;
+    return agentLabel(templateId);
   }
 
-  return parts.length ? parts.join(" → ") : "—";
+  return "—";
 }
 
 export function formatDetailExcerpt(row: CallReportDetailRow, maxLen = 160): string {

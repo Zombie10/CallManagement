@@ -194,7 +194,7 @@ export interface CallReportPayload {
 export interface ReportOptionsResponse {
   outcomes: string[];
   agent_instance_ids: string[];
-  agents: Array<{ id: string; label: string; slug: string }>;
+  agents: Array<{ id: string; label: string; slug: string; template_id?: string | null }>;
   date_min: string | null;
   date_max: string | null;
   dimensions: Array<{ id: ReportDimension; label: string }>;
