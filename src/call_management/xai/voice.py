@@ -11,6 +11,7 @@ import os
 from typing import Any
 
 from call_management.config import (
+    DEFAULT_REALTIME_MODEL,
     get_model_config,
     normalize_xai_voice,
 )
@@ -19,14 +20,12 @@ from call_management.xai.tools import get_xai_tools_config
 
 XAI_REALTIME_WS = "wss://api.x.ai/v1/realtime"
 XAI_CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets"
-# Flagship speech-to-speech model (docs.x.ai Speech to Speech).
-# grok-voice-latest moves from think-fast-1.0 → think-fast-2.0 on 2026-08-05.
-DEFAULT_REALTIME_MODEL = "grok-voice-think-fast-2.0"
+# Flagship speech-to-speech models that still take reasoning_effort=high.
+# grok-voice-latest aliases the current flagship and will move.
 THINK_FAST_MODELS = frozenset(
     {
+        DEFAULT_REALTIME_MODEL,
         "grok-voice-latest",
-        "grok-voice-think-fast-1.0",
-        "grok-voice-think-fast-2.0",
     }
 )
 
@@ -308,7 +307,7 @@ def build_voice_session_payload(
     voice_override: str | None = None,
     language_hint_override: str | None = None,
 ) -> dict[str, Any]:
-    """Browser/API session config for Grok Speech-to-Speech (Think Fast 2.0)."""
+    """Browser/API session config for Grok Voice speech-to-speech."""
     from call_management.agent_store import get_profile
 
     cfg = get_model_config()

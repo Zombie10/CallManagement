@@ -67,10 +67,12 @@ def test_sip_extras_builder_reads_settings_env(monkeypatch):
 @pytest.mark.asyncio
 async def test_build_session_applies_extras_to_realtime_model(monkeypatch):
     _sip_extras_env(monkeypatch)
+    monkeypatch.delenv("GROK_REALTIME_MODEL", raising=False)
     ctx = CallContext(call_id="sip1")
     job = type("Job", (), {"proc": type("Proc", (), {"userdata": {"vad": object()}})()})()
     session = _build_session(ctx, job, voice_override="carina")
     model = session.llm
+    assert model.model == "grok-voice-3.0"
     assert model._opts.speed == 1.2
     assert model._opts.turn_detection.idle_timeout_ms == 8000
     assert "BAC" in list(model._opts.input_audio_transcription.keyterms)
@@ -81,6 +83,7 @@ async def test_build_session_applies_extras_to_realtime_model(monkeypatch):
         event = queued[0]
         payload = event.model_dump() if hasattr(event, "model_dump") else event
         body = payload["session"]
+        assert body["model"] == "grok-voice-3.0"
         assert body["audio"]["input"]["turn_detection"]["idle_timeout_ms"] == 8000
         assert "BAC" in body["audio"]["input"]["transcription"]["keyterms"]
         assert body["audio"]["output"]["speed"] == 1.2

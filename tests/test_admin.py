@@ -126,13 +126,15 @@ async def test_livekit_status_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_voice_config_endpoint(agent_profiles_file):
+async def test_voice_config_endpoint(agent_profiles_file, monkeypatch):
+    monkeypatch.delenv("GROK_REALTIME_MODEL", raising=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/voice/config/receptionist")
     assert resp.status_code == 200
     body = resp.json()
     assert body["agent"] == "receptionist"
+    assert body["model"] == "grok-voice-3.0"
     assert body["instructions"]
     assert any(t.get("type") == "function" for t in body["tools"])
 

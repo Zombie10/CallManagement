@@ -129,7 +129,7 @@ Requires real `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Then use *
 XAI_API_KEY=xai-...
 MODEL_PROVIDER=xai
 USE_GROK_REALTIME=true
-GROK_REALTIME_MODEL=grok-voice-think-fast-2.0
+GROK_REALTIME_MODEL=grok-voice-3.0
 GROK_REALTIME_VOICE=carina
 # Speech-to-Speech extras apply on the browser playground AND the LiveKit/SIP worker
 # GROK_VOICE_IDLE_TIMEOUT_MS=10000

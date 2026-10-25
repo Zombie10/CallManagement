@@ -63,7 +63,7 @@ export const OPERATION_FLOWS: FlowSection[] = [
         kind: "external",
         actor: "xAI",
         next: "crm",
-        tags: ["Think Fast 2.0"],
+        tags: ["Grok Voice 3.0"],
       },
       {
         id: "crm",
@@ -198,7 +198,7 @@ export const OPERATION_FLOWS: FlowSection[] = [
         kind: "process",
         actor: "xAI + Worker",
         next: "dialog",
-        tags: ["Think Fast 2.0"],
+        tags: ["Grok Voice 3.0"],
       },
       {
         id: "dialog",
@@ -397,7 +397,7 @@ export const OPERATION_FLOWS: FlowSection[] = [
       {
         id: "on",
         title: "Sesión activa",
-        description: "Grok Voice Think Fast 2.0 + server VAD.",
+        description: "Grok Voice 3.0 + server VAD.",
         kind: "start",
         actor: "xAI",
         next: "listen",
@@ -720,7 +720,7 @@ export const OPERATION_FLOWS: FlowSection[] = [
       {
         id: "ws",
         title: "WebSocket xAI Realtime",
-        description: "session.update con Think Fast 2.0.",
+        description: "session.update con Grok Voice 3.0.",
         kind: "external",
         next: "talk",
         tags: ["Grok Voice"],

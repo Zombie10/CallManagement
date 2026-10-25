@@ -15,6 +15,10 @@ load_dotenv()
 
 Provider = Literal["inference", "xai", "direct"]
 
+# Versioned Grok Voice 3.0 id on wss://api.x.ai/v1/realtime.
+# grok-voice-latest aliases this today and moves when a newer model ships.
+DEFAULT_REALTIME_MODEL = "grok-voice-3.0"
+
 
 @dataclass
 class ModelConfig:
@@ -24,7 +28,7 @@ class ModelConfig:
 
     # --- xAI / Grok settings (when provider == "xai") ---
     use_grok_realtime: bool = True
-    grok_realtime_model: str = "grok-voice-think-fast-2.0"
+    grok_realtime_model: str = DEFAULT_REALTIME_MODEL
     grok_realtime_voice: str = "carina"
 
     xai_stt_model: str = "grok-stt"

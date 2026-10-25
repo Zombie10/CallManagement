@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from call_management.config import normalize_xai_voice
 from call_management.xai.voice import (
-    DEFAULT_REALTIME_MODEL,
     build_voice_session_payload,
     build_voice_tools,
     language_hint_for_locale,
@@ -51,22 +50,27 @@ def test_tts_language_and_preview_sample():
     assert "Hello" in preview_sample_text("en")
 
 
-def test_build_voice_session_payload_think_fast_2(monkeypatch):
-    monkeypatch.setenv("GROK_REALTIME_MODEL", "grok-voice-think-fast-2.0")
+def test_build_voice_session_payload_default_and_override(monkeypatch):
+    monkeypatch.delenv("GROK_REALTIME_MODEL", raising=False)
     monkeypatch.setenv("GROK_VOICE_IDLE_TIMEOUT_MS", "10000")
     monkeypatch.setenv("GROK_VOICE_KEYTERMS", "LiveKit,SIP,CRM")
     monkeypatch.setenv("GROK_VOICE_REPLACE", '{"API":"A P I"}')
     monkeypatch.setenv("GROK_VOICE_RESUMPTION", "true")
     monkeypatch.setenv("GROK_VOICE_RECORDING_DISCLOSURE", "This call is recorded.")
     payload = build_voice_session_payload("receptionist")
-    assert payload["model"] == "grok-voice-think-fast-2.0"
+    assert payload["model"] == "grok-voice-3.0"
     assert payload["reasoning_effort"] == "high"
+    assert payload["turn_detection"]["type"] == "server_vad"
     assert payload["turn_detection"]["idle_timeout_ms"] == 10000
+    assert any(tool.get("type") == "function" for tool in payload["tools"])
     assert payload["keyterms"] == ["LiveKit", "SIP", "CRM"]
     assert payload["replace"] == {"API": "A P I"}
     assert payload["resumption_enabled"] is True
     assert payload["recording_disclosure"] == "This call is recorded."
-    assert DEFAULT_REALTIME_MODEL == "grok-voice-think-fast-2.0"
+
+    monkeypatch.setenv("GROK_REALTIME_MODEL", "grok-voice-override-test")
+    overridden = build_voice_session_payload("receptionist")
+    assert overridden["model"] == "grok-voice-override-test"
 
 
 def test_build_voice_tools_web_search(monkeypatch):

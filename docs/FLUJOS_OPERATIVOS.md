@@ -258,11 +258,11 @@ flowchart TD
 
 ## 8. Atención de la llamada (diálogo)
 
-Estilo compartido (`phone_style` + Think Fast 2.0). En SIP, `GROK_VOICE_*` (idle, keyterms, replace, speed, resumption) va en el primer `session.update` del `RealtimeModel`:
+Estilo compartido (`phone_style` + Grok Voice 3.0). En SIP, `GROK_VOICE_*` (idle, keyterms, replace, speed, resumption) va en el primer `session.update` del `RealtimeModel`:
 
 ```mermaid
 flowchart TD
-  A["Sesión de voz activa<br/>Grok Voice Think Fast"] --> B["Escucha al caller<br/>server VAD"]
+  A["Sesión de voz activa<br/>Grok Voice 3.0"] --> B["Escucha al caller<br/>server VAD"]
   B --> C["Modelo razona en paralelo<br/>mientras habla"]
   C --> D{"¿Necesita tool?"}
   D -->|No| E["Respuesta corta<br/>una pregunta a la vez"]
@@ -449,7 +449,7 @@ sequenceDiagram
   UI->>API: POST /api/voice/session
   API->>XAI: client_secrets efímero
   API-->>UI: token + model + voice + tools + instructions
-  UI->>XAI: WebSocket + session.update<br/>modelo grok-voice-think-fast-2.0
+  UI->>XAI: WebSocket + session.update<br/>modelo grok-voice-3.0
   loop Conversación
     User->>XAI: Audio mic
     XAI-->>UI: Audio + transcript
@@ -526,7 +526,7 @@ flowchart TD
 2. `LIVEKIT_URL` = WebSocket del proyecto (no SIP subdomain).  
 3. DID comprado/asignado + dispatch rule → `agent_name=call-management`.  
 4. Instancia **active** con ese DID en **Mis agentes**.  
-5. `XAI_API_KEY` válido y modelo `grok-voice-think-fast-2.0`.  
+5. `XAI_API_KEY` válido y modelo `grok-voice-3.0`.  
 6. Prueba en playground LiveKit y luego llamada real.  
 7. Revisar **Registros** + **Supervisor**.
 
