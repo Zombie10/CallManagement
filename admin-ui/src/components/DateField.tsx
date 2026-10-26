@@ -1,6 +1,8 @@
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import { useUiLocale } from "../contexts/LocaleContext";
+import { calendarWeekdayInitial, monthName } from "../lib/i18n";
 import { FloatingPortal } from "./FloatingPortal";
 import { Select } from "./Select";
 
@@ -15,22 +17,6 @@ type CommonProps = {
   max?: string;
   id?: string;
 };
-
-const WEEKDAYS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
-const MONTHS = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -104,6 +90,7 @@ export function DateField({
   max,
   id,
 }: CommonProps) {
+  const { t, locale } = useUiLocale();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -174,7 +161,7 @@ export function DateField({
       >
         <Calendar className="date-field-icon" aria-hidden />
         <span className={clsx("date-field-value", !value && "text-slate-500")}>
-          {value ? formatDisplay(value) : "Seleccionar fecha"}
+          {value ? formatDisplay(value) : t("date.select")}
         </span>
       </button>
 
@@ -196,29 +183,29 @@ export function DateField({
               type="button"
               className="date-picker-nav"
               onClick={() => shiftMonth(-1)}
-              aria-label="Mes anterior"
+              aria-label={t("date.prevMonth")}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <p className="text-sm font-semibold text-slate-100">
-              {MONTHS[viewM - 1]} {viewY}
+              {monthName(viewM, locale)} {viewY}
             </p>
             <button
               type="button"
               className="date-picker-nav"
               onClick={() => shiftMonth(1)}
-              aria-label="Mes siguiente"
+              aria-label={t("date.nextMonth")}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
           <div className="mb-1 grid grid-cols-7 gap-1">
-            {WEEKDAYS.map((w) => (
+            {Array.from({ length: 7 }, (_, index) => (
               <div
-                key={w}
+                key={index}
                 className="py-1 text-center text-[10px] font-medium uppercase text-slate-500"
               >
-                {w}
+                {calendarWeekdayInitial(index, locale)}
               </div>
             ))}
           </div>
@@ -262,7 +249,7 @@ export function DateField({
                 setOpen(false);
               }}
             >
-              Limpiar
+              {t("date.clear")}
             </button>
             <button
               type="button"
@@ -277,7 +264,7 @@ export function DateField({
                 setOpen(false);
               }}
             >
-              Hoy
+              {t("date.today")}
             </button>
           </div>
         </div>

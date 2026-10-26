@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, Loader2, Wrench, XCircle } from "lucide-react";
 import clsx from "clsx";
+import { useUiLocale } from "../contexts/LocaleContext";
 
 export type ToolCallEntry = {
   id: string;
@@ -11,21 +12,22 @@ export type ToolCallEntry = {
   timestamp: string;
 };
 
-export function ToolCallLog({ entries, title = "Tools ejecutadas" }: { entries: ToolCallEntry[]; title?: string }) {
+export function ToolCallLog({ entries, title }: { entries: ToolCallEntry[]; title?: string }) {
+  const { t } = useUiLocale();
+  const heading = title ?? t("toolsLog.title");
   if (!entries.length) {
     return (
       <div className="tool-log-empty">
         <Wrench className="mx-auto h-5 w-5 text-slate-600" />
-        <p className="mt-2 text-xs text-slate-500">
-          Las llamadas a tools aparecerán aquí en tiempo real.
-        </p>
+        <p className="tool-log-title">{heading}</p>
+        <p className="mt-2 text-xs text-slate-500">{t("toolsLog.empty")}</p>
       </div>
     );
   }
 
   return (
     <div className="tool-log">
-      <p className="tool-log-title">{title}</p>
+      <p className="tool-log-title">{heading}</p>
       <ul className="space-y-2">
         {entries.map((entry) => (
           <li key={entry.id} className="tool-log-item">

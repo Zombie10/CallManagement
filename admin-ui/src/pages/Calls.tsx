@@ -15,6 +15,7 @@ import { useTenant } from "../contexts/TenantContext";
 import { api, type CallRecord } from "../lib/api";
 import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
+import { outcomeLabel } from "../lib/i18n";
 import { channelFilterOptions, channelLabel, formatDuration } from "../lib/reportDisplay";
 
 function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
@@ -61,8 +62,8 @@ function CallRow({ call, canPlay }: { call: CallRecord; canPlay: boolean }) {
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-          <span className="rounded-lg bg-white/5 px-2 py-1 text-xs capitalize text-slate-300">
-            {call.outcome?.replaceAll("_", " ") || "—"}
+          <span className="rounded-lg bg-white/5 px-2 py-1 text-xs text-slate-300">
+            {call.outcome ? outcomeLabel(call.outcome, locale) : "—"}
           </span>
           {call.duration_seconds != null && (
             <span className="text-xs text-slate-500">{formatDuration(call.duration_seconds)}</span>
@@ -98,9 +99,9 @@ export function Calls() {
       { value: "all", label: t("calls.allOutcomes") },
       ...Array.from(set)
         .sort()
-        .map((o) => ({ value: o, label: o.replaceAll("_", " ") })),
+        .map((o) => ({ value: o, label: outcomeLabel(o, locale) })),
     ];
-  }, [data?.items, t]);
+  }, [data?.items, locale, t]);
 
   const channelOptions = useMemo(
     () => [{ value: "all", label: t("calls.allChannels") }, ...channelFilterOptions(locale)],

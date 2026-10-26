@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import {
   ConnectionState,
   ParticipantKind,
@@ -25,6 +26,7 @@ async function uploadRecordingWithRetry(callId: string, blob: Blob, ext = "webm"
 }
 
 export function useLiveKitVoice() {
+  const { locale } = useUiLocale();
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [agentJoined, setAgentJoined] = useState(false);
@@ -218,13 +220,13 @@ export function useLiveKitVoice() {
 
         setConnected(true);
       } catch (err) {
-        setError(microphoneErrorMessage(err));
+        setError(microphoneErrorMessage(err, locale));
         await disconnect({ persist: false });
       } finally {
         setConnecting(false);
       }
     },
-    [attachTrackToMix, disconnect, ensureMixGraph, handleAgentParticipant, startMeter],
+    [attachTrackToMix, disconnect, ensureMixGraph, handleAgentParticipant, locale, startMeter],
   );
 
   useEffect(() => () => {

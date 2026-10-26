@@ -7,6 +7,7 @@ import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
 import { formatAdminDateTime } from "../lib/formatDateTime";
 import { canListenRecordings } from "../lib/permissions";
+import { outcomeLabel } from "../lib/i18n";
 import { channelLabel, formatDuration } from "../lib/reportDisplay";
 
 export function CallDetail() {
@@ -69,8 +70,8 @@ export function CallDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-lg bg-white/5 px-3 py-1 text-sm capitalize text-slate-200">
-            {call.outcome?.replaceAll("_", " ") || t("calls.noOutcome")}
+          <span className="rounded-lg bg-white/5 px-3 py-1 text-sm text-slate-200">
+            {call.outcome ? outcomeLabel(call.outcome, locale) : t("calls.noOutcome")}
           </span>
           {call.transferred_to && (
             <span className="rounded-lg bg-violet-500/10 px-3 py-1 text-sm text-violet-200">

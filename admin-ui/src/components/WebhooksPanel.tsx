@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2, Webhook } from "lucide-react";
 import { useState } from "react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
 
 export function WebhooksPanel() {
   const queryClient = useQueryClient();
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState<string[]>(["call.ended", "call.started", "appointment.created"]);
@@ -38,18 +40,16 @@ export function WebhooksPanel() {
   });
 
   if (!tenantId) {
-    return <p className="text-sm text-slate-500">Selecciona una empresa para gestionar webhooks.</p>;
+    return <p className="text-sm text-slate-500">{t("webhooks.needCompany")}</p>;
   }
 
   return (
     <section className="glass-card p-6">
       <div className="mb-5 flex items-center gap-2">
         <Webhook className="h-5 w-5 text-cyan-400" />
-        <h2 className="font-display text-lg font-semibold">Webhooks</h2>
+        <h2 className="font-display text-lg font-semibold">{t("webhooks.title")}</h2>
       </div>
-      <p className="mb-4 text-sm text-slate-400">
-        Eventos: call.started, call.ended, appointment.*, agent.handoff (con reintentos y auditoría).
-      </p>
+      <p className="mb-4 text-sm text-slate-400">{t("webhooks.events")}</p>
       <div className="mb-4 flex flex-wrap gap-2">
         {(eventCatalog?.events || ["call.ended"]).map((ev) => (
           <button
@@ -72,7 +72,7 @@ export function WebhooksPanel() {
       <div className="mb-4 flex flex-wrap gap-2">
         <input
           className="input-field min-w-[240px] flex-1"
-          placeholder="https://tu-servidor.com/hooks/calls"
+          placeholder={t("webhooks.urlPlaceholder")}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
@@ -83,12 +83,12 @@ export function WebhooksPanel() {
           onClick={() => create.mutate()}
         >
           {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Agregar
+          {t("webhooks.add")}
         </button>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-slate-500">Cargando…</p>
+        <p className="text-sm text-slate-500">{t("webhooks.loading")}</p>
       ) : (
         <ul className="space-y-2">
           {(data?.webhooks || []).map((hook) => (
@@ -111,7 +111,7 @@ export function WebhooksPanel() {
             </li>
           ))}
           {!data?.webhooks.length && (
-            <li className="py-4 text-center text-sm text-slate-500">Sin webhooks configurados</li>
+            <li className="py-4 text-center text-sm text-slate-500">{t("webhooks.empty")}</li>
           )}
         </ul>
       )}

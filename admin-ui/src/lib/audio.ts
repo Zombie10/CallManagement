@@ -1,3 +1,5 @@
+import { DEFAULT_ADMIN_LOCALE, translate, type AdminLocale } from "./i18n";
+
 /** PCM16 helpers for browser microphone capture and playback. */
 
 const MIC_RELEASE_MS = 400;
@@ -40,6 +42,7 @@ function microphoneConstraints(): MediaStreamConstraints {
 export async function requestMicrophone(options?: {
   maxAttempts?: number;
   preserveUserActivation?: boolean;
+  locale?: AdminLocale;
 }): Promise<MediaStream> {
   const maxAttempts = options?.preserveUserActivation ? 1 : (options?.maxAttempts ?? 3);
   let lastErr: unknown;
@@ -56,11 +59,14 @@ export async function requestMicrophone(options?: {
       await micReleaseDelay();
     }
   }
-  throw new Error(microphoneErrorMessage(lastErr));
+  throw new Error(microphoneErrorMessage(lastErr, options?.locale));
 }
 
 /** User-facing message when getUserMedia / LiveKit mic fails (Safari AVAudioSession, etc.). */
-export function microphoneErrorMessage(err: unknown): string {
+export function microphoneErrorMessage(
+  err: unknown,
+  locale: AdminLocale = DEFAULT_ADMIN_LOCALE,
+): string {
   const name = err instanceof DOMException ? err.name : "";
   const raw = err instanceof Error ? err.message : String(err);
   if (
@@ -69,20 +75,13 @@ export function microphoneErrorMessage(err: unknown): string {
     raw.includes("CaptureDevice") ||
     raw.includes("Permission denied")
   ) {
-    const iosHint = isIOS()
-      ? "En iPhone: Ajustes → Safari → Micrófono → Permitir en este sitio. "
-      : "";
-    return (
-      "No se pudo usar el micrófono. Pulsa Cancelar/Desconectar, espera un momento y vuelve a Conectar. " +
-      iosHint +
-      "Si persiste: cierra otras apps de voz y recarga la página. " +
-      "No está relacionado con otra persona usando el mismo agente."
-    );
+    const iosHint = isIOS() ? translate("voice.micIos", locale) : "";
+    return translate("voice.micDenied", locale) + iosHint + translate("voice.micPersist", locale);
   }
   if (name === "NotFoundError" || raw.includes("device not found")) {
-    return "No hay micrófono disponible. Conecta un micrófono o permite el dispositivo integrado.";
+    return translate("voice.micMissing", locale);
   }
-  return raw || "Error al acceder al micrófono";
+  return raw || translate("voice.micGeneric", locale);
 }
 
 export function float32ToPCM16Base64(float32Array: Float32Array): string {

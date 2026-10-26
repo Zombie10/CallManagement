@@ -1,5 +1,6 @@
 import { Filter, Search, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useUiLocale } from "../contexts/LocaleContext";
 
 type Props = {
   search: string;
@@ -14,12 +15,13 @@ type Props = {
 export function ListFilterBar({
   search,
   onSearchChange,
-  searchPlaceholder = "Buscar…",
+  searchPlaceholder,
   children,
   resultCount,
   totalCount,
   onClear,
 }: Props) {
+  const { t } = useUiLocale();
   const hasFilters = search.trim().length > 0;
 
   return (
@@ -29,7 +31,7 @@ export function ListFilterBar({
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             className="input-field pl-9"
-            placeholder={searchPlaceholder}
+            placeholder={searchPlaceholder ?? t("filters.search")}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -45,14 +47,14 @@ export function ListFilterBar({
             }}
           >
             <X className="h-3.5 w-3.5" />
-            Limpiar
+            {t("filters.clear")}
           </button>
         )}
       </div>
       {resultCount != null && totalCount != null && (
         <p className="flex items-center gap-1.5 text-xs text-slate-500">
           <Filter className="h-3 w-3" />
-          Mostrando {resultCount} de {totalCount}
+          {t("filters.showing", { shown: resultCount, total: totalCount })}
         </p>
       )}
     </div>

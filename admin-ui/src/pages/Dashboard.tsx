@@ -5,6 +5,7 @@ import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
 import { formatAdminDay } from "../lib/formatDateTime";
+import { outcomeLabel, providerLabel, sentimentLabel } from "../lib/i18n";
 import { formatDuration } from "../lib/reportDisplay";
 import { AgentFleetStatus } from "../components/AgentFleetStatus";
 import { StatCard } from "../components/StatCard";
@@ -37,7 +38,7 @@ function CallsByDayChart({ data }: { data: Array<{ day: string; count: number }>
 
 export function Dashboard() {
   const { tenantId } = useTenant();
-  const { t } = useUiLocale();
+  const { t, locale } = useUiLocale();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", tenantId],
     queryFn: () => api.dashboard(tenantId),
@@ -137,7 +138,7 @@ export function Dashboard() {
           <dl className="grid gap-3 text-sm">
             <div className="flex justify-between border-b border-white/5 pb-2">
               <dt className="text-slate-400">{t("dashboard.provider")}</dt>
-              <dd className="font-medium text-cyan-300">{runtime.provider}</dd>
+              <dd className="font-medium text-cyan-300">{providerLabel(runtime.provider, locale)}</dd>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-2">
               <dt className="text-slate-400">{t("dashboard.grokRealtime")}</dt>
@@ -162,7 +163,7 @@ export function Dashboard() {
           <div className="space-y-2">
             {Object.entries(analytics.outcomes).map(([outcome, count]) => (
               <div key={outcome} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">
-                <span className="capitalize text-slate-300">{outcome.replaceAll("_", " ")}</span>
+                <span className="text-slate-300">{outcomeLabel(outcome, locale)}</span>
                 <span className="font-semibold text-cyan-300">{count}</span>
               </div>
             ))}
@@ -211,7 +212,7 @@ export function Dashboard() {
             </div>
             <div className="rounded-xl bg-white/5 p-3">
               <p className="text-xs text-slate-500">{t("dashboard.sentiment")}</p>
-              <p className="text-xl font-semibold capitalize">{actionable.sentiment_label}</p>
+              <p className="text-xl font-semibold">{sentimentLabel(actionable.sentiment_label, locale)}</p>
             </div>
           </div>
         </div>

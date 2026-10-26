@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bot, PhoneCall, Radio } from "lucide-react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
 import {
   countAgentsByStatus,
   deriveAgentLiveState,
   statusLabel,
-  type AgentFleetItem,
 } from "../lib/agentStatus";
 import clsx from "clsx";
 
@@ -36,6 +36,7 @@ function StatusDot({
 }
 
 export function AgentFleetStatus({ tenantId, variant = "compact", className }: Props) {
+  const { t, locale } = useUiLocale();
   const { data, isFetching } = useQuery({
     queryKey: ["supervisor", tenantId],
     queryFn: () => api.supervisor(),
@@ -48,8 +49,10 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
 
   if (variant === "compact") {
     const subtitle = [
-      counts.onCall > 0 ? `${counts.onCall} en llamada` : null,
-      counts.paused > 0 ? `${counts.paused} pausado${counts.paused > 1 ? "s" : ""}` : null,
+      counts.onCall > 0 ? t("fleet.onCallLine", { count: counts.onCall }) : null,
+      counts.paused > 0
+        ? t(counts.paused === 1 ? "fleet.pausedOne" : "fleet.pausedMany", { count: counts.paused })
+        : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -57,7 +60,7 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
     return (
       <div className={clsx("min-w-0", className)}>
         <p className="flex items-center gap-1 text-xs text-slate-500">
-          Agentes activos
+          {t("fleet.active")}
           <Radio className={clsx("h-2.5 w-2.5", isFetching && "animate-pulse text-cyan-400/80")} />
         </p>
         <p className="text-2xl font-semibold text-violet-200">
@@ -68,7 +71,7 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
         {agents.length > 0 && (
           <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5">
             {agents.map((agent) => {
-              const live = deriveAgentLiveState(agent);
+              const live = deriveAgentLiveState(agent, locale);
               return (
                 <span
                   key={agent.id}
@@ -98,38 +101,38 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
               <Bot className="h-6 w-6 text-violet-200" />
             </div>
             <div>
-              <h2 className="font-display text-xl font-semibold">Flota de agentes</h2>
-              <p className="text-xs text-slate-500">Estados en tiempo real · actualiza cada 5s</p>
+              <h2 className="font-display text-xl font-semibold">{t("fleet.title")}</h2>
+              <p className="text-xs text-slate-500">{t("fleet.liveHint")}</p>
             </div>
           </div>
           <span className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
             <StatusDot pulse className="bg-emerald-400" />
-            {isFetching ? "Sincronizando…" : "En vivo"}
+            {isFetching ? t("fleet.syncing") : t("fleet.live")}
           </span>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/10 via-surface-900 to-cyan-500/5 p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Operativos ahora</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("fleet.operating")}</p>
               <p className="mt-1 font-display text-5xl font-bold tabular-nums text-transparent bg-gradient-to-r from-violet-200 via-cyan-200 to-emerald-200 bg-clip-text">
                 {counts.active}
                 <span className="text-2xl font-semibold text-slate-500">/{counts.total}</span>
               </p>
               <p className="mt-2 text-sm text-slate-400">
-                {counts.onCall} en llamada · {counts.available} disponibles
+                {t("fleet.opsLine", { onCall: counts.onCall, available: counts.available })}
               </p>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               {(
                 [
-                  { label: "En llamada", value: counts.onCall, color: "text-cyan-300", bg: "bg-cyan-500/10" },
-                  { label: "Pausados", value: counts.paused, color: "text-amber-300", bg: "bg-amber-500/10" },
-                  { label: "Borrador", value: counts.draft, color: "text-slate-400", bg: "bg-white/5" },
+                  { id: "onCall", label: t("fleet.live.onCall"), value: counts.onCall, color: "text-cyan-300", bg: "bg-cyan-500/10" },
+                  { id: "paused", label: t("fleet.chip.paused"), value: counts.paused, color: "text-amber-300", bg: "bg-amber-500/10" },
+                  { id: "draft", label: t("fleet.status.draft"), value: counts.draft, color: "text-slate-400", bg: "bg-white/5" },
                 ] as const
               ).map((s) => (
-                <div key={s.label} className={clsx("rounded-xl px-2 py-3", s.bg)}>
+                <div key={s.id} className={clsx("rounded-xl px-2 py-3", s.bg)}>
                   <p className={clsx("font-display text-lg font-semibold", s.color)}>{s.value}</p>
                   <p className="text-slate-500">{s.label}</p>
                 </div>
@@ -139,10 +142,10 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
 
           <div className="grid gap-2 sm:grid-cols-2">
             {agents.length === 0 ? (
-              <p className="col-span-2 text-sm text-slate-500">Sin agentes configurados</p>
+              <p className="col-span-2 text-sm text-slate-500">{t("fleet.empty")}</p>
             ) : (
               agents.map((agent) => {
-                const live = deriveAgentLiveState(agent);
+                const live = deriveAgentLiveState(agent, locale);
                 const onCall = (agent.active_calls ?? 0) > 0;
                 return (
                   <div
@@ -161,7 +164,7 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
                       <div className="min-w-0">
                         <p className="truncate font-medium text-slate-100">{agent.display_name}</p>
                         <p className="mt-0.5 text-[11px] uppercase tracking-wide text-slate-500">
-                          {statusLabel(agent.status)}
+                          {statusLabel(agent.status, locale)}
                         </p>
                       </div>
                       <StatusDot pulse={live.pulse} className={live.dotClass} />
@@ -177,7 +180,7 @@ export function AgentFleetStatus({ tenantId, variant = "compact", className }: P
                           {agent.max_concurrent_calls != null && `/${agent.max_concurrent_calls}`}
                         </span>
                       )}
-                      <span className="text-slate-500">{agent.call_count_today} hoy</span>
+                      <span className="text-slate-500">{t("fleet.today", { count: agent.call_count_today })}</span>
                     </div>
                   </div>
                 );

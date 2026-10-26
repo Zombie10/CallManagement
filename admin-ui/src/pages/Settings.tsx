@@ -8,7 +8,7 @@ import { WebhookAuditPanel } from "../components/WebhookAuditPanel";
 import { WebhooksPanel } from "../components/WebhooksPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { useUiLocale } from "../contexts/LocaleContext";
-import { presentSettingLabel, settingsSectionLabel } from "../lib/i18n";
+import { presentSettingLabel, settingOptionLabel, settingsSectionLabel } from "../lib/i18n";
 
 function FieldInput({
   field,
@@ -19,7 +19,7 @@ function FieldInput({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const { t } = useUiLocale();
+  const { t, locale } = useUiLocale();
   if (field.type === "boolean") {
     return (
       <label className="flex cursor-pointer items-center gap-3">
@@ -38,7 +38,7 @@ function FieldInput({
       <Select
         value={value}
         onChange={onChange}
-        options={field.options.map((opt) => ({ value: opt, label: opt }))}
+        options={field.options.map((opt) => ({ value: opt, label: settingOptionLabel(field.key, opt, locale) }))}
       />
     );
   }

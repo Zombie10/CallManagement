@@ -1,5 +1,6 @@
 import type { CallReportPivot } from "../../lib/api";
 import { useUiLocale } from "../../contexts/LocaleContext";
+import { outcomeLabel, weekdayLabel } from "../../lib/i18n";
 import { dimensionLabel, formatMetricValue } from "../../lib/reportDisplay";
 import clsx from "clsx";
 
@@ -13,8 +14,11 @@ function labelForKey(
   key: string,
   dimension: string,
   unassigned: string,
+  locale: "es" | "en",
   agentLabels?: Map<string, string>,
 ): string {
+  if (dimension === "weekday") return weekdayLabel(key, locale);
+  if (dimension === "outcome") return outcomeLabel(key, locale);
   if (dimension === "agent" && agentLabels?.has(key)) {
     return agentLabels.get(key)!;
   }
@@ -29,11 +33,11 @@ export function PivotTable({ pivot, agentLabels, showPercentages = true }: Props
 
   const unassigned = t("analytics.unassigned");
   const rowLabels = pivot.row_keys.map((key, i) => {
-    const mapped = labelForKey(key, pivot.row_dimension, unassigned, agentLabels);
+    const mapped = labelForKey(key, pivot.row_dimension, unassigned, locale, agentLabels);
     return mapped !== key ? mapped : pivot.row_labels[i];
   });
   const colLabels = pivot.col_keys.map((key, i) => {
-    const mapped = labelForKey(key, pivot.col_dimension, unassigned, agentLabels);
+    const mapped = labelForKey(key, pivot.col_dimension, unassigned, locale, agentLabels);
     return mapped !== key ? mapped : pivot.col_labels[i];
   });
 

@@ -42,6 +42,7 @@ import {
   type ReportFiltersState,
   type ReportPreset,
 } from "../lib/reports";
+import { outcomeLabel, sentimentLabel } from "../lib/i18n";
 import {
   channelFilterOptions,
   dimensionLabel,
@@ -146,8 +147,8 @@ export function Analytics() {
   }, [tenantId]);
 
   const outcomeOptions = useMemo(
-    () => (options?.outcomes || []).map((o) => ({ value: o, label: o.replaceAll("_", " ") })),
-    [options?.outcomes],
+    () => (options?.outcomes || []).map((o) => ({ value: o, label: outcomeLabel(o, locale) })),
+    [locale, options?.outcomes],
   );
 
   const agentOptions = useMemo(
@@ -277,8 +278,8 @@ export function Analytics() {
           </div>
           <div>
             <p className="text-xs text-slate-500">{t("analytics.sentiment")}</p>
-            <p className="text-2xl font-semibold capitalize">
-              {analyticsData.actionable.sentiment_label}
+            <p className="text-2xl font-semibold">
+              {sentimentLabel(analyticsData.actionable.sentiment_label, locale)}
             </p>
           </div>
           <AgentFleetStatus tenantId={tenantId} variant="compact" />
@@ -614,11 +615,11 @@ export function Analytics() {
                         metric: metricOptions.find((m) => m.value === appliedFilters.metric)?.label || appliedFilters.metric,
                       })}
                     </p>
-                    <SeriesBarChart series={data.series} metric={appliedFilters.metric} />
+                    <SeriesBarChart series={data.series} metric={appliedFilters.metric} dimension={data.group_by} />
                   </div>
                   <div>
                     <h3 className="mb-3 text-sm font-medium text-slate-300">{t("analytics.seriesTable")}</h3>
-                    <SeriesDataTable series={data.series} />
+                    <SeriesDataTable series={data.series} dimension={data.group_by} />
                   </div>
                 </div>
                 </div>

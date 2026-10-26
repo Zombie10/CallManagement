@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle, History, XCircle } from "lucide-react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
 import clsx from "clsx";
 
 export function WebhookAuditPanel() {
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const { data, isLoading } = useQuery({
     queryKey: ["webhook-deliveries", tenantId],
@@ -18,10 +20,10 @@ export function WebhookAuditPanel() {
     <section className="glass-card p-6">
       <div className="mb-4 flex items-center gap-2">
         <History className="h-5 w-5 text-violet-400" />
-        <h2 className="font-display text-lg font-semibold">Auditoría de webhooks</h2>
+        <h2 className="font-display text-lg font-semibold">{t("audit.title")}</h2>
       </div>
       {isLoading ? (
-        <p className="text-sm text-slate-500">Cargando entregas…</p>
+        <p className="text-sm text-slate-500">{t("audit.loading")}</p>
       ) : (
         <ul className="max-h-64 space-y-2 overflow-y-auto">
           {data?.items.map((d) => (
@@ -45,7 +47,7 @@ export function WebhookAuditPanel() {
               {d.error && <p className="text-red-300/80">{d.error}</p>}
             </li>
           ))}
-          {!data?.items.length && <p className="text-sm text-slate-500">Sin entregas registradas</p>}
+          {!data?.items.length && <p className="text-sm text-slate-500">{t("audit.empty")}</p>}
         </ul>
       )}
     </section>

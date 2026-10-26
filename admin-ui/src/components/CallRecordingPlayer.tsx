@@ -1,5 +1,6 @@
 import { AlertTriangle, Headphones, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
 
@@ -21,6 +22,7 @@ function canPlayMime(mime: string): boolean {
 }
 
 export function CallRecordingPlayer({ callId, recordingUrl }: Props) {
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -69,30 +71,27 @@ export function CallRecordingPlayer({ callId, recordingUrl }: Props) {
     <section className="glass-card p-5 sm:p-6">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
         <Headphones className="h-4 w-4 text-cyan-400" />
-        Grabación de audio
+        {t("recording.title")}
       </h2>
 
       {loading && (
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando grabación…
+          {t("recording.loading")}
         </div>
       )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>No se pudo cargar la grabación: {error}</span>
+          <span>{t("recording.loadError", { error })}</span>
         </div>
       )}
 
       {unsupported && !loading && !error && (
         <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            Tu navegador no reproduce este formato ({mimeType || "WebM"}). Descarga el archivo y ábrelo con Chrome
-            o VLC.
-          </span>
+          <span>{t("recording.unsupported", { mime: mimeType || "WebM" })}</span>
         </div>
       )}
 
@@ -103,10 +102,10 @@ export function CallRecordingPlayer({ callId, recordingUrl }: Props) {
           className="w-full"
           src={blobUrl}
           preload="auto"
-          onError={() => setPlaybackError("El navegador no pudo decodificar el audio.")}
+          onError={() => setPlaybackError(t("recording.decodeError"))}
           onPlay={() => setPlaybackError(null)}
         >
-          Tu navegador no reproduce audio.
+          {t("recording.noAudio")}
         </audio>
       )}
 
@@ -120,7 +119,7 @@ export function CallRecordingPlayer({ callId, recordingUrl }: Props) {
           download={`${callId}${mimeType.includes("mp4") ? ".m4a" : ".webm"}`}
           className="mt-2 inline-block text-xs text-cyan-300 hover:text-cyan-200"
         >
-          Descargar grabación
+          {t("recording.download")}
         </a>
       )}
     </section>

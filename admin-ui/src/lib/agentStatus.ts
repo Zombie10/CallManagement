@@ -1,4 +1,5 @@
 import type { ScheduleStatus } from "./api";
+import { DEFAULT_ADMIN_LOCALE, translate, type AdminLocale } from "./i18n";
 
 export type AgentFleetItem = {
   id: string;
@@ -19,21 +20,25 @@ export type AgentLiveState = {
   pulse?: boolean;
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Activo",
-  paused: "Pausado",
-  draft: "Borrador",
+const STATUS_KEYS: Record<string, string> = {
+  active: "fleet.status.active",
+  paused: "fleet.status.paused",
+  draft: "fleet.status.draft",
 };
 
-export function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+export function statusLabel(status: string, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  const key = STATUS_KEYS[status];
+  return key ? translate(key, locale) : status;
 }
 
-export function deriveAgentLiveState(agent: AgentFleetItem): AgentLiveState {
+export function deriveAgentLiveState(
+  agent: AgentFleetItem,
+  locale: AdminLocale = DEFAULT_ADMIN_LOCALE,
+): AgentLiveState {
   if (agent.status === "draft") {
     return {
       key: "draft",
-      label: "Borrador",
+      label: translate("fleet.status.draft", locale),
       dotClass: "bg-slate-500",
       textClass: "text-slate-400",
     };
@@ -41,7 +46,7 @@ export function deriveAgentLiveState(agent: AgentFleetItem): AgentLiveState {
   if (agent.status === "paused") {
     return {
       key: "paused",
-      label: "Pausado",
+      label: translate("fleet.status.paused", locale),
       dotClass: "bg-amber-400",
       textClass: "text-amber-200",
     };
@@ -49,7 +54,7 @@ export function deriveAgentLiveState(agent: AgentFleetItem): AgentLiveState {
   if (agent.schedule_status === "closed") {
     return {
       key: "closed",
-      label: "Fuera de horario",
+      label: translate("fleet.live.closed", locale),
       dotClass: "bg-red-400",
       textClass: "text-red-300",
     };
@@ -58,7 +63,7 @@ export function deriveAgentLiveState(agent: AgentFleetItem): AgentLiveState {
   if (onCall) {
     return {
       key: "on_call",
-      label: agent.at_capacity ? "En llamada · lleno" : "En llamada",
+      label: translate(agent.at_capacity ? "fleet.live.onCallFull" : "fleet.live.onCall", locale),
       dotClass: "bg-cyan-400",
       textClass: "text-cyan-200",
       pulse: true,
@@ -67,14 +72,14 @@ export function deriveAgentLiveState(agent: AgentFleetItem): AgentLiveState {
   if (agent.at_capacity) {
     return {
       key: "capacity",
-      label: "Al máximo",
+      label: translate("fleet.live.capacity", locale),
       dotClass: "bg-orange-400",
       textClass: "text-orange-200",
     };
   }
   return {
     key: "available",
-    label: "Disponible",
+    label: translate("fleet.live.available", locale),
     dotClass: "bg-emerald-400",
     textClass: "text-emerald-200",
   };

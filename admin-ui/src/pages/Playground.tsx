@@ -23,6 +23,7 @@ import { useLiveKitVoice } from "../hooks/useLiveKitVoice";
 import { useXaiVoice } from "../hooks/useXaiVoice";
 import { TenantContextBar } from "../components/TenantContextBar";
 import { useTenantAgentPicker } from "../hooks/useTenantAgentPicker";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { AGENT_OPTIONS, agentLabel } from "../lib/agents";
 import { api } from "../lib/api";
@@ -52,11 +53,12 @@ function AgentPickerSelect({
   disabled?: boolean;
   className?: string;
 }) {
+  const { t } = useUiLocale();
   if (picker.agentsLoading) {
     return (
       <div className={clsx("input-field flex items-center gap-2 text-sm text-slate-500", className)}>
         <Loader2 className="h-4 w-4 animate-spin" />
-        Cargando agentes…
+        {t("playground.loadingAgents")}
       </div>
     );
   }
@@ -83,6 +85,7 @@ function AgentPickerSelect({
 }
 
 function TextPlayground({ picker }: { picker: AgentPicker }) {
+  const { t } = useUiLocale();
   const draftKey = `playground-chat-${picker.sessionContext.tenant_id || "default"}`;
   const { loadDraft, saveDraft, clearDraft, setDirty, restoredRef } = useSessionDraft(draftKey);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -133,7 +136,11 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
         {
           id: "welcome",
           role: "system",
-          text: `Sesión texto · ${data.initial_agent} · ${data.provider} / ${data.model}`,
+          text: t("playground.welcome", {
+            agent: data.initial_agent,
+            provider: data.provider,
+            model: data.model,
+          }),
         },
       ]);
       setDirty(false);
@@ -149,7 +156,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
         {
           id: `a-${Date.now()}`,
           role: "assistant",
-          text: data.reply || "(sin respuesta)",
+          text: data.reply || t("playground.noReply"),
           agent: data.agent,
         },
         ...data.events
@@ -157,14 +164,14 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
           .map((e, i) => ({
             id: `h-${Date.now()}-${i}`,
             role: "system" as const,
-            text: `Transferencia → ${e.detail}`,
+            text: t("playground.handoff", { detail: e.detail }),
           })),
         ...data.events
           .filter((e) => e.type === "tool_call")
           .map((e, i) => ({
             id: `t-${Date.now()}-${i}`,
             role: "system" as const,
-            text: `🔧 Tool: ${e.detail}`,
+            text: t("playground.toolLine", { detail: e.detail }),
           })),
       ]);
       setToolLog((prev) => [
@@ -188,7 +195,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
     mutationFn: () => api.resetChatSession(sessionId!),
     onSuccess: (data) => {
       setSessionId(data.session_id);
-      setLines([{ id: "reset", role: "system", text: `Reiniciado · ${data.initial_agent}` }]);
+      setLines([{ id: "reset", role: "system", text: t("playground.resetLine", { agent: data.initial_agent }) }]);
     },
   });
 
@@ -218,19 +225,19 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
                 ) : (
                   <MessageSquare className="h-4 w-4" />
                 )}
-                Iniciar chat
+                {t("playground.startChat")}
               </button>
             </>
           ) : (
             <>
-              <span className="text-sm text-slate-400">Multi-agente · {status?.model}</span>
+              <span className="text-sm text-slate-400">{t("playground.multiAgent", { model: status?.model ?? "" })}</span>
               <button
                 type="button"
                 className="btn-ghost ml-auto text-sm"
                 disabled={busy}
                 onClick={() => resetSession.mutate()}
               >
-                <RefreshCw className="h-4 w-4" /> Reiniciar
+                <RefreshCw className="h-4 w-4" /> {t("playground.reset")}
               </button>
             </>
           )}
@@ -252,7 +259,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
         >
           <input
             className="input-field flex-1"
-            placeholder={sessionId ? "Escribe tu mensaje..." : "Inicia una sesión"}
+            placeholder={sessionId ? t("playground.placeholderMessage") : t("playground.placeholderSession")}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={!sessionId || busy}
@@ -267,7 +274,7 @@ function TextPlayground({ picker }: { picker: AgentPicker }) {
         )}
       </div>
       <aside className="min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:w-80 lg:border-l lg:border-t-0">
-        <ToolCallLog entries={toolLog} title="Tools (texto)" />
+        <ToolCallLog entries={toolLog} title={t("playground.toolsText")} />
       </aside>
     </div>
   );
@@ -288,6 +295,7 @@ function VoiceControls({
   onConnect: () => void;
   onDisconnect: () => void;
 }) {
+  const { t } = useUiLocale();
   return (
     <div className="voice-toolbar p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -304,7 +312,7 @@ function VoiceControls({
               onClick={onDisconnect}
             >
               <MicOff className="h-4 w-4" />
-              {connecting ? "Cancelar" : "Desconectar"}
+              {connecting ? t("playground.cancel") : t("playground.disconnect")}
             </button>
           ) : (
             <button
@@ -314,7 +322,7 @@ function VoiceControls({
               onClick={onConnect}
             >
               {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-              {connecting ? "Conectando…" : "Conectar"}
+              {connecting ? t("playground.connecting") : t("playground.connect")}
             </button>
           )}
         </div>
@@ -324,6 +332,7 @@ function VoiceControls({
 }
 
 function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
+  const { t } = useUiLocale();
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useLiveKitVoice();
   const levelWidth = `${Math.min(100, Math.round(voice.audioLevel * 280))}%`;
@@ -352,14 +361,14 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
       <div className="flex min-h-0 flex-1 flex-col">
         {!status?.livekit_ready && (
           <div className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100">
-            <p className="font-medium">Requiere LiveKit Cloud + worker</p>
+            <p className="font-medium">{t("playground.needsLivekit")}</p>
             <ul className="mt-1 list-inside list-disc text-xs text-amber-200/90">
               {(status?.livekit_issues || []).map((issue) => (
                 <li key={issue}>{issue}</li>
               ))}
             </ul>
             <p className="mt-2 text-xs">
-              Terminal: <code className="text-amber-50">uv run -m call_management.server dev</code>
+              {t("playground.terminal")} <code className="text-amber-50">uv run -m call_management.server dev</code>
             </p>
           </div>
         )}
@@ -367,19 +376,19 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
         <div className="grid gap-3 border-b border-white/5 p-4 sm:grid-cols-3">
           <StatusTile
             icon={voice.connected ? Wifi : WifiOff}
-            label="Sala"
+            label={t("playground.room")}
             value={voice.sessionInfo?.room_name || "—"}
             active={voice.connected}
           />
           <StatusTile
             icon={Bot}
-            label="Agente"
-            value={voice.agentJoined ? voice.sessionInfo?.initial_agent || "activo" : "esperando…"}
+            label={t("playground.agent")}
+            value={voice.agentJoined ? voice.sessionInfo?.initial_agent || t("playground.active") : t("playground.waiting")}
             active={voice.agentJoined}
           />
           <StatusTile
             icon={Cloud}
-            label="Pipeline"
+            label={t("playground.pipeline")}
             value={voice.sessionInfo?.pipeline || "livekit"}
             active={voice.connected}
           />
@@ -388,7 +397,7 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
         {voice.connected && (
           <div className="border-b border-white/5 px-4 py-3">
             <p className="text-sm text-cyan-200">
-              {voice.agentJoined ? "Agente en línea — habla con naturalidad" : "Esperando dispatch del worker…"}
+              {voice.agentJoined ? t("playground.agentOnline") : t("playground.waitingDispatch")}
             </p>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
               <div
@@ -403,18 +412,19 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
           {!voice.connected && (
             <div className="mx-auto max-w-lg text-center text-sm text-slate-400">
               <p>
-                Misma ruta que una llamada PSTN: sala LiveKit → worker → agente con CRM. Elige el agente arriba y
-                pulsa Conectar.
+                {t("playground.pstn")}
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                También puedes probar en terminal:{" "}
+                {t("playground.terminalAlso")}{" "}
                 <code className="text-slate-300">call-management console -a receptionist</code>
               </p>
             </div>
           )}
           {voice.connected && voice.agentJoined && (
             <p className="text-center text-sm text-slate-500">
-              Sesión activa · {agentLabel(voice.sessionInfo?.initial_agent || picker.templateId)}
+              {t("playground.sessionActive", {
+                agent: agentLabel(voice.sessionInfo?.initial_agent || picker.templateId),
+              })}
             </p>
           )}
         </div>
@@ -426,6 +436,7 @@ function LiveKitVoicePanel({ picker }: { picker: AgentPicker }) {
 }
 
 function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
+  const { t } = useUiLocale();
   const { data: status } = useQuery({ queryKey: ["chat-status"], queryFn: api.chatStatus });
   const voice = useXaiVoice();
   const chatScrollRef = useChatAutoScroll(voice.transcript);
@@ -464,7 +475,7 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
 
         {!status?.xai_voice_ready && (
           <p className="border-b border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
-            Configura la clave de xAI en Configuración. No requiere LiveKit.
+            {t("playground.xaiKey")}
           </p>
         )}
 
@@ -482,8 +493,7 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
         <div ref={chatScrollRef} className="flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4">
           {!voice.transcript.length && !voice.connected && (
             <p className="text-center text-sm text-slate-500">
-              Elige un agente y conecta. El agente te saludará como en una llamada real — di tu motivo y, si hace
-              falta, tu teléfono en voz.
+              {t("playground.emptyVoice")}
             </p>
           )}
           {voice.transcript.map((line) => (
@@ -501,13 +511,14 @@ function XaiVoicePanel({ picker }: { picker: AgentPicker }) {
         {voice.error && <p className="px-4 pb-4 text-sm text-red-400">{voice.error}</p>}
       </div>
       <aside className="hidden min-h-0 w-full overflow-y-auto border-t border-white/5 p-4 lg:block lg:w-80 lg:border-l lg:border-t-0">
-        <ToolCallLog entries={voice.toolCalls} title="Tools (voz xAI)" />
+        <ToolCallLog entries={voice.toolCalls} title={t("playground.toolsVoice")} />
       </aside>
     </div>
   );
 }
 
 function VoicePlayground({ picker }: { picker: AgentPicker }) {
+  const { t } = useUiLocale();
   const [backend, setBackend] = useState<VoiceBackend>("xai");
 
   return (
@@ -520,9 +531,9 @@ function VoicePlayground({ picker }: { picker: AgentPicker }) {
         >
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-violet-400" />
-            <span className="font-medium">xAI directo</span>
+            <span className="font-medium">{t("playground.modeXai")}</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Solo la clave de xAI · transcript en vivo</p>
+          <p className="mt-1 text-xs text-slate-500">{t("playground.modeXaiHint")}</p>
         </button>
         <button
           type="button"
@@ -531,9 +542,9 @@ function VoicePlayground({ picker }: { picker: AgentPicker }) {
         >
           <div className="flex items-center gap-2">
             <Radio className="h-4 w-4 text-cyan-400" />
-            <span className="font-medium">LiveKit producción</span>
+            <span className="font-medium">{t("playground.modeLivekit")}</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Igual que consola/SIP · CRM completo</p>
+          <p className="mt-1 text-xs text-slate-500">{t("playground.modeLivekitHint")}</p>
         </button>
       </div>
       {backend === "livekit" ? <LiveKitVoicePanel picker={picker} /> : <XaiVoicePanel picker={picker} />}
@@ -603,6 +614,7 @@ function ChatBubble({ line }: { line: ChatLine }) {
 }
 
 export function Playground() {
+  const { t } = useUiLocale();
   const [mode, setMode] = useState<"text" | "voice">("voice");
   const picker = useTenantAgentPicker("banking_support");
   const { tenant, tenantId } = useTenant();
@@ -626,36 +638,37 @@ export function Playground() {
         ) : null}
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-xl font-semibold tracking-tight sm:text-3xl">
-            {tenant?.name ? `${tenant.name} — Probar agente` : "Probar agente"}
+            {tenant?.name ? `${tenant.name} — ${t("nav.playground")}` : t("nav.playground")}
           </h1>
           <p className="mt-1 text-sm text-slate-400 sm:text-base">
-            Voz xAI directa o LiveKit · Texto multi-agente
+            {t("playground.subtitle")}
           </p>
         </div>
       </header>
 
       {status?.requires_xai_key && (
         <div className="glass-card stagger-2 border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-          Configura la clave de xAI en Configuración.
+          {t("playground.xaiKeyShort")}
         </div>
       )}
 
       {picker.agentsError && (
         <div className="glass-card border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
-          No se pudieron cargar los agentes de la empresa: {picker.agentsError}
+          {t("playground.agentsError", { error: picker.agentsError })}
         </div>
       )}
 
       {!picker.agentsLoading && !picker.agentsError && !picker.hasInstances && tenantId && (
         <div className="glass-card border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">
-          <strong>{tenant?.name}</strong> no tiene agentes configurados. Usando plantillas genéricas.
-          Crea agentes en <strong>Mis agentes</strong> o cambia de empresa arriba.
+          <strong>{tenant?.name}</strong> {t("playground.noInstancesRest")}
         </div>
       )}
 
       {!picker.agentsLoading && picker.hasInstances && (
         <p className="text-xs text-slate-500">
-          {picker.instanceOptions.length} agente{picker.instanceOptions.length === 1 ? "" : "s"} de{" "}
+          {t(picker.instanceOptions.length === 1 ? "playground.oneAgent" : "playground.manyAgents", {
+            count: picker.instanceOptions.length,
+          })}{" "}
           <span className="text-slate-400">{tenant?.name}</span>
           {picker.tenantSlug ? ` (${picker.tenantSlug})` : ""}
         </p>
@@ -667,14 +680,14 @@ export function Playground() {
           className={clsx("btn-ghost w-full sm:w-auto", mode === "voice" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("voice")}
         >
-          <Mic className="h-4 w-4" /> Voz
+          <Mic className="h-4 w-4" /> {t("playground.voice")}
         </button>
         <button
           type="button"
           className={clsx("btn-ghost w-full sm:w-auto", mode === "text" && "ring-1 ring-cyan-400/30 bg-cyan-500/10 text-cyan-200")}
           onClick={() => setMode("text")}
         >
-          <MessageSquare className="h-4 w-4" /> Texto
+          <MessageSquare className="h-4 w-4" /> {t("playground.text")}
         </button>
       </div>
 

@@ -1,17 +1,20 @@
 import type { ReactNode } from "react";
 import type { CallReportSeries, CallReportSummary } from "../../lib/api";
 import { useUiLocale } from "../../contexts/LocaleContext";
+import { outcomeLabel, seriesPointLabel } from "../../lib/i18n";
 import { channelLabel, formatDuration, formatMetricValue } from "../../lib/reportDisplay";
 import clsx from "clsx";
 
 export function SeriesBarChart({
   series,
   metric,
+  dimension,
 }: {
   series: CallReportSeries[];
   metric: "count" | "sum_duration" | "avg_duration";
+  dimension?: string;
 }) {
-  const { t } = useUiLocale();
+  const { t, locale } = useUiLocale();
   const values = series.map((s) =>
     metric === "count" ? s.count : metric === "sum_duration" ? s.sum_duration : s.avg_duration,
   );
@@ -26,6 +29,7 @@ export function SeriesBarChart({
       <div className="flex h-48 items-end gap-1 sm:gap-2">
         {series.map((s, i) => {
           const val = values[i];
+          const mark = seriesPointLabel(s.key, s.label, dimension, locale);
           return (
             <div key={s.key} className="group flex min-w-0 flex-1 flex-col items-center gap-1">
               <span className="text-[10px] tabular-nums text-cyan-300/80 opacity-0 transition group-hover:opacity-100">
@@ -34,10 +38,10 @@ export function SeriesBarChart({
               <div
                 className="w-full rounded-t bg-gradient-to-t from-cyan-600/50 to-cyan-400/30 transition hover:from-cyan-500/60"
                 style={{ height: `${(val / max) * 100}%`, minHeight: val ? 4 : 0 }}
-                title={`${s.label}: ${formatMetricValue(metric, val)}`}
+                title={`${mark}: ${formatMetricValue(metric, val)}`}
               />
-              <span className="max-w-full truncate text-[9px] text-slate-500 sm:text-[10px]" title={s.label}>
-                {s.label}
+              <span className="max-w-full truncate text-[9px] text-slate-500 sm:text-[10px]" title={mark}>
+                {mark}
               </span>
             </div>
           );
@@ -47,8 +51,8 @@ export function SeriesBarChart({
   );
 }
 
-export function SeriesDataTable({ series }: { series: CallReportSeries[] }) {
-  const { t } = useUiLocale();
+export function SeriesDataTable({ series, dimension }: { series: CallReportSeries[]; dimension?: string }) {
+  const { t, locale } = useUiLocale();
   if (!series.length) return null;
 
   const totals = series.reduce(
@@ -74,7 +78,7 @@ export function SeriesDataTable({ series }: { series: CallReportSeries[] }) {
         <tbody>
           {series.map((s) => (
             <tr key={s.key} className="border-t border-white/5">
-              <td className="px-4 py-2 font-medium text-slate-200">{s.label}</td>
+              <td className="px-4 py-2 font-medium text-slate-200">{seriesPointLabel(s.key, s.label, dimension, locale)}</td>
               <td className="px-4 py-2 text-right tabular-nums">{s.count}</td>
               <td className="px-4 py-2 text-right tabular-nums text-slate-400">
                 {totals.count ? Math.round((s.count / totals.count) * 100) : 0}%
@@ -94,7 +98,7 @@ export function OutcomeDonut({
 }: {
   series: CallReportSeries[];
 }) {
-  const { t } = useUiLocale();
+  const { t, locale } = useUiLocale();
   const total = series.reduce((a, s) => a + s.count, 0);
   if (!total) return null;
 
@@ -132,7 +136,7 @@ export function OutcomeDonut({
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: colors[i % colors.length] }}
             />
-            <span className="capitalize text-slate-300">{s.label}</span>
+            <span className="text-slate-300">{outcomeLabel(s.key, locale)}</span>
             <span className="tabular-nums text-slate-500">
               {s.count} ({Math.round((s.count / total) * 100)}%)
             </span>
@@ -226,7 +230,7 @@ export function SummaryBreakdown({
           <ul className="space-y-2">
             {outcomeBreakdown.slice(0, 6).map((o) => (
               <li key={o.key} className="flex items-center justify-between gap-3 text-sm">
-                <span className="capitalize text-slate-300">{o.label}</span>
+                <span className="text-slate-300">{outcomeLabel(o.key, locale)}</span>
                 <span className="text-xs tabular-nums text-slate-400">
                   {t("analytics.outcomeAvg", { count: o.count, duration: formatDuration(o.avg_duration) })}
                 </span>

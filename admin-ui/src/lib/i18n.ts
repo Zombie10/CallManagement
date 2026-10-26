@@ -314,6 +314,154 @@ const es: Record<string, string> = {
   "tools.x_search": "Búsqueda en X",
   "tools.file_search": "Búsqueda de archivos",
   "tools.code_interpreter": "Intérprete de código",
+  "fleet.title": "Flota de agentes",
+  "fleet.liveHint": "Estados en tiempo real · actualiza cada 5s",
+  "fleet.syncing": "Sincronizando…",
+  "fleet.live": "En vivo",
+  "fleet.operating": "Operativos ahora",
+  "fleet.opsLine": "{onCall} en llamada · {available} disponibles",
+  "fleet.onCallLine": "{count} en llamada",
+  "fleet.pausedOne": "{count} pausado",
+  "fleet.pausedMany": "{count} pausados",
+  "fleet.today": "{count} hoy",
+  "fleet.empty": "Sin agentes configurados",
+  "fleet.active": "Agentes activos",
+  "fleet.chip.paused": "Pausados",
+  "fleet.status.active": "Activo",
+  "fleet.status.paused": "Pausado",
+  "fleet.status.draft": "Borrador",
+  "fleet.live.closed": "Fuera de horario",
+  "fleet.live.onCallFull": "En llamada · lleno",
+  "fleet.live.onCall": "En llamada",
+  "fleet.live.capacity": "Al máximo",
+  "fleet.live.available": "Disponible",
+  "webhooks.title": "Webhooks",
+  "webhooks.needCompany": "Selecciona una empresa para gestionar webhooks.",
+  "webhooks.events": "Eventos: call.started, call.ended, appointment.*, agent.handoff (con reintentos y auditoría).",
+  "webhooks.urlPlaceholder": "https://tu-servidor.com/hooks/calls",
+  "webhooks.add": "Agregar",
+  "webhooks.empty": "Sin webhooks configurados",
+  "webhooks.loading": "Cargando…",
+  "api.title": "API pública",
+  "api.keysFor": "Claves para",
+  "api.withHeader": "con el header",
+  "api.copyNow": "Copia esta clave ahora — no se volverá a mostrar:",
+  "api.namePlaceholder": "Nombre de la clave",
+  "api.create": "Crear clave",
+  "api.defaultName": "Integración",
+  "api.scope.calls.read": "Leer llamadas",
+  "api.scope.customers.read": "Leer clientes",
+  "api.scope.appointments.read": "Leer citas",
+  "api.scope.appointments.write": "Crear citas",
+  "audit.title": "Auditoría de webhooks",
+  "audit.loading": "Cargando entregas…",
+  "audit.empty": "Sin entregas registradas",
+  "filters.search": "Buscar…",
+  "filters.clear": "Limpiar",
+  "filters.showing": "Mostrando {shown} de {total}",
+  "date.select": "Seleccionar fecha",
+  "date.clear": "Limpiar",
+  "date.today": "Hoy",
+  "date.prevMonth": "Mes anterior",
+  "date.nextMonth": "Mes siguiente",
+  "date.month.1": "Enero",
+  "date.month.2": "Febrero",
+  "date.month.3": "Marzo",
+  "date.month.4": "Abril",
+  "date.month.5": "Mayo",
+  "date.month.6": "Junio",
+  "date.month.7": "Julio",
+  "date.month.8": "Agosto",
+  "date.month.9": "Septiembre",
+  "date.month.10": "Octubre",
+  "date.month.11": "Noviembre",
+  "date.month.12": "Diciembre",
+  "date.cal.0": "Lu",
+  "date.cal.1": "Ma",
+  "date.cal.2": "Mi",
+  "date.cal.3": "Ju",
+  "date.cal.4": "Vi",
+  "date.cal.5": "Sa",
+  "date.cal.6": "Do",
+  "recording.title": "Grabación de audio",
+  "recording.loading": "Cargando grabación…",
+  "recording.loadError": "No se pudo cargar la grabación: {error}",
+  "recording.unsupported": "Tu navegador no reproduce este formato ({mime}). Descarga el archivo y ábrelo con Chrome o VLC.",
+  "recording.decodeError": "El navegador no pudo decodificar el audio.",
+  "recording.noAudio": "Tu navegador no reproduce audio.",
+  "recording.download": "Descargar grabación",
+  "outcome.completed": "Completada",
+  "outcome.escalated": "Escalada",
+  "outcome.resolved": "Resuelta",
+  "outcome.engineer_callback_scheduled": "Callback de ingeniero",
+  "outcome.sales_meeting_scheduled": "Reunión de ventas",
+  "outcome.callback_scheduled": "Devolución de llamada",
+  "outcome.escalation_ticket_created": "Ticket de escalación",
+  "outcome.immediate_callback_requested": "Callback inmediato",
+  "sentiment.negative": "Negativa",
+  "sentiment.neutral": "Neutral",
+  "sentiment.positive": "Positiva",
+  "provider.xai": "xAI",
+  "provider.inference": "Inferencia",
+  "provider.direct": "Directo",
+  "playground.subtitle": "Voz xAI directa o LiveKit · Texto multi-agente",
+  "playground.loadingAgents": "Cargando agentes…",
+  "playground.startChat": "Iniciar chat",
+  "playground.multiAgent": "Multi-agente · {model}",
+  "playground.reset": "Reiniciar",
+  "playground.placeholderMessage": "Escribe tu mensaje...",
+  "playground.placeholderSession": "Inicia una sesión",
+  "playground.noReply": "(sin respuesta)",
+  "playground.welcome": "Sesión texto · {agent} · {provider} / {model}",
+  "playground.resetLine": "Reiniciado · {agent}",
+  "playground.handoff": "Transferencia → {detail}",
+  "playground.toolLine": "🔧 Herramienta: {detail}",
+  "playground.toolsText": "Tools (texto)",
+  "playground.toolsVoice": "Tools (voz xAI)",
+  "playground.cancel": "Cancelar",
+  "playground.disconnect": "Desconectar",
+  "playground.connect": "Conectar",
+  "playground.connecting": "Conectando…",
+  "playground.needsLivekit": "Requiere LiveKit Cloud + worker",
+  "playground.terminal": "Terminal:",
+  "playground.room": "Sala",
+  "playground.agent": "Agente",
+  "playground.pipeline": "Pipeline",
+  "playground.active": "activo",
+  "playground.waiting": "esperando…",
+  "playground.agentOnline": "Agente en línea — habla con naturalidad",
+  "playground.waitingDispatch": "Esperando al worker…",
+  "playground.pstn": "Misma ruta que una llamada PSTN: sala LiveKit → worker → agente con CRM. Elige el agente arriba y pulsa Conectar.",
+  "playground.terminalAlso": "También puedes probar en terminal:",
+  "playground.sessionActive": "Sesión activa · {agent}",
+  "playground.xaiKey": "Configura la clave de xAI en Configuración. No requiere LiveKit.",
+  "playground.xaiKeyShort": "Configura la clave de xAI en Configuración.",
+  "playground.emptyVoice": "Elige un agente y conecta. El agente te saludará como en una llamada real — di tu motivo y, si hace falta, tu teléfono en voz.",
+  "playground.modeXai": "xAI directo",
+  "playground.modeXaiHint": "Solo la clave de xAI · transcript en vivo",
+  "playground.modeLivekit": "LiveKit producción",
+  "playground.modeLivekitHint": "Igual que consola/SIP · CRM completo",
+  "playground.agentsError": "No se pudieron cargar los agentes de la empresa: {error}",
+  "playground.noInstancesRest": "no tiene agentes configurados. Usando plantillas genéricas. Crea agentes en Mis agentes o cambia de empresa arriba.",
+  "playground.oneAgent": "{count} agente de",
+  "playground.manyAgents": "{count} agentes de",
+  "playground.voice": "Voz",
+  "playground.text": "Texto",
+  "toolsLog.title": "Tools ejecutadas",
+  "toolsLog.empty": "Las llamadas a tools aparecerán aquí en tiempo real.",
+  "voice.mcpInProgress": "MCP en curso",
+  "voice.mcpCompleted": "MCP completado",
+  "voice.mcpFailed": "MCP falló",
+  "voice.search": "Búsqueda: {kind}",
+  "voice.codeInterpreter": "Intérprete de código en ejecución…",
+  "voice.transcriptSave": "No se pudo guardar la transcripción",
+  "voice.connect": "No se pudo conectar al agente de voz de xAI",
+  "voice.socketClosed": "WebSocket cerrado ({code})",
+  "voice.micDenied": "No se pudo usar el micrófono. Pulsa Cancelar o Desconectar, espera un momento y vuelve a Conectar. ",
+  "voice.micIos": "En iPhone: Ajustes → Safari → Micrófono → Permitir en este sitio. ",
+  "voice.micPersist": "Si persiste: cierra otras apps de voz y recarga la página. No está relacionado con otra persona usando el mismo agente.",
+  "voice.micMissing": "No hay micrófono disponible. Conecta un micrófono o permite el dispositivo integrado.",
+  "voice.micGeneric": "Error al acceder al micrófono",
 };
 
 const en: Record<string, string> = {
@@ -626,6 +774,154 @@ const en: Record<string, string> = {
   "tools.x_search": "X Search",
   "tools.file_search": "File Search",
   "tools.code_interpreter": "Code Interpreter",
+  "fleet.title": "Agent fleet",
+  "fleet.liveHint": "Live states · refreshes every 5s",
+  "fleet.syncing": "Syncing…",
+  "fleet.live": "Live",
+  "fleet.operating": "Operating now",
+  "fleet.opsLine": "{onCall} on a call · {available} available",
+  "fleet.onCallLine": "{count} on a call",
+  "fleet.pausedOne": "{count} paused",
+  "fleet.pausedMany": "{count} paused",
+  "fleet.today": "{count} today",
+  "fleet.empty": "No agents configured",
+  "fleet.active": "Active agents",
+  "fleet.chip.paused": "Paused",
+  "fleet.status.active": "Active",
+  "fleet.status.paused": "Paused",
+  "fleet.status.draft": "Draft",
+  "fleet.live.closed": "Off hours",
+  "fleet.live.onCallFull": "On a call · full",
+  "fleet.live.onCall": "On a call",
+  "fleet.live.capacity": "At capacity",
+  "fleet.live.available": "Available",
+  "webhooks.title": "Webhooks",
+  "webhooks.needCompany": "Select a company to manage webhooks.",
+  "webhooks.events": "Events: call.started, call.ended, appointment.*, agent.handoff (with retries and an audit log).",
+  "webhooks.urlPlaceholder": "https://example.com/hooks/calls",
+  "webhooks.add": "Add",
+  "webhooks.empty": "No webhooks configured",
+  "webhooks.loading": "Loading…",
+  "api.title": "Public API",
+  "api.keysFor": "Keys for",
+  "api.withHeader": "with header",
+  "api.copyNow": "Copy this key now — it will not be shown again:",
+  "api.namePlaceholder": "Key name",
+  "api.create": "Create key",
+  "api.defaultName": "Integration",
+  "api.scope.calls.read": "Read calls",
+  "api.scope.customers.read": "Read customers",
+  "api.scope.appointments.read": "Read appointments",
+  "api.scope.appointments.write": "Create appointments",
+  "audit.title": "Webhook audit",
+  "audit.loading": "Loading deliveries…",
+  "audit.empty": "No deliveries recorded",
+  "filters.search": "Search…",
+  "filters.clear": "Clear",
+  "filters.showing": "Showing {shown} of {total}",
+  "date.select": "Select date",
+  "date.clear": "Clear",
+  "date.today": "Today",
+  "date.prevMonth": "Previous month",
+  "date.nextMonth": "Next month",
+  "date.month.1": "January",
+  "date.month.2": "February",
+  "date.month.3": "March",
+  "date.month.4": "April",
+  "date.month.5": "May",
+  "date.month.6": "June",
+  "date.month.7": "July",
+  "date.month.8": "August",
+  "date.month.9": "September",
+  "date.month.10": "October",
+  "date.month.11": "November",
+  "date.month.12": "December",
+  "date.cal.0": "Mo",
+  "date.cal.1": "Tu",
+  "date.cal.2": "We",
+  "date.cal.3": "Th",
+  "date.cal.4": "Fr",
+  "date.cal.5": "Sa",
+  "date.cal.6": "Su",
+  "recording.title": "Audio recording",
+  "recording.loading": "Loading recording…",
+  "recording.loadError": "Could not load the recording: {error}",
+  "recording.unsupported": "Your browser cannot play this format ({mime}). Download the file and open it with Chrome or VLC.",
+  "recording.decodeError": "The browser could not decode the audio.",
+  "recording.noAudio": "Your browser cannot play audio.",
+  "recording.download": "Download recording",
+  "outcome.completed": "Completed",
+  "outcome.escalated": "Escalated",
+  "outcome.resolved": "Resolved",
+  "outcome.engineer_callback_scheduled": "Engineer callback",
+  "outcome.sales_meeting_scheduled": "Sales meeting",
+  "outcome.callback_scheduled": "Callback scheduled",
+  "outcome.escalation_ticket_created": "Escalation ticket",
+  "outcome.immediate_callback_requested": "Immediate callback",
+  "sentiment.negative": "Negative",
+  "sentiment.neutral": "Neutral",
+  "sentiment.positive": "Positive",
+  "provider.xai": "xAI provider",
+  "provider.inference": "Inference",
+  "provider.direct": "Direct",
+  "playground.subtitle": "Direct xAI voice or LiveKit · Multi-agent text",
+  "playground.loadingAgents": "Loading agents…",
+  "playground.startChat": "Start chat",
+  "playground.multiAgent": "Multi-agent · {model}",
+  "playground.reset": "Reset",
+  "playground.placeholderMessage": "Type your message...",
+  "playground.placeholderSession": "Start a session",
+  "playground.noReply": "(no reply)",
+  "playground.welcome": "Text session · {agent} · {provider} / {model}",
+  "playground.resetLine": "Reset · {agent}",
+  "playground.handoff": "Transfer → {detail}",
+  "playground.toolLine": "🔧 Tool: {detail}",
+  "playground.toolsText": "Tools (text)",
+  "playground.toolsVoice": "Tools (xAI voice)",
+  "playground.cancel": "Cancel",
+  "playground.disconnect": "Disconnect",
+  "playground.connect": "Connect",
+  "playground.connecting": "Connecting…",
+  "playground.needsLivekit": "Requires LiveKit Cloud and a worker",
+  "playground.terminal": "Terminal:",
+  "playground.room": "Room",
+  "playground.agent": "Agent",
+  "playground.pipeline": "Pipeline",
+  "playground.active": "active",
+  "playground.waiting": "waiting…",
+  "playground.agentOnline": "Agent is live — speak naturally",
+  "playground.waitingDispatch": "Waiting for the worker…",
+  "playground.pstn": "Same path as a PSTN call: LiveKit room → worker → agent with CRM. Pick the agent above and press Connect.",
+  "playground.terminalAlso": "You can also try it in the terminal:",
+  "playground.sessionActive": "Active session · {agent}",
+  "playground.xaiKey": "Set the xAI key in Settings. LiveKit is not required.",
+  "playground.xaiKeyShort": "Set the xAI key in Settings.",
+  "playground.emptyVoice": "Pick an agent and connect. The agent will greet you as on a real call — say why you are calling and, if needed, your phone number.",
+  "playground.modeXai": "Direct xAI",
+  "playground.modeXaiHint": "Only the xAI key · live transcript",
+  "playground.modeLivekit": "LiveKit production",
+  "playground.modeLivekitHint": "Same as console/SIP · full CRM",
+  "playground.agentsError": "Could not load the company agents: {error}",
+  "playground.noInstancesRest": "has no agents configured. Using generic templates. Create agents in My agents or switch company above.",
+  "playground.oneAgent": "{count} agent from",
+  "playground.manyAgents": "{count} agents from",
+  "playground.voice": "Voice",
+  "playground.text": "Text",
+  "toolsLog.title": "Tools run",
+  "toolsLog.empty": "Tool calls will show up here as they happen.",
+  "voice.mcpInProgress": "MCP in progress",
+  "voice.mcpCompleted": "MCP completed",
+  "voice.mcpFailed": "MCP failed",
+  "voice.search": "Search: {kind}",
+  "voice.codeInterpreter": "Code interpreter running…",
+  "voice.transcriptSave": "Could not save the transcript",
+  "voice.connect": "Could not connect to the xAI voice agent",
+  "voice.socketClosed": "WebSocket closed ({code})",
+  "voice.micDenied": "The microphone could not be used. Press Cancel or Disconnect, wait a moment, and press Connect again. ",
+  "voice.micIos": "On iPhone: Settings → Safari → Microphone → Allow for this site. ",
+  "voice.micPersist": "If it continues: close other voice apps and reload the page. It is not caused by someone else using the same agent.",
+  "voice.micMissing": "No microphone is available. Connect a microphone or allow the built-in device.",
+  "voice.micGeneric": "Could not access the microphone",
 };
 
 export const CATALOG: Record<AdminLocale, Record<string, string>> = { es, en };
@@ -681,4 +977,132 @@ export function presentSettingLabel(
 
 export function settingsSectionLabel(sectionId: string, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
   return translate(`settings.section.${sectionId}`, locale);
+}
+
+const OUTCOME_KEYS: Record<string, string> = {
+  completed: "outcome.completed",
+  escalated: "outcome.escalated",
+  resolved: "outcome.resolved",
+  engineer_callback_scheduled: "outcome.engineer_callback_scheduled",
+  sales_meeting_scheduled: "outcome.sales_meeting_scheduled",
+  callback_scheduled: "outcome.callback_scheduled",
+  escalation_ticket_created: "outcome.escalation_ticket_created",
+  immediate_callback_requested: "outcome.immediate_callback_requested",
+};
+
+const SENTIMENT_KEYS: Record<string, string> = {
+  negative: "sentiment.negative",
+  neutral: "sentiment.neutral",
+  positive: "sentiment.positive",
+};
+
+const PROVIDER_KEYS: Record<string, string> = {
+  xai: "provider.xai",
+  inference: "provider.inference",
+  direct: "provider.direct",
+};
+
+/** SQLite strftime('%w'): 0 = Sunday … 6 = Saturday. The key itself stays numeric. */
+const WEEKDAY_MARKS: Record<AdminLocale, readonly string[]> = {
+  es: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+};
+
+export function outcomeLabel(token: string | null | undefined, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  if (!token) return "";
+  const key = OUTCOME_KEYS[token.trim().toLowerCase()];
+  if (!key) return token.replaceAll("_", " ");
+  return translate(key, locale);
+}
+
+export function sentimentLabel(token: string | null | undefined, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  if (!token) return "";
+  const key = SENTIMENT_KEYS[token.trim().toLowerCase()];
+  if (!key) return token;
+  return translate(key, locale);
+}
+
+export function providerLabel(token: string | null | undefined, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  if (!token) return "";
+  const key = PROVIDER_KEYS[token.trim().toLowerCase()];
+  if (!key) return token;
+  return translate(key, locale);
+}
+
+/** Human label for a settings select. The saved value stays the stored token. */
+export function settingOptionLabel(
+  fieldKey: string,
+  option: string,
+  locale: AdminLocale = DEFAULT_ADMIN_LOCALE,
+): string {
+  if (fieldKey === "MODEL_PROVIDER") return providerLabel(option, locale);
+  return option;
+}
+
+export function weekdayLabel(key: string | number, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  const raw = String(key).trim();
+  let idx = Number.NaN;
+  if (/^\d$/.test(raw)) idx = Number(raw);
+  if (Number.isNaN(idx)) {
+    for (const marks of Object.values(WEEKDAY_MARKS)) {
+      const found = marks.indexOf(raw);
+      if (found >= 0) {
+        idx = found;
+        break;
+      }
+    }
+  }
+  if (idx >= 0 && idx <= 6) return WEEKDAY_MARKS[locale][idx];
+  return raw;
+}
+
+/** Monday-first calendar initial. Index 0 is Monday. */
+export function calendarWeekdayInitial(index: number, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate(`date.cal.${index}`, locale);
+}
+
+/** Month number 1–12. */
+export function monthName(month: number, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate(`date.month.${month}`, locale);
+}
+
+/** Series and pivot marks. Day labels stay as stored; weekday uses the numeric key. */
+export function seriesPointLabel(
+  key: string,
+  label: string,
+  dimension: string | undefined,
+  locale: AdminLocale = DEFAULT_ADMIN_LOCALE,
+): string {
+  if (dimension === "weekday") return weekdayLabel(key, locale);
+  if (dimension === "outcome") return outcomeLabel(key, locale);
+  return label;
+}
+
+export function mcpCallLabel(eventType: string, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  if (eventType === "response.mcp_call.in_progress") return translate("voice.mcpInProgress", locale);
+  if (eventType === "response.mcp_call.completed") return translate("voice.mcpCompleted", locale);
+  if (eventType === "response.mcp_call.failed") return translate("voice.mcpFailed", locale);
+  return eventType;
+}
+
+export function voiceSearchLine(itemType: string, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  const id = itemType.replace(/_call$/, "");
+  const named = toolLabel(id, locale);
+  return translate("voice.search", locale, { kind: named === id ? id : named });
+}
+
+export function voiceCodeInterpreterLine(locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate("voice.codeInterpreter", locale);
+}
+
+export function voiceTranscriptSaveError(locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate("voice.transcriptSave", locale);
+}
+
+export function voiceConnectError(locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate("voice.connect", locale);
+}
+
+export function voiceSocketClosed(code: number | string, locale: AdminLocale = DEFAULT_ADMIN_LOCALE): string {
+  return translate("voice.socketClosed", locale, { code });
 }

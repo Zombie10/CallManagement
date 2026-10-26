@@ -6,6 +6,7 @@ import { TableScroll } from "../TableScroll";
 import { useUiLocale } from "../../contexts/LocaleContext";
 import type { CallReportDetailRow } from "../../lib/api";
 import { formatAdminDateTime } from "../../lib/formatDateTime";
+import { outcomeLabel } from "../../lib/i18n";
 import {
   channelLabel,
   formatAgentsHandled,
@@ -194,7 +195,7 @@ function DetailCard({
           <p className="mt-0.5 font-mono text-xs text-cyan-200/90">{row.from_number}</p>
         </div>
         <div className="text-right text-xs text-slate-400">
-          <p className="capitalize">{row.outcome?.replaceAll("_", " ") || "—"}</p>
+          <p>{row.outcome ? outcomeLabel(row.outcome, locale) : "—"}</p>
           <p className="mt-0.5 tabular-nums">{formatDuration(row.duration_seconds)}</p>
         </div>
       </div>
@@ -282,7 +283,7 @@ export function ReportDetailGrid({ rows, agentLabelMap, agentInstances = [] }: P
                   </td>
                   <td className="px-3 py-3 font-mono text-xs text-cyan-200/90">{row.from_number}</td>
                   <td className="px-3 py-3 text-xs text-slate-400">{channelLabel(row.channel, locale)}</td>
-                  <td className="px-3 py-3 text-xs capitalize">{row.outcome?.replaceAll("_", " ") || "—"}</td>
+                  <td className="px-3 py-3 text-xs">{row.outcome ? outcomeLabel(row.outcome, locale) : "—"}</td>
                   <td className="px-3 py-3 text-xs tabular-nums whitespace-nowrap">
                     {formatDuration(row.duration_seconds)}
                   </td>

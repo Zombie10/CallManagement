@@ -2,6 +2,7 @@ import { ChevronRight, Home } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
+import { pathSegmentLabel } from "../lib/breadcrumbs";
 
 function decodeSegment(segment: string): string {
   try {
@@ -11,36 +12,15 @@ function decodeSegment(segment: string): string {
   }
 }
 
-const ROUTE_KEYS: Record<string, string> = {
-  "": "nav.dashboard",
-  settings: "nav.settings",
-  tenants: "nav.tenants",
-  "my-agents": "nav.my_agents",
-  agents: "nav.agents",
-  customers: "nav.customers",
-  calls: "nav.calls",
-  analytics: "nav.analytics",
-  appointments: "nav.appointments",
-  playground: "nav.playground",
-  profile: "layout.myProfile",
-  users: "nav.users",
-  setup: "nav.setup",
-  operations: "nav.operations",
-  supervisor: "nav.supervisor",
-};
-
 export function Breadcrumbs() {
   const location = useLocation();
   const { tenant } = useTenant();
-  const { t } = useUiLocale();
+  const { t, locale } = useUiLocale();
   const segments = location.pathname.replace(/^\//, "").split("/").filter(Boolean);
 
   if (segments.length === 0) return null;
 
-  const labelFor = (segment: string) => {
-    const key = ROUTE_KEYS[segment];
-    return key ? t(key) : segment;
-  };
+  const labelFor = (segment: string) => pathSegmentLabel(segment, locale);
 
   const crumbs: Array<{ label: string; to: string }> = [{ label: t("nav.dashboard"), to: "/" }];
   let path = "";

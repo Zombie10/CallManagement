@@ -1,22 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Key, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useTenant } from "../contexts/TenantContext";
 import { api } from "../lib/api";
 
-const SCOPE_OPTIONS = [
-  { id: "calls.read", label: "Leer llamadas" },
-  { id: "customers.read", label: "Leer clientes" },
-  { id: "appointments.read", label: "Leer citas" },
-  { id: "appointments.write", label: "Crear citas" },
-];
+const SCOPE_IDS = ["calls.read", "customers.read", "appointments.read", "appointments.write"];
 
 export function ApiKeysPanel() {
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const qc = useQueryClient();
-  const [name, setName] = useState("Integración");
+  const defaultName = t("api.defaultName");
+  const appliedDefault = useRef(defaultName);
+  const [name, setName] = useState(defaultName);
   const [scopes, setScopes] = useState(["calls.read", "customers.read"]);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setName((current) => (current === appliedDefault.current ? defaultName : current));
+    appliedDefault.current = defaultName;
+  }, [defaultName]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["api-keys", tenantId],
@@ -43,16 +47,16 @@ export function ApiKeysPanel() {
     <section className="glass-card p-6">
       <div className="mb-4 flex items-center gap-2">
         <Key className="h-5 w-5 text-cyan-400" />
-        <h2 className="font-display text-lg font-semibold">API pública</h2>
+        <h2 className="font-display text-lg font-semibold">{t("api.title")}</h2>
       </div>
       <p className="mb-4 text-sm text-slate-400">
-        Claves para <code className="text-slate-300">/api/public/v1/*</code> con header{" "}
+        {t("api.keysFor")} <code className="text-slate-300">/api/public/v1/*</code> {t("api.withHeader")}{" "}
         <code className="text-slate-300">X-Api-Key</code>.
       </p>
 
       {createdKey && (
         <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-          <p className="text-sm text-emerald-200">Copia esta clave ahora — no se volverá a mostrar:</p>
+          <p className="text-sm text-emerald-200">{t("api.copyNow")}</p>
           <div className="mt-2 flex items-center gap-2">
             <code className="flex-1 break-all font-mono text-xs text-slate-200">{createdKey}</code>
             <button
@@ -71,7 +75,7 @@ export function ApiKeysPanel() {
           className="input-field min-w-[180px] flex-1"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Nombre de la clave"
+          placeholder={t("api.namePlaceholder")}
         />
         <button
           type="button"
@@ -80,31 +84,29 @@ export function ApiKeysPanel() {
           onClick={() => create.mutate()}
         >
           <Plus className="h-4 w-4" />
-          Crear clave
+          {t("api.create")}
         </button>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {SCOPE_OPTIONS.map((s) => (
+        {SCOPE_IDS.map((id) => (
           <button
-            key={s.id}
+            key={id}
             type="button"
             onClick={() =>
-              setScopes((prev) =>
-                prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id],
-              )
+              setScopes((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
             }
             className={`rounded-lg px-2 py-1 text-xs ${
-              scopes.includes(s.id) ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-slate-500"
+              scopes.includes(id) ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-slate-500"
             }`}
           >
-            {s.label}
+            {t(`api.scope.${id}`)}
           </button>
         ))}
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-slate-500">Cargando…</p>
+        <p className="text-sm text-slate-500">{t("webhooks.loading")}</p>
       ) : (
         <ul className="space-y-2">
           {data?.api_keys.map((k) => (

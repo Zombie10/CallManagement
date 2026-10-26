@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolCallEntry } from "../components/ToolCallLog";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { formatToolResultLine, persistVoiceSession } from "./xai/persistTranscript";
 import { api, type VoiceSessionConfig, type VoiceSessionResponse } from "../lib/api";
@@ -10,6 +11,14 @@ import {
   microphoneErrorMessage,
   requestMicrophone,
 } from "../lib/audio";
+import {
+  mcpCallLabel,
+  voiceCodeInterpreterLine,
+  voiceConnectError,
+  voiceSearchLine,
+  voiceSocketClosed,
+  voiceTranscriptSaveError,
+} from "../lib/i18n";
 
 const CHUNK_MS = 100;
 /** xAI Voice API default; input/output must use the same rate for playback. */
@@ -26,6 +35,7 @@ type XaiMessage = { type: string; [key: string]: unknown };
 type SessionLike = VoiceSessionResponse | VoiceSessionConfig;
 
 export function useXaiVoice() {
+  const { locale } = useUiLocale();
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -366,12 +376,7 @@ export function useXaiVoice() {
         message.type === "response.mcp_call.completed" ||
         message.type === "response.mcp_call.failed"
       ) {
-        const label =
-          message.type === "response.mcp_call.in_progress"
-            ? "MCP en curso"
-            : message.type === "response.mcp_call.completed"
-              ? "MCP completado"
-              : "MCP falló";
+        const label = mcpCallLabel(message.type, locale);
         const detail =
           (message.server_label as string) ||
           (message.tool_name as string) ||
@@ -382,10 +387,10 @@ export function useXaiVoice() {
       if (message.type === "response.output_item.added" && message.item) {
         const item = message.item as { type?: string; name?: string };
         if (item.type === "web_search_call" || item.type === "x_search_call") {
-          appendSystem(`Búsqueda: ${item.type.replace("_call", "")}`);
+          appendSystem(voiceSearchLine(item.type, locale));
         }
         if (item.type === "code_interpreter_call") {
-          appendSystem("Code interpreter ejecutando…");
+          appendSystem(voiceCodeInterpreterLine(locale));
         }
       }
       if (message.type === "input_audio_buffer.speech_started") {
@@ -420,7 +425,7 @@ export function useXaiVoice() {
         }
       }
     },
-    [appendTranscript, handleFunctionCall, playAudio, stopPlayback],
+    [appendTranscript, handleFunctionCall, locale, playAudio, stopPlayback],
   );
 
   const stopCapture = useCallback(() => {
@@ -451,9 +456,9 @@ export function useXaiVoice() {
         recording: recorded,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la transcripción");
+      setError(err instanceof Error ? err.message : voiceTranscriptSaveError(locale));
     }
-  }, [stopRecorder]);
+  }, [locale, stopRecorder]);
 
   const disconnect = useCallback(
     async (options?: { releaseMic?: boolean; persist?: boolean }) => {
@@ -511,7 +516,7 @@ export function useXaiVoice() {
         // iOS Safari: getUserMedia must run right after the tap — no network/delay before it.
         await disconnect({ releaseMic: false, persist: false });
 
-        const stream = await requestMicrophone({ preserveUserActivation: true });
+        const stream = await requestMicrophone({ preserveUserActivation: true, locale });
         mediaRef.current = stream;
 
         const voiceSession = await api.createVoiceSession(agent, {
@@ -540,9 +545,9 @@ export function useXaiVoice() {
 
         await new Promise<void>((resolve, reject) => {
           ws.onopen = () => resolve();
-          ws.onerror = () => reject(new Error("No se pudo conectar al Voice Agent de xAI"));
+          ws.onerror = () => reject(new Error(voiceConnectError(locale)));
           ws.onclose = (ev) => {
-            if (!configuredRef.current) reject(new Error(`WebSocket cerrado (${ev.code})`));
+            if (!configuredRef.current) reject(new Error(voiceSocketClosed(ev.code, locale)));
           };
         });
 
@@ -651,7 +656,7 @@ export function useXaiVoice() {
 
         setCapturing(true);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : microphoneErrorMessage(err);
+        const msg = err instanceof Error ? err.message : microphoneErrorMessage(err, locale);
         setError(msg);
         await disconnect();
         throw err;
@@ -659,7 +664,7 @@ export function useXaiVoice() {
         setConnecting(false);
       }
     },
-    [connecting, disconnect, handleServerMessage, sendSessionUpdate, startRecorder, stopCapture],
+    [connecting, disconnect, handleServerMessage, locale, sendSessionUpdate, startRecorder, stopCapture],
   );
 
   useEffect(() => () => {
