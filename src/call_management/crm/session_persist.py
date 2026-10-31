@@ -96,6 +96,9 @@ async def _background_attach_recording(call_ctx: CallContext) -> None:
         url = local_url or egress_url
         await call_ctx.crm.update_call_recording(call_ctx.call_id, url)
         call_ctx.recording_url = url
+        from call_management.campaigns.service import sync_campaign_attempt
+
+        await sync_campaign_attempt(call_ctx)
         logger.info("Attached delayed recording for %s", call_ctx.call_id)
     except Exception:
         logger.exception("Background recording attach failed for %s", call_ctx.call_id)

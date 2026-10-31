@@ -12,8 +12,8 @@ from call_management.admin.app import app
 from call_management.admin.auth_store import SESSION_COOKIE, create_user
 from call_management.agents.base import CallContext, outbound_sales_brief
 from call_management.campaigns.dialer import DialRequest, set_campaign_dialer
-from call_management.crm.session_persist import finalize_interaction
-from call_management.server import _parse_session_overrides
+from call_management.crm.session_persist import _background_attach_recording, finalize_interaction
+from call_management.server import _handle_attributes_changed, _parse_session_overrides
 from call_management.tenancy.context import resolve_crm_for_tenant
 from call_management.tenancy.platform_store import get_platform_store
 
@@ -267,6 +267,11 @@ LIA = "+15551110024"
 OMAR = "+15551110025"
 PIO = "+15551110026"
 OUTCOME_PHONES = ["+15551110031", "+15551110032", "+15551110033", "+15551110034"]
+RESOLVED_PHONE = "+15551110041"
+RING_HANGUP_PHONE = "+15551110042"
+FAILED_LEG_PHONE = "+15551110043"
+LATE_RECORDING_PHONE = "+15551110044"
+ACTIVE_HANGUP_PHONE = "+15551110045"
 CALLER_A = "+15551000001"
 CALLER_B = "+15551000002"
 DUE = datetime(2026, 8, 19, 17, 0, tzinfo=ZoneInfo("UTC"))
@@ -522,11 +527,21 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                     "window_start": "00:00",
                     "window_end": "23:59",
                     "timezone": "UTC",
-                    "pace": 4,
+                    "pace": 9,
                     "max_attempts": 1,
                     "contacts": [
                         {"phone": phone, "name": f"Contacto {index}", "may_call": True, "do_not_call": False}
-                        for index, phone in enumerate(OUTCOME_PHONES, start=1)
+                        for index, phone in enumerate(
+                            [
+                                *OUTCOME_PHONES,
+                                RESOLVED_PHONE,
+                                RING_HANGUP_PHONE,
+                                FAILED_LEG_PHONE,
+                                LATE_RECORDING_PHONE,
+                                ACTIVE_HANGUP_PHONE,
+                            ],
+                            start=1,
+                        )
                     ],
                 },
             )
@@ -598,6 +613,99 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
             assert "El cliente escuchó el precio." in downloaded.text
             assert OUTCOME_PHONES[2] not in downloaded.text
             assert "https://cdn.example.com/rec-answered.wav" in downloaded.text
+
+            from livekit import rtc
+
+            class _SipLeg:
+                kind = rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+                identity = "sip-out"
+                attributes: dict[str, str] = {}
+
+            async def _plain_summary(call_ctx: CallContext) -> str:
+                from call_management.utils.summary import build_structured_summary
+
+                return build_structured_summary(call_ctx)
+
+            monkeypatch.setattr("call_management.crm.session_persist.generate_call_summary", _plain_summary)
+
+            resolved_attempt = attempts[RESOLVED_PHONE]
+            resolved_ctx = CallContext(
+                call_id=resolved_attempt["call_id"],
+                room_name=f"outbound-{RESOLVED_PHONE.replace('+', '')}",
+                from_number=RESOLVED_PHONE,
+                transcript_lines=["El cliente aceptó la oferta."],
+                crm=crm,
+                tenant_id=tenant.id,
+                channel="sip",
+                start_time="2020-01-01T00:00:00+00:00",
+            )
+            assert await finalize_interaction(resolved_ctx, enable_summary=False, outcome="resolved") is True
+
+            leg = _SipLeg()
+
+            async def _end_leg(phone: str, statuses: tuple[str, ...]) -> CallContext:
+                attempt = attempts[phone]
+                ctx = CallContext(
+                    call_id=attempt["call_id"],
+                    room_name=f"outbound-{phone.replace('+', '')}",
+                    from_number=phone,
+                    crm=crm,
+                    tenant_id=tenant.id,
+                    channel="sip",
+                    start_time="2020-01-01T00:00:00+00:00",
+                )
+                for status in statuses:
+                    await _handle_attributes_changed({"sip.callStatus": status}, leg, ctx)
+                assert ctx.call_persisted is True
+                return ctx
+
+            await _end_leg(RING_HANGUP_PHONE, ("ringing", "hangup"))
+            await _end_leg(FAILED_LEG_PHONE, ("dialing", "failed"))
+            kept = await _end_leg(ACTIVE_HANGUP_PHONE, ("active", "hangup"))
+            assert kept.outcome == "completed"
+
+            late_attempt = attempts[LATE_RECORDING_PHONE]
+            late_ctx = CallContext(
+                call_id=late_attempt["call_id"],
+                room_name=f"outbound-{LATE_RECORDING_PHONE.replace('+', '')}",
+                from_number=LATE_RECORDING_PHONE,
+                transcript_lines=["Conversación grabada."],
+                crm=crm,
+                tenant_id=tenant.id,
+                channel="sip",
+                start_time="2020-01-01T00:00:00+00:00",
+            )
+            assert await finalize_interaction(late_ctx, enable_summary=False, outcome="resolved") is True
+            before_recording = await client.get(f"/api/campaigns/{outcome_id}", headers=headers)
+            late_before = next(row for row in before_recording.json()["attempts"] if row["phone"] == LATE_RECORDING_PHONE)
+            assert not late_before.get("recording_url")
+
+            async def _resolve_late(egress_id: str, timeout_sec: float = 45.0) -> str:
+                return "https://cdn.example.com/late-recording.ogg"
+
+            async def _mirror_late(egress_url: str, *, tenant_id: str | None, call_id: str) -> None:
+                return None
+
+            monkeypatch.setattr(
+                "call_management.recordings.livekit_egress.resolve_egress_recording_url",
+                _resolve_late,
+            )
+            monkeypatch.setattr(
+                "call_management.recordings.livekit_egress.mirror_egress_recording_locally",
+                _mirror_late,
+            )
+            late_ctx.egress_id = "EG_late"
+            await _background_attach_recording(late_ctx)
+
+            closed = await client.get(f"/api/campaigns/{outcome_id}", headers=headers)
+            by_real = {row["phone"]: row for row in closed.json()["attempts"]}
+            assert by_real[RESOLVED_PHONE]["call_result"] == "answered"
+            assert "El cliente aceptó la oferta." in (by_real[RESOLVED_PHONE].get("transcript") or "")
+            assert by_real[RING_HANGUP_PHONE]["call_result"] == "no-answer"
+            assert by_real[FAILED_LEG_PHONE]["call_result"] == "failed"
+            assert by_real[ACTIVE_HANGUP_PHONE]["call_result"] == "answered"
+            assert by_real[LATE_RECORDING_PHONE]["call_result"] == "answered"
+            assert by_real[LATE_RECORDING_PHONE]["recording_url"] == "https://cdn.example.com/late-recording.ogg"
 
             deleted = await client.delete(f"/api/campaigns/{offer_id}", headers=headers)
             assert deleted.status_code == 200, deleted.text

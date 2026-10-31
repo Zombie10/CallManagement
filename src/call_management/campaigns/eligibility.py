@@ -121,6 +121,8 @@ CALL_RESULTS = ("answered", "no-answer", "busy", "failed")
 _OUTCOME_TO_RESULT = {
     "answered": "answered",
     "completed": "answered",
+    "resolved": "answered",
+    "escalated": "answered",
     "sales_meeting_scheduled": "answered",
     "in_progress": "answered",
     "no-answer": "no-answer",
@@ -143,6 +145,73 @@ def map_call_outcome(outcome: str | None) -> str:
     """Map a finished call onto answered, no-answer, busy, or failed."""
     key = (outcome or "").strip().lower().replace(" ", "_")
     return _OUTCOME_TO_RESULT.get(key, "failed")
+
+
+_SIP_ACTIVE = frozenset({"active", "answered"})
+_SIP_BUSY = frozenset({"busy", "user_busy"})
+_PRESERVE_OUTCOMES = frozenset(
+    {
+        "resolved",
+        "escalated",
+        "sales_meeting_scheduled",
+        "answered",
+        "completed",
+        "no-answer",
+        "no_answer",
+        "noanswer",
+        "not_answered",
+        "unanswered",
+        "busy",
+        "user_busy",
+        "failed",
+        "failure",
+        "error",
+        "canceled",
+        "cancelled",
+        "rejected",
+    }
+)
+
+
+def note_sip_call_status(call_ctx: object, status: str | None) -> None:
+    """Remember whether this SIP leg was answered, busy, or failed."""
+    key = (status or "").strip().lower()
+    setattr(call_ctx, "saw_sip_leg", True)
+    if not key:
+        return
+    setattr(call_ctx, "sip_status_seen", True)
+    if key in _SIP_ACTIVE:
+        setattr(call_ctx, "sip_leg_active", True)
+    elif key in _SIP_BUSY:
+        setattr(call_ctx, "sip_saw_busy", True)
+    elif key == "failed":
+        setattr(call_ctx, "sip_terminal_status", "failed")
+
+
+def apply_sip_leg_end(call_ctx: object, status: str | None = None) -> None:
+    """Classify a SIP leg that ended before anyone answered.
+
+    A resolved or scheduled sales call keeps its outcome. A leg that became
+    active is left for the normal completed/answered mapping. Ringing that
+    ends in hangup is no-answer. A failed status that never became active
+    is failed. Busy wins when that status was seen.
+    """
+    if status:
+        note_sip_call_status(call_ctx, status)
+    existing = (getattr(call_ctx, "outcome", None) or "").strip().lower().replace(" ", "_")
+    if existing in _PRESERVE_OUTCOMES:
+        return
+    if getattr(call_ctx, "sip_leg_active", False):
+        return
+    terminal = (status or getattr(call_ctx, "sip_terminal_status", "") or "").strip().lower()
+    if not getattr(call_ctx, "sip_status_seen", False) and not terminal:
+        return
+    if getattr(call_ctx, "sip_saw_busy", False) or terminal in _SIP_BUSY:
+        setattr(call_ctx, "outcome", "busy")
+    elif terminal == "failed":
+        setattr(call_ctx, "outcome", "failed")
+    else:
+        setattr(call_ctx, "outcome", "no-answer")
 
 
 def parse_contact_file(text: str) -> list[tuple[str, str]]:

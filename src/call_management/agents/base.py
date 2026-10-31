@@ -86,6 +86,11 @@ class CallContext:
     appointment_details: dict[str, Any] = field(default_factory=dict)
     call_notes: list[str] = field(default_factory=list)
     outcome: str | None = None
+    saw_sip_leg: bool = False
+    sip_leg_active: bool = False
+    sip_saw_busy: bool = False
+    sip_status_seen: bool = False
+    sip_terminal_status: str = ""
     post_call_summary: str | None = None
     call_persisted: bool = False
     _finalize_lock: object | None = field(default=None, repr=False)

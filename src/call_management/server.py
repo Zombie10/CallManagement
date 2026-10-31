@@ -23,6 +23,7 @@ from call_management.agents import (
 )
 from call_management.agents.catalog import TEMPLATE_IDS
 from call_management.agents.runtime import build_runtime_agent
+from call_management.campaigns.eligibility import apply_sip_leg_end, note_sip_call_status
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
@@ -562,6 +563,7 @@ async def _handle_participant_connected(
     if phone:
         call_ctx.from_number = phone
     status = (participant.attributes or {}).get("sip.callStatus")
+    note_sip_call_status(call_ctx, status)
     logger.info("SIP call status update: %s for %s", status, call_ctx.from_number)
 
     if call_ctx.crm:
@@ -589,7 +591,9 @@ async def _handle_attributes_changed(
         logger.info("SIP callStatus changed to: %s", new_status)
         call_ctx.call_notes.append(f"Call status: {new_status}")
 
-        if new_status in ("hangup", "failed"):
+        note_sip_call_status(call_ctx, new_status)
+        if str(new_status).strip().lower() in ("hangup", "failed"):
+            apply_sip_leg_end(call_ctx, str(new_status))
             cfg = get_model_config()
             await _handle_call_ended(call_ctx, cfg.enable_post_call_summary)
 
@@ -614,6 +618,9 @@ async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> Non
 
         await release_queue_slot(call_ctx.queue_limits)
         await unregister_active_call(call_ctx.call_id)
+
+    if call_ctx.saw_sip_leg:
+        apply_sip_leg_end(call_ctx)
 
     await finalize_interaction(call_ctx, enable_summary=enable_summary)
 
