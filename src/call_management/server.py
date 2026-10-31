@@ -306,6 +306,7 @@ async def _run_session(
     queue_limits,
     store,
 ) -> None:
+    from call_management.tenancy.context import resolve_crm_for_tenant
     from call_management.tenancy.scheduling import is_agent_available
 
     if not queued_ok:
