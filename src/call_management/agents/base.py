@@ -181,11 +181,25 @@ class BaseAgent(Agent):
         )
         phone_style = phone_style_for_agent(self.agent_name, get_model_config().default_locale)
         xai_tool_note = _xai_tools_instruction(self.tools)
-        vip_note = (
-            "This caller is a VIP customer. Prioritize fast resolution and white-glove service."
-            if ctx.is_vip
-            else ""
-        )
+        outbound_sales = str(ctx.room_name or "").startswith("outbound-") and self.agent_name == "sales"
+        if ctx.is_vip and self.agent_name == "sales":
+            vip_note = "This customer is VIP. Keep the conversation personal and useful."
+        elif ctx.is_vip:
+            vip_note = "This caller is a VIP customer. Prioritize fast resolution and white-glove service."
+        else:
+            vip_note = ""
+        if outbound_sales:
+            opening_note = (
+                "You placed this outbound sales call. Greet the customer by name. "
+                "Offer a demo or a plan. If the customer notes list products they already have, "
+                "mention one and suggest a useful next step. "
+                "Stay in the sales conversation. Do not tell them to contact support."
+            )
+        else:
+            opening_note = (
+                "Do not assume who is calling until they tell you or you look them up "
+                "with a phone number they provide."
+            )
         system_msg = (
             f"You are the **{self.agent_name}** agent on a live phone line.\n"
             f"Current call context:\n{ctx.summarize()}\n\n"
@@ -193,8 +207,7 @@ class BaseAgent(Agent):
             f"{language_instruction}\n"
             f"{xai_tool_note}\n"
             f"{vip_note}\n"
-            "Do not assume who is calling until they tell you or you look them up "
-            "with a phone number they provide."
+            f"{opening_note}"
         )
         chat_ctx.add_message(role="system", content=system_msg.strip())
 

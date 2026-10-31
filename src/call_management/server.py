@@ -59,14 +59,15 @@ def _resolve_initial_agent(
 ) -> tuple[object, str]:
     receptionist = agents_registry["receptionist"]
 
+    if department_hint in agents_registry:
+        logger.info("Routing directly to department agent: %s", department_hint)
+        return agents_registry[department_hint], department_hint
+
     if is_vip and vip_skip_receptionist:
         logger.info("VIP caller detected — routing directly to support")
         return agents_registry["support"], "vip_support"
 
     if department_hint:
-        if department_hint in agents_registry:
-            logger.info("Routing directly to department agent: %s", department_hint)
-            return agents_registry[department_hint], department_hint
         logger.warning(
             "Unknown department '%s' in dispatch metadata; falling back to receptionist",
             department_hint,

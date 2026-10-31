@@ -154,6 +154,15 @@ def test_resolve_initial_agent_department_and_vip():
     assert initial.agent_name == "support"
     assert reason == "vip_support"
 
+    initial, reason = _resolve_initial_agent(
+        agents,
+        department_hint="sales",
+        is_vip=True,
+        vip_skip_receptionist=True,
+    )
+    assert initial.agent_name == "sales"
+    assert reason == "sales"
+
 
 def test_duration_calculation():
     duration = _calculate_duration_seconds(
