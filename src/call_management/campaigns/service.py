@@ -6,19 +6,29 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from call_management.campaigns.dialer import (
     TRUNK_UNSET_MESSAGE,
     DialRequest,
+    configured_outbound_numbers,
     get_campaign_dialer,
     outbound_trunk_id,
 )
 from call_management.campaigns.eligibility import (
+    CALL_RESULTS,
     ContactAttemptState,
     campaign_totals,
+    clock_in_window,
+    filter_attempt_report,
+    map_call_outcome,
+    parse_contact_file,
+    parse_hhmm,
+    scheduled_pass_is_due,
+    scheduled_slot,
+    search_contacts,
     select_dials,
 )
 from call_management.crm.database import CRMDatabase
@@ -45,6 +55,9 @@ def dispatch_metadata(
     tenant_id: str,
     call_id: str,
     agent: str = SALES_AGENT,
+    product: str = "",
+    opening_line: str = "",
+    forbidden: str = "",
 ) -> str:
     """JSON the live worker already reads in ``_parse_session_overrides``."""
     return json.dumps(
@@ -54,6 +67,9 @@ def dispatch_metadata(
             "customer_name": name,
             "tenant_id": tenant_id,
             "call_id": call_id,
+            "product": product,
+            "opening_line": opening_line,
+            "forbidden": forbidden,
         },
         ensure_ascii=False,
     )
@@ -61,6 +77,44 @@ def dispatch_metadata(
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def normalize_weekdays(value: str | None) -> str:
+    if value is None or not str(value).strip():
+        return "0,1,2,3,4,5,6"
+    parts: list[str] = []
+    for piece in str(value).split(","):
+        piece = piece.strip()
+        if piece not in {"0", "1", "2", "3", "4", "5", "6"}:
+            raise CampaignError("Los días de la semana no son válidos.")
+        if piece not in parts:
+            parts.append(piece)
+    if not parts:
+        raise CampaignError("Elige al menos un día.")
+    return ",".join(parts)
+
+
+def normalize_scheduled_time(value: str | None, *, window_start: str, window_end: str) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    if not _HHMM.match(text):
+        raise CampaignError("La hora programada no es válida.")
+    if not clock_in_window(parse_hhmm(text), window_start, window_end):
+        raise CampaignError("La hora programada tiene que caer dentro del horario.")
+    return text
+
+
+def normalize_caller_id(value: str | None) -> str:
+    text = (value or "").strip().replace(" ", "")
+    if not text:
+        return ""
+    if not _PHONE.match(text):
+        raise CampaignError("El número que se muestra no es válido.")
+    allowed = configured_outbound_numbers()
+    if text not in allowed:
+        raise CampaignError("Elige un número de salida que ya esté configurado.")
+    return text
 
 
 def _validate_campaign_fields(
@@ -150,6 +204,13 @@ async def campaign_payload(crm: CRMDatabase, campaign_id: str) -> dict[str, Any]
         "pace": row["pace"],
         "max_attempts": row["max_attempts"],
         "created_at": row["created_at"],
+        "product": row.get("product") or "",
+        "opening_line": row.get("opening_line") or "",
+        "forbidden": row.get("forbidden") or "",
+        "weekdays": row.get("weekdays") or "0,1,2,3,4,5,6",
+        "scheduled_time": row.get("scheduled_time") or "",
+        "paused": bool(row.get("paused")),
+        "caller_id": row.get("caller_id") or "",
         "contacts": contacts,
         "attempts": attempts,
         "totals": campaign_totals(states, attempts, max_attempts=int(row["max_attempts"])),
@@ -167,6 +228,13 @@ async def create_campaign(
     pace: int,
     max_attempts: int,
     contacts: list[dict[str, Any]] | None = None,
+    product: str = "",
+    opening_line: str = "",
+    forbidden: str = "",
+    weekdays: str | None = None,
+    scheduled_time: str = "",
+    paused: bool = False,
+    caller_id: str = "",
 ) -> dict[str, Any]:
     timezone = timezone or "UTC"
     _validate_campaign_fields(
@@ -178,6 +246,9 @@ async def create_campaign(
         pace=pace,
         max_attempts=max_attempts,
     )
+    days = normalize_weekdays(weekdays)
+    clock = normalize_scheduled_time(scheduled_time, window_start=window_start, window_end=window_end)
+    shown = normalize_caller_id(caller_id)
     campaign_id = _new_id("camp")
     now = utc_now_iso()
     await crm.insert_campaign(
@@ -190,6 +261,13 @@ async def create_campaign(
         pace=pace,
         max_attempts=max_attempts,
         created_at=now,
+        product=(product or "").strip(),
+        opening_line=(opening_line or "").strip(),
+        forbidden=(forbidden or "").strip(),
+        weekdays=days,
+        scheduled_time=clock,
+        paused=paused,
+        caller_id=shown,
     )
     for contact in contacts or []:
         await add_contact(
@@ -227,10 +305,186 @@ async def add_contact(
     return await campaign_payload(crm, campaign_id)
 
 
+async def update_campaign(crm: CRMDatabase, campaign_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+    row = await crm.get_campaign_row(campaign_id)
+    if not row:
+        raise CampaignError("Campaña no encontrada.")
+    name = changes.get("name", row["name"])
+    window_start = changes.get("window_start", row["window_start"])
+    window_end = changes.get("window_end", row["window_end"])
+    timezone = changes.get("timezone", row["timezone"]) or "UTC"
+    pace = int(changes.get("pace", row["pace"]))
+    max_attempts = int(changes.get("max_attempts", row["max_attempts"]))
+    _validate_campaign_fields(
+        name=str(name),
+        agent=row["agent"],
+        window_start=str(window_start),
+        window_end=str(window_end),
+        timezone=str(timezone),
+        pace=pace,
+        max_attempts=max_attempts,
+    )
+    weekdays = normalize_weekdays(changes.get("weekdays", row.get("weekdays")))
+    scheduled = normalize_scheduled_time(
+        changes.get("scheduled_time", row.get("scheduled_time")),
+        window_start=str(window_start),
+        window_end=str(window_end),
+    )
+    caller_id = normalize_caller_id(changes.get("caller_id", row.get("caller_id")))
+    paused = bool(changes["paused"]) if "paused" in changes else bool(row.get("paused"))
+    await crm.update_campaign_fields(
+        campaign_id,
+        {
+            "name": str(name).strip(),
+            "window_start": window_start,
+            "window_end": window_end,
+            "timezone": timezone,
+            "pace": pace,
+            "max_attempts": max_attempts,
+            "product": str(changes.get("product", row.get("product") or "")).strip(),
+            "opening_line": str(changes.get("opening_line", row.get("opening_line") or "")).strip(),
+            "forbidden": str(changes.get("forbidden", row.get("forbidden") or "")).strip(),
+            "weekdays": weekdays,
+            "scheduled_time": scheduled,
+            "paused": paused,
+            "caller_id": caller_id,
+        },
+    )
+    return await campaign_payload(crm, campaign_id)
+
+
+async def delete_campaign(crm: CRMDatabase, campaign_id: str) -> dict[str, str]:
+    if not await crm.get_campaign_row(campaign_id):
+        raise CampaignError("Campaña no encontrada.")
+    await crm.delete_campaign(campaign_id)
+    return {"deleted": campaign_id}
+
+
+async def remove_contact(crm: CRMDatabase, campaign_id: str, contact_id: str) -> dict[str, Any]:
+    if not await crm.get_campaign_row(campaign_id):
+        raise CampaignError("Campaña no encontrada.")
+    removed = await crm.delete_campaign_contact(campaign_id, contact_id)
+    if not removed:
+        raise CampaignError("Contacto no encontrado.")
+    return await campaign_payload(crm, campaign_id)
+
+
+async def search_campaign_contacts(crm: CRMDatabase, campaign_id: str, query: str) -> dict[str, Any]:
+    if not await crm.get_campaign_row(campaign_id):
+        raise CampaignError("Campaña no encontrada.")
+    contacts = await crm.list_campaign_contacts(campaign_id)
+    matched = search_contacts(contacts, query)
+    return {"contacts": matched, "total": len(matched)}
+
+
+async def import_contacts(crm: CRMDatabase, campaign_id: str, text: str) -> dict[str, Any]:
+    if not await crm.get_campaign_row(campaign_id):
+        raise CampaignError("Campaña no encontrada.")
+    pairs = parse_contact_file(text)
+    if not pairs:
+        raise CampaignError("El archivo no tiene contactos con nombre y teléfono.")
+    existing = {row["phone"] for row in await crm.list_campaign_contacts(campaign_id)}
+    added = False
+    for name, phone in pairs:
+        cleaned = _validate_contact(phone, name)
+        if cleaned in existing:
+            continue
+        await crm.insert_campaign_contact(
+            contact_id=_new_id("ctc"),
+            campaign_id=campaign_id,
+            phone=cleaned,
+            name=name.strip(),
+            may_call=True,
+            do_not_call=False,
+            created_at=utc_now_iso(),
+        )
+        existing.add(cleaned)
+        added = True
+    if not added:
+        raise CampaignError("Esos contactos ya están en la campaña.")
+    return await campaign_payload(crm, campaign_id)
+
+
+async def add_contacts_from_crm(crm: CRMDatabase, campaign_id: str, phones: list[str]) -> dict[str, Any]:
+    if not await crm.get_campaign_row(campaign_id):
+        raise CampaignError("Campaña no encontrada.")
+    if not phones:
+        raise CampaignError("Elige al menos un cliente.")
+    existing = {row["phone"] for row in await crm.list_campaign_contacts(campaign_id)}
+    added = False
+    for phone in phones:
+        cleaned = _validate_contact(phone, "Cliente")
+        customer = await crm.get_customer_if_exists(cleaned)
+        if customer is None:
+            raise CampaignError("Ese cliente no está en el CRM.")
+        if cleaned in existing:
+            continue
+        name = (customer.name or "").strip() or "Cliente"
+        await crm.insert_campaign_contact(
+            contact_id=_new_id("ctc"),
+            campaign_id=campaign_id,
+            phone=cleaned,
+            name=name,
+            may_call=True,
+            do_not_call=False,
+            created_at=utc_now_iso(),
+        )
+        existing.add(cleaned)
+        added = True
+    if not added:
+        raise CampaignError("Esos clientes ya están en la campaña.")
+    return await campaign_payload(crm, campaign_id)
+
+
+def campaign_report(
+    attempts: list[dict],
+    *,
+    result: str | None,
+    start: datetime | None,
+    end: datetime | None,
+) -> list[dict]:
+    if result and result not in CALL_RESULTS:
+        raise CampaignError("El resultado del informe no es válido.")
+    return filter_attempt_report(attempts, result=result or None, start=start, end=end)
+
+
+def report_csv(rows: list[dict]) -> str:
+    import csv
+    from io import StringIO
+
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["fecha", "telefono", "nombre", "resultado", "duracion", "grabacion", "dicho"])
+    for row in rows:
+        writer.writerow(
+            [
+                row.get("created_at") or "",
+                row.get("phone") or "",
+                row.get("customer_name") or "",
+                row.get("call_result") or "",
+                row.get("duration_seconds") if row.get("duration_seconds") is not None else "",
+                row.get("recording_url") or "",
+                row.get("transcript") or "",
+            ]
+        )
+    return buffer.getvalue()
+
+
 async def list_campaigns(crm: CRMDatabase) -> dict[str, Any]:
     rows = await crm.list_campaign_rows()
     items = [await campaign_payload(crm, row["id"]) for row in rows]
     return {"items": items, "total": len(items)}
+
+
+def parse_report_bound(value: str | None, *, inclusive_end: bool = False) -> datetime | None:
+    """Date-only values cover that calendar day. Instants stay exclusive at ``end``."""
+    if not value or not value.strip():
+        return None
+    text = value.strip()
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        parsed = parse_instant(f"{text}T00:00:00+00:00")
+        return parsed + timedelta(days=1) if inclusive_end else parsed
+    return parse_instant(text)
 
 
 def parse_instant(value: str | None) -> datetime:
@@ -243,6 +497,50 @@ def parse_instant(value: str | None) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
     return parsed
+
+
+async def run_due_campaigns(
+    crm: CRMDatabase,
+    *,
+    tenant_id: str,
+    at: datetime,
+    trunk_id: str | None = None,
+) -> dict[str, Any]:
+    """Run one pass for every campaign whose scheduled minute is due. No start button."""
+    rows = await crm.list_campaign_rows()
+    due_ids: list[str] = []
+    for row in rows:
+        if scheduled_pass_is_due(
+            at,
+            window_start=row["window_start"],
+            window_end=row["window_end"],
+            timezone=row["timezone"],
+            weekdays=row.get("weekdays"),
+            scheduled_time=row.get("scheduled_time"),
+            paused=bool(row.get("paused")),
+            last_slot=str(row.get("last_scheduled_slot") or ""),
+        ):
+            due_ids.append(row["id"])
+    if not due_ids:
+        return {"items": [], "total": 0}
+    items = []
+    for campaign_id in due_ids:
+        payload = await run_campaign_pass(
+            crm,
+            campaign_id,
+            tenant_id=tenant_id,
+            at=at,
+            trunk_id=trunk_id,
+        )
+        row = await crm.get_campaign_row(campaign_id)
+        clock = str(row.get("scheduled_time") or "") if row else ""
+        if row and clock:
+            await crm.update_campaign_fields(
+                campaign_id,
+                {"last_scheduled_slot": scheduled_slot(at, row["timezone"], clock)},
+            )
+        items.append(payload)
+    return {"items": items, "total": len(items)}
 
 
 async def run_campaign_pass(
@@ -270,8 +568,11 @@ async def run_campaign_pass(
         timezone=row["timezone"],
         pace=int(row["pace"]),
         max_attempts=int(row["max_attempts"]),
+        weekdays=row.get("weekdays") or "0,1,2,3,4,5,6",
+        paused=bool(row.get("paused")),
     )
     dialer = get_campaign_dialer()
+    caller_id = str(row.get("caller_id") or "")
     for choice in chosen:
         call_id = _new_id("call")
         metadata = dispatch_metadata(
@@ -280,6 +581,9 @@ async def run_campaign_pass(
             tenant_id=tenant_id,
             call_id=call_id,
             agent=row["agent"],
+            product=str(row.get("product") or ""),
+            opening_line=str(row.get("opening_line") or ""),
+            forbidden=str(row.get("forbidden") or ""),
         )
         digits = choice.phone.replace("+", "")
         request = DialRequest(
@@ -289,6 +593,7 @@ async def run_campaign_pass(
             participant_identity=f"outbound_{choice.phone}",
             participant_name=choice.name,
             metadata=metadata,
+            sip_number=caller_id,
         )
         await dialer(request)
         await crm.insert_campaign_attempt(
@@ -388,6 +693,42 @@ async def _store_qualification_on_call(
         if not customer.name:
             customer.name = customer_name
             await crm.update_customer(customer)
+
+
+async def sync_campaign_attempt(call_ctx: Any) -> None:
+    """Copy the finished call onto the campaign attempt, including a sales meeting."""
+    crm = getattr(call_ctx, "crm", None)
+    call_id = getattr(call_ctx, "call_id", None)
+    if crm is None or not call_id:
+        return
+    try:
+        attempt = await crm.find_campaign_attempt_by_call(str(call_id))
+    except Exception:
+        logger.exception("Campaign lookup failed for %s", call_id)
+        return
+    if not attempt:
+        return
+    record = None
+    try:
+        record = await crm.get_call_record(str(call_id))
+    except Exception:
+        logger.exception("Call record lookup failed for %s", call_id)
+    transcript = None
+    recording = None
+    duration = None
+    if record is not None:
+        transcript = record.transcript or record.summary
+        recording = record.recording_url
+        duration = record.duration_seconds
+    await crm.set_campaign_attempt_call_result(
+        str(attempt["id"]),
+        call_result=map_call_outcome(getattr(call_ctx, "outcome", None)),
+        duration_seconds=duration,
+        transcript=transcript,
+        recording_url=recording,
+    )
+    if getattr(call_ctx, "outcome", None) == "sales_meeting_scheduled":
+        await apply_campaign_call_outcome(call_ctx)
 
 
 async def apply_campaign_call_outcome(call_ctx: Any) -> None:

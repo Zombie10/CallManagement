@@ -36,11 +36,200 @@ def in_calling_window(at: datetime, window_start: str, window_end: str, timezone
         at = at.replace(tzinfo=ZoneInfo("UTC"))
     local = at.astimezone(ZoneInfo(timezone or "UTC"))
     clock = local.timetz().replace(tzinfo=None)
+    return clock_in_window(clock, window_start, window_end)
+
+
+def clock_in_window(clock: time, window_start: str, window_end: str) -> bool:
     start = parse_hhmm(window_start)
     end = parse_hhmm(window_end)
     if start <= end:
         return start <= clock < end
     return clock >= start or clock < end
+
+
+def parse_weekdays(value: str | None) -> set[int]:
+    """Monday is 0, matching ``datetime.weekday``."""
+    chosen: set[int] = set()
+    for piece in (value or "").split(","):
+        piece = piece.strip()
+        if piece.isdigit() and 0 <= int(piece) <= 6:
+            chosen.add(int(piece))
+    return chosen or set(range(7))
+
+
+def local_when(at: datetime, timezone: str) -> datetime:
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=ZoneInfo("UTC"))
+    return at.astimezone(ZoneInfo(timezone or "UTC"))
+
+
+def on_calling_schedule(
+    at: datetime,
+    *,
+    window_start: str,
+    window_end: str,
+    timezone: str,
+    weekdays: str | None,
+    paused: bool = False,
+) -> bool:
+    """Weekdays, hours, and timezone. A paused campaign is never on schedule."""
+    if paused:
+        return False
+    if not in_calling_window(at, window_start, window_end, timezone):
+        return False
+    local = local_when(at, timezone)
+    return local.weekday() in parse_weekdays(weekdays)
+
+
+def scheduled_slot(at: datetime, timezone: str, scheduled_time: str) -> str:
+    local = local_when(at, timezone)
+    return f"{local.date().isoformat()}T{scheduled_time}"
+
+
+def scheduled_pass_is_due(
+    at: datetime,
+    *,
+    window_start: str,
+    window_end: str,
+    timezone: str,
+    weekdays: str | None,
+    scheduled_time: str | None,
+    paused: bool,
+    last_slot: str = "",
+) -> bool:
+    """True when the clock matches the scheduled minute and that slot has not run."""
+    clock = (scheduled_time or "").strip()
+    if not clock or paused:
+        return False
+    if not on_calling_schedule(
+        at,
+        window_start=window_start,
+        window_end=window_end,
+        timezone=timezone,
+        weekdays=weekdays,
+        paused=False,
+    ):
+        return False
+    local = local_when(at, timezone)
+    if local.strftime("%H:%M") != clock:
+        return False
+    return last_slot != scheduled_slot(at, timezone, clock)
+
+
+CALL_RESULTS = ("answered", "no-answer", "busy", "failed")
+
+_OUTCOME_TO_RESULT = {
+    "answered": "answered",
+    "completed": "answered",
+    "sales_meeting_scheduled": "answered",
+    "in_progress": "answered",
+    "no-answer": "no-answer",
+    "no_answer": "no-answer",
+    "noanswer": "no-answer",
+    "unanswered": "no-answer",
+    "not_answered": "no-answer",
+    "busy": "busy",
+    "user_busy": "busy",
+    "failed": "failed",
+    "failure": "failed",
+    "error": "failed",
+    "canceled": "failed",
+    "cancelled": "failed",
+    "rejected": "failed",
+}
+
+
+def map_call_outcome(outcome: str | None) -> str:
+    """Map a finished call onto answered, no-answer, busy, or failed."""
+    key = (outcome or "").strip().lower().replace(" ", "_")
+    return _OUTCOME_TO_RESULT.get(key, "failed")
+
+
+def parse_contact_file(text: str) -> list[tuple[str, str]]:
+    """Name and phone pairs from a CSV or line file. Header row is optional."""
+    import csv
+    from io import StringIO
+
+    raw = (text or "").strip()
+    if not raw:
+        return []
+    sample = raw.splitlines()[0]
+    delimiter = "," if "," in sample else ";" if ";" in sample else ","
+    reader = csv.reader(StringIO(raw), delimiter=delimiter)
+    rows = [row for row in reader if any(cell.strip() for cell in row)]
+    if not rows:
+        return []
+    header = [cell.strip().lower() for cell in rows[0]]
+    name_keys = {"name", "nombre", "contacto", "contact"}
+    phone_keys = {"phone", "telefono", "teléfono", "tel", "number", "numero", "número"}
+    start = 0
+    name_at = 0
+    phone_at = 1
+    if any(cell in name_keys or cell in phone_keys for cell in header):
+        start = 1
+        for index, cell in enumerate(header):
+            if cell in name_keys:
+                name_at = index
+            if cell in phone_keys:
+                phone_at = index
+    found: list[tuple[str, str]] = []
+    for row in rows[start:]:
+        if len(row) < 2:
+            continue
+        name = row[name_at].strip() if name_at < len(row) else ""
+        phone = row[phone_at].strip() if phone_at < len(row) else ""
+        if phone.startswith("+") or phone.replace(" ", "").startswith("+"):
+            pass
+        elif name.replace(" ", "").startswith("+"):
+            name, phone = phone, name
+        if name and phone:
+            found.append((name, phone))
+    return found
+
+
+def search_contacts(contacts: list[dict], query: str) -> list[dict]:
+    needle = query.strip().lower()
+    if not needle:
+        return list(contacts)
+    return [
+        row
+        for row in contacts
+        if needle in str(row.get("name") or "").lower() or needle in str(row.get("phone") or "").lower()
+    ]
+
+
+def filter_attempt_report(
+    attempts: list[dict],
+    *,
+    result: str | None,
+    start: datetime | None,
+    end: datetime | None,
+) -> list[dict]:
+    """Attempts whose call result and created time match. ``end`` is exclusive."""
+    chosen: list[dict] = []
+    for row in attempts:
+        disposition = str(row.get("call_result") or "")
+        if result and disposition != result:
+            continue
+        created = _parse_created(row.get("created_at"))
+        if start and (created is None or created < start):
+            continue
+        if end and (created is None or created >= end):
+            continue
+        chosen.append(row)
+    return chosen
+
+
+def _parse_created(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+    return parsed
 
 
 def select_dials(
@@ -52,6 +241,8 @@ def select_dials(
     timezone: str,
     pace: int,
     max_attempts: int,
+    weekdays: str | None = None,
+    paused: bool = False,
 ) -> list[DialChoice]:
     """Contacts this pass may dial, in list order, capped by pace.
 
@@ -61,7 +252,14 @@ def select_dials(
     """
     if pace < 1 or max_attempts < 1:
         return []
-    if not in_calling_window(at, window_start, window_end, timezone):
+    if not on_calling_schedule(
+        at,
+        window_start=window_start,
+        window_end=window_end,
+        timezone=timezone,
+        weekdays=weekdays,
+        paused=paused,
+    ):
         return []
     chosen: list[DialChoice] = []
     for contact in contacts:

@@ -72,6 +72,13 @@ export type CampaignInput = {
   pace: number;
   max_attempts: number;
   contacts: CampaignContactInput[];
+  product?: string;
+  opening_line?: string;
+  forbidden?: string;
+  weekdays?: string;
+  scheduled_time?: string;
+  paused?: boolean;
+  caller_id?: string;
 };
 
 export type CampaignAttempt = {
@@ -84,6 +91,10 @@ export type CampaignAttempt = {
   qualification: string | null;
   scheduled_time: string | null;
   created_at: string;
+  call_result?: string | null;
+  duration_seconds?: number | null;
+  recording_url?: string | null;
+  transcript?: string | null;
 };
 
 export type SalesCampaign = {
@@ -95,6 +106,13 @@ export type SalesCampaign = {
   timezone: string;
   pace: number;
   max_attempts: number;
+  product: string;
+  opening_line: string;
+  forbidden: string;
+  weekdays: string;
+  scheduled_time: string;
+  paused: boolean;
+  caller_id: string;
   contacts: Array<CampaignContactInput & { id: string }>;
   attempts: CampaignAttempt[];
   totals: { pending: number; dialed: number; skipped: number; meeting: number };
@@ -391,6 +409,70 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ at: at ?? null }),
     }),
+  updateCampaign: (campaignId: string, data: Partial<CampaignInput>) =>
+    request<SalesCampaign>(`/campaigns/${encodeURIComponent(campaignId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteCampaign: (campaignId: string) =>
+    request<{ deleted: string }>(`/campaigns/${encodeURIComponent(campaignId)}`, { method: "DELETE" }),
+  removeCampaignContact: (campaignId: string, contactId: string) =>
+    request<SalesCampaign>(
+      `/campaigns/${encodeURIComponent(campaignId)}/contacts/${encodeURIComponent(contactId)}`,
+      { method: "DELETE" },
+    ),
+  searchCampaignContacts: (campaignId: string, q: string) =>
+    request<{ contacts: Array<CampaignContactInput & { id: string }>; total: number }>(
+      `/campaigns/${encodeURIComponent(campaignId)}/contacts?q=${encodeURIComponent(q)}`,
+    ),
+  importCampaignContacts: (campaignId: string, text: string) =>
+    request<SalesCampaign>(`/campaigns/${encodeURIComponent(campaignId)}/contacts/import`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  addCampaignCustomers: (campaignId: string, phones: string[]) =>
+    request<SalesCampaign>(`/campaigns/${encodeURIComponent(campaignId)}/contacts/from-crm`, {
+      method: "POST",
+      body: JSON.stringify({ phones }),
+    }),
+  outboundNumbers: () => request<{ numbers: string[] }>("/campaigns/outbound-numbers"),
+  campaignReport: (campaignId: string, params: { result?: string; start?: string; end?: string }) => {
+    const query = new URLSearchParams();
+    if (params.result) query.set("result", params.result);
+    if (params.start) query.set("start", params.start);
+    if (params.end) query.set("end", params.end);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request<{ items: CampaignAttempt[]; total: number }>(
+      `/campaigns/${encodeURIComponent(campaignId)}/report${suffix}`,
+    );
+  },
+  downloadCampaignReport: async (
+    campaignId: string,
+    params: { result?: string; start?: string; end?: string },
+  ) => {
+    const query = new URLSearchParams();
+    if (params.result) query.set("result", params.result);
+    if (params.start) query.set("start", params.start);
+    if (params.end) query.set("end", params.end);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const headers: Record<string, string> = {};
+    if (_tenantId) headers["X-Tenant-Id"] = _tenantId;
+    const res = await fetch(`${API}/campaigns/${encodeURIComponent(campaignId)}/report.csv${suffix}`, {
+      credentials: "include",
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === "string" ? err.detail : res.statusText);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "informe-campana.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  },
   supervisor: () => request<SupervisorResponse>("/supervisor"),
   webhookDeliveries: (limit = 50) =>
     request<ListResponse<WebhookDelivery>>(`/webhooks/deliveries?limit=${limit}`),

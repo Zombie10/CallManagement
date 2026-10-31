@@ -71,6 +71,9 @@ class CallContext:
     customer_name: str | None = None
     customer_email: str | None = None
     customer_notes: str | None = None
+    campaign_product: str = ""
+    campaign_opening: str = ""
+    campaign_forbidden: str = ""
     is_vip: bool = False
 
     call_purpose: str | None = None
@@ -135,6 +138,34 @@ class CallContext:
 RunContextT = RunContext[CallContext]
 
 
+def outbound_sales_brief(
+    *,
+    customer_name: str | None,
+    customer_notes: str | None,
+    product: str | None,
+    opening_line: str | None,
+    forbidden: str | None,
+) -> str:
+    """Offer, opening line, and forbidden content, together with the customer record."""
+    parts = [
+        "You placed this outbound sales call. Greet the customer by name.",
+        f"Customer record: name={customer_name or 'unknown'}; notes={customer_notes or ''}",
+    ]
+    if (product or "").strip():
+        parts.append(f"Product to sell: {product.strip()}")
+    else:
+        parts.append("Offer a demo or a plan.")
+    if (opening_line or "").strip():
+        parts.append(f"Opening line: {opening_line.strip()}")
+    if (forbidden or "").strip():
+        parts.append(f"Do not say: {forbidden.strip()}")
+    parts.append(
+        "If the customer notes list products they already have, mention one and suggest a useful next step. "
+        "Stay in the sales conversation. Do not tell them to contact support."
+    )
+    return " ".join(parts)
+
+
 class BaseAgent(Agent):
     """All domain agents inherit from this."""
 
@@ -189,11 +220,12 @@ class BaseAgent(Agent):
         else:
             vip_note = ""
         if outbound_sales:
-            opening_note = (
-                "You placed this outbound sales call. Greet the customer by name. "
-                "Offer a demo or a plan. If the customer notes list products they already have, "
-                "mention one and suggest a useful next step. "
-                "Stay in the sales conversation. Do not tell them to contact support."
+            opening_note = outbound_sales_brief(
+                customer_name=ctx.customer_name,
+                customer_notes=ctx.customer_notes,
+                product=ctx.campaign_product,
+                opening_line=ctx.campaign_opening,
+                forbidden=ctx.campaign_forbidden,
             )
         else:
             opening_note = (

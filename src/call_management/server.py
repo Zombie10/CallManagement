@@ -85,6 +85,9 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
     tenant_id: str | None = None
     agent_instance_id: str | None = None
     call_id: str | None = None
+    campaign_product = ""
+    campaign_opening = ""
+    campaign_forbidden = ""
 
     if metadata_raw:
         try:
@@ -108,6 +111,9 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
                 vip = bool(meta["vip"])
             if meta.get("call_id"):
                 call_id = str(meta["call_id"])
+            campaign_product = str(meta.get("product") or "")
+            campaign_opening = str(meta.get("opening_line") or "")
+            campaign_forbidden = str(meta.get("forbidden") or "")
             logger.info("Dispatch metadata: %s", meta)
         except json.JSONDecodeError:
             logger.warning("Could not parse job metadata as JSON: %s", metadata_raw)
@@ -135,6 +141,9 @@ def _parse_session_overrides(metadata_raw: str | None) -> dict[str, object]:
         "tenant_id": tenant_id,
         "agent_instance_id": agent_instance_id,
         "call_id": call_id,
+        "campaign_product": campaign_product,
+        "campaign_opening": campaign_opening,
+        "campaign_forbidden": campaign_forbidden,
     }
 
 
@@ -378,6 +387,9 @@ async def _run_session(
         customer_name=customer.name,
         customer_email=customer.email,
         customer_notes=customer.notes,
+        campaign_product=str(overrides.get("campaign_product") or ""),
+        campaign_opening=str(overrides.get("campaign_opening") or ""),
+        campaign_forbidden=str(overrides.get("campaign_forbidden") or ""),
         is_vip=customer.vip,
         crm=crm,
         sip=sip,

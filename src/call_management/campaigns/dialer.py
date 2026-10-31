@@ -19,6 +19,7 @@ class DialRequest:
     participant_identity: str
     participant_name: str
     metadata: str
+    sip_number: str = ""
 
 
 Dialer = Callable[[DialRequest], Awaitable[None]]
@@ -29,6 +30,16 @@ _dialer: Dialer | None = None
 def outbound_trunk_id() -> str:
     """Outbound trunk from the process environment. Empty means it is unset."""
     return os.getenv("SIP_TRUNK_ID", "").strip()
+
+
+def configured_outbound_numbers() -> list[str]:
+    """Caller IDs the operator configured, in list order, without duplicates."""
+    seen: list[str] = []
+    for part in os.getenv("OUTBOUND_NUMBERS", "").split(","):
+        number = part.strip().replace(" ", "")
+        if number and number not in seen:
+            seen.append(number)
+    return seen
 
 
 def set_campaign_dialer(dialer: Dialer | None) -> None:
@@ -61,20 +72,21 @@ async def livekit_place_call(request: DialRequest) -> None:
         )
         from livekit.protocol import sip as sip_proto
 
-        await lk.sip.create_sip_participant(
-            api.CreateSIPParticipantRequest(
-                sip_trunk_id=request.trunk_id,
-                sip_call_to=request.phone,
-                room_name=request.room_name,
-                participant_identity=request.participant_identity,
-                participant_name=request.participant_name,
-                krisp_enabled=True,
-                # G.722 through the SIP bridge sounds thin on mobile phones.
-                media=sip_proto.SIPMediaConfig(
-                    only_listed_codecs=True,
-                    codecs=[sip_proto.SIPCodec(name="PCMU")],
-                ),
-            )
+        participant = api.CreateSIPParticipantRequest(
+            sip_trunk_id=request.trunk_id,
+            sip_call_to=request.phone,
+            room_name=request.room_name,
+            participant_identity=request.participant_identity,
+            participant_name=request.participant_name,
+            krisp_enabled=True,
+            # G.722 through the SIP bridge sounds thin on mobile phones.
+            media=sip_proto.SIPMediaConfig(
+                only_listed_codecs=True,
+                codecs=[sip_proto.SIPCodec(name="PCMU")],
+            ),
         )
+        if request.sip_number:
+            participant.sip_number = request.sip_number
+        await lk.sip.create_sip_participant(participant)
     finally:
         await lk.aclose()

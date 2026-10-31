@@ -22,7 +22,7 @@ __all__ = ["Appointment", "CallRecord", "Customer", "CRMDatabase", "get_crm", "r
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # Phones stay so the ficha can open. Call, session, room, and recording ids stay so
 # links are not rewritten when an 8–12 digit run looks like an account number.
@@ -135,6 +135,7 @@ class CRMDatabase:
             await self._migrate_v3(db)
             await self._migrate_v4(db)
             await self._migrate_v5(db)
+            await self._migrate_v6(db)
             await db.commit()
 
     async def _migrate_v2(self, db: aiosqlite.Connection) -> None:
@@ -251,6 +252,32 @@ class CRMDatabase:
         await db.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (5, utc_now_iso()),
+        )
+
+    async def _migrate_v6(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT MAX(version) AS v FROM schema_migrations") as cur:
+            row = await cur.fetchone()
+            current = row["v"] if row and row["v"] else 1
+        if current >= 6:
+            return
+        for statement in (
+            "ALTER TABLE campaigns ADD COLUMN product TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaigns ADD COLUMN opening_line TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaigns ADD COLUMN forbidden TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaigns ADD COLUMN weekdays TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'",
+            "ALTER TABLE campaigns ADD COLUMN scheduled_time TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaigns ADD COLUMN paused INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE campaigns ADD COLUMN caller_id TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaigns ADD COLUMN last_scheduled_slot TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaign_attempts ADD COLUMN call_result TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE campaign_attempts ADD COLUMN duration_seconds INTEGER",
+            "ALTER TABLE campaign_attempts ADD COLUMN recording_url TEXT",
+            "ALTER TABLE campaign_attempts ADD COLUMN transcript TEXT",
+        ):
+            await db.execute(statement)
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (6, utc_now_iso()),
         )
 
     @asynccontextmanager
@@ -1153,13 +1180,22 @@ class CRMDatabase:
         pace: int,
         max_attempts: int,
         created_at: str,
+        product: str = "",
+        opening_line: str = "",
+        forbidden: str = "",
+        weekdays: str = "0,1,2,3,4,5,6",
+        scheduled_time: str = "",
+        paused: bool = False,
+        caller_id: str = "",
     ) -> None:
         async with self._connect() as db:
             await db.execute(
                 """
                 INSERT INTO campaigns
-                (id, name, agent, window_start, window_end, timezone, pace, max_attempts, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, name, agent, window_start, window_end, timezone, pace, max_attempts, created_at,
+                 product, opening_line, forbidden, weekdays, scheduled_time, paused, caller_id,
+                 last_scheduled_slot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
                 """,
                 (
                     campaign_id,
@@ -1171,9 +1207,84 @@ class CRMDatabase:
                     pace,
                     max_attempts,
                     created_at,
+                    product,
+                    opening_line,
+                    forbidden,
+                    weekdays,
+                    scheduled_time,
+                    int(paused),
+                    caller_id,
                 ),
             )
             await db.commit()
+
+    async def update_campaign_fields(self, campaign_id: str, fields: dict) -> None:
+        allowed = {
+            "name",
+            "window_start",
+            "window_end",
+            "timezone",
+            "pace",
+            "max_attempts",
+            "product",
+            "opening_line",
+            "forbidden",
+            "weekdays",
+            "scheduled_time",
+            "paused",
+            "caller_id",
+            "last_scheduled_slot",
+        }
+        sets: list[str] = []
+        params: list = []
+        for key, value in fields.items():
+            if key not in allowed:
+                continue
+            sets.append(f"{key} = ?")
+            params.append(int(value) if key == "paused" else value)
+        if not sets:
+            return
+        params.append(campaign_id)
+        async with self._connect() as db:
+            await db.execute(
+                f"UPDATE campaigns SET {', '.join(sets)} WHERE id = ?",
+                params,
+            )
+            await db.commit()
+
+    async def delete_campaign(self, campaign_id: str) -> None:
+        async with self._connect() as db:
+            await db.execute("DELETE FROM campaign_attempts WHERE campaign_id = ?", (campaign_id,))
+            await db.execute("DELETE FROM campaign_contacts WHERE campaign_id = ?", (campaign_id,))
+            await db.execute("DELETE FROM campaigns WHERE id = ?", (campaign_id,))
+            await db.commit()
+
+    async def delete_campaign_contact(self, campaign_id: str, contact_id: str) -> bool:
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "DELETE FROM campaign_contacts WHERE campaign_id = ? AND id = ?",
+                (campaign_id, contact_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def get_customer_if_exists(self, phone_number: str):
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT * FROM customers WHERE phone_number = ?", (phone_number,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row:
+            return None
+        return Customer(
+            phone_number=row["phone_number"],
+            name=row["name"],
+            email=row["email"],
+            notes=row["notes"],
+            vip=bool(row["vip"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
 
     async def insert_campaign_contact(
         self,
@@ -1284,6 +1395,26 @@ class CRMDatabase:
                     dispatch_metadata,
                     created_at,
                 ),
+            )
+            await db.commit()
+
+    async def set_campaign_attempt_call_result(
+        self,
+        attempt_id: str,
+        *,
+        call_result: str,
+        duration_seconds: int | None,
+        transcript: str | None,
+        recording_url: str | None,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                UPDATE campaign_attempts
+                SET call_result = ?, duration_seconds = ?, transcript = ?, recording_url = ?
+                WHERE id = ?
+                """,
+                (call_result, duration_seconds, transcript, recording_url, attempt_id),
             )
             await db.commit()
 

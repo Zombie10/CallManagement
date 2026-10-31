@@ -582,6 +582,43 @@ const campaignKeys = [
   "campaigns.trunkHint",
   "campaigns.saved",
   "campaigns.removeContact",
+  "campaigns.product",
+  "campaigns.opening",
+  "campaigns.forbidden",
+  "campaigns.weekdays",
+  "campaigns.weekday.mon",
+  "campaigns.weekday.tue",
+  "campaigns.weekday.wed",
+  "campaigns.weekday.thu",
+  "campaigns.weekday.fri",
+  "campaigns.weekday.sat",
+  "campaigns.weekday.sun",
+  "campaigns.scheduledTime",
+  "campaigns.callerId",
+  "campaigns.noCallerId",
+  "campaigns.pause",
+  "campaigns.resume",
+  "campaigns.delete",
+  "campaigns.edit",
+  "campaigns.importFile",
+  "campaigns.pickCustomers",
+  "campaigns.pick",
+  "campaigns.search",
+  "campaigns.report",
+  "campaigns.download",
+  "campaigns.filterResult",
+  "campaigns.allResults",
+  "campaigns.from",
+  "campaigns.to",
+  "campaigns.duration",
+  "campaigns.recording",
+  "campaigns.said",
+  "campaigns.result.answered",
+  "campaigns.result.no-answer",
+  "campaigns.result.busy",
+  "campaigns.result.failed",
+  "campaigns.paused",
+  "campaigns.needWeekday",
 ];
 for (const key of campaignKeys) {
   assert(key in CATALOG.es && key in CATALOG.en, key);
@@ -595,6 +632,20 @@ assert(campaignPage.includes('t("campaigns.start")'), "campaign start");
 assert(campaignPage.includes('t("campaigns.mayCall")'), "campaign may call");
 assert(campaignPage.includes('t("campaigns.doNotCall")'), "campaign dnc");
 assert(campaignPage.includes('t("campaigns.trunkHint")'), "campaign trunk hint");
+assert(campaignPage.includes('t("campaigns.product")'), "campaign product");
+assert(campaignPage.includes('t("campaigns.opening")'), "campaign opening");
+assert(campaignPage.includes('t("campaigns.forbidden")'), "campaign forbidden");
+assert(campaignPage.includes('t("campaigns.weekdays")'), "campaign weekdays");
+assert(campaignPage.includes('t("campaigns.scheduledTime")'), "campaign schedule");
+assert(campaignPage.includes('t("campaigns.callerId")'), "campaign caller id");
+assert(campaignPage.includes('t("campaigns.pause")'), "campaign pause");
+assert(campaignPage.includes('t("campaigns.delete")'), "campaign delete");
+assert(campaignPage.includes('t("campaigns.importFile")'), "campaign import");
+assert(campaignPage.includes('t("campaigns.pickCustomers")'), "campaign crm");
+assert(campaignPage.includes('t("campaigns.search")'), "campaign search");
+assert(campaignPage.includes('t("campaigns.report")'), "campaign report");
+assert(campaignPage.includes('t("campaigns.download")'), "campaign download");
+assert(campaignPage.includes('type="file"'), "campaign file input");
 assert(!campaignPage.includes("Campañas de ventas"), "campaign hardcoded title");
 for (const banned of ["SIP_TRUNK_ID", "LIVEKIT_", "systemctl", ".env", "wss://", "localhost"]) {
   assert(!campaignPage.includes(banned), `campaign page ${banned}`);

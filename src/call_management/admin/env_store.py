@@ -98,6 +98,12 @@ SETTING_SECTIONS: dict[str, list[dict[str, Any]]] = {
     ],
     "telephony": [
         {"key": "SIP_TRUNK_ID", "label": "SIP Trunk ID", "type": "text"},
+        {
+            "key": "OUTBOUND_NUMBERS",
+            "label": "Outbound numbers",
+            "type": "text",
+            "hint": "Números que la campaña puede mostrar, separados por coma.",
+        },
         {"key": "WARM_TRANSFER_WAIT_SECONDS", "label": "Warm Transfer Wait (s)", "type": "number"},
     ],
     "application": [
