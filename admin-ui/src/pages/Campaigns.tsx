@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Megaphone, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { DateField, TimeField } from "../components/DateField";
+import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
 import { useUiLocale } from "../contexts/LocaleContext";
 import { api, type CampaignContactInput, type SalesCampaign } from "../lib/api";
@@ -33,6 +35,24 @@ function zoneChoices(current: string) {
 
 function emptyContact(): DraftContact {
   return { key: crypto.randomUUID(), phone: "", name: "", may_call: true, do_not_call: false };
+}
+
+function CampaignSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <h3 className="border-b border-white/10 pb-2 text-sm font-semibold text-slate-100">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function FieldLabel({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+  return (
+    <label className={`block min-w-0 space-y-1.5 text-sm text-slate-300 ${wide ? "sm:col-span-2" : ""}`}>
+      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
+      {children}
+    </label>
+  );
 }
 
 function weekdaySet(value: string) {
@@ -146,101 +166,95 @@ export function Campaigns() {
           save.mutate();
         }}
       >
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-name">
-            <span>{t("campaigns.name")}</span>
-            <input id="campaign-name" className="input-field w-full" name="name" value={name} onChange={(event) => setName(event.target.value)} required />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-agent">
-            <span>{t("campaigns.agent")}</span>
-            <select id="campaign-agent" className="input-field w-full" name="agent" value="sales" disabled>
-              <option value="sales">{t("campaigns.agentOption")}</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-sm text-slate-300 md:col-span-2" htmlFor="campaign-product">
-            <span>{t("campaigns.product")}</span>
-            <input id="campaign-product" className="input-field w-full" name="product" value={product} onChange={(event) => setProduct(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-opening">
-            <span>{t("campaigns.opening")}</span>
-            <textarea id="campaign-opening" className="input-field w-full" name="opening_line" rows={2} value={opening} onChange={(event) => setOpening(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-forbidden">
-            <span>{t("campaigns.forbidden")}</span>
-            <textarea id="campaign-forbidden" className="input-field w-full" name="forbidden" rows={2} value={forbidden} onChange={(event) => setForbidden(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-window-start">
-            <span>{t("campaigns.windowStart")}</span>
-            <input id="campaign-window-start" className="input-field w-full" type="time" name="window_start" value={windowStart} onChange={(event) => setWindowStart(event.target.value)} required />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-window-end">
-            <span>{t("campaigns.windowEnd")}</span>
-            <input id="campaign-window-end" className="input-field w-full" type="time" name="window_end" value={windowEnd} onChange={(event) => setWindowEnd(event.target.value)} required />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-timezone">
-            <span>{t("campaigns.timezone")}</span>
-            <select id="campaign-timezone" className="input-field w-full" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-              {zoneChoices(timezone).map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-scheduled">
-            <span>{t("campaigns.scheduledTime")}</span>
-            <input id="campaign-scheduled" className="input-field w-full" type="time" name="scheduled_time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-caller">
-            <span>{t("campaigns.callerId")}</span>
-            <select id="campaign-caller" className="input-field w-full" name="caller_id" value={callerId} onChange={(event) => setCallerId(event.target.value)}>
-              <option value="">{callerChoices.length ? "—" : t("campaigns.noCallerId")}</option>
-              {callerChoices.map((number) => (
-                <option key={number} value={number}>
-                  {number}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-pace">
-            <span>{t("campaigns.pace")}</span>
-            <input
-              id="campaign-pace"
-              className="input-field w-full"
-              type="number"
-              name="pace"
-              min={1}
-              value={pace}
-              onChange={(event) => setPace(Number(event.target.value))}
-              required
-            />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor="campaign-attempts">
-            <span>{t("campaigns.maxAttempts")}</span>
-            <input
-              id="campaign-attempts"
-              className="input-field w-full"
-              type="number"
-              name="max_attempts"
-              min={1}
-              value={maxAttempts}
-              onChange={(event) => setMaxAttempts(Number(event.target.value))}
-              required
-            />
-          </label>
-        </div>
-        <WeekdayField idPrefix="new" value={weekdays} onChange={setWeekdays} />
+        <CampaignSection title={t("campaigns.sectionOffer")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FieldLabel label={t("campaigns.name")}>
+              <input id="campaign-name" className="input-field w-full" name="name" value={name} onChange={(event) => setName(event.target.value)} required />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.agent")}>
+              <Select
+                value="sales"
+                disabled
+                searchableFrom={0}
+                onChange={() => undefined}
+                options={[{ value: "sales", label: t("campaigns.agentOption") }]}
+              />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.product")} wide>
+              <input id="campaign-product" className="input-field w-full" name="product" value={product} onChange={(event) => setProduct(event.target.value)} />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.opening")}>
+              <textarea id="campaign-opening" className="input-field w-full" name="opening_line" rows={2} value={opening} onChange={(event) => setOpening(event.target.value)} />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.forbidden")}>
+              <textarea id="campaign-forbidden" className="input-field w-full" name="forbidden" rows={2} value={forbidden} onChange={(event) => setForbidden(event.target.value)} />
+            </FieldLabel>
+          </div>
+        </CampaignSection>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-slate-200">{t("campaigns.contacts")}</h2>
+        <CampaignSection title={t("campaigns.sectionSchedule")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TimeField id="campaign-window-start" className="min-w-0" label={t("campaigns.windowStart")} value={windowStart} onChange={setWindowStart} />
+            <TimeField id="campaign-window-end" className="min-w-0" label={t("campaigns.windowEnd")} value={windowEnd} onChange={setWindowEnd} />
+            <FieldLabel label={t("campaigns.timezone")}>
+              <Select
+                value={timezone}
+                searchableFrom={0}
+                onChange={setTimezone}
+                options={zoneChoices(timezone).map((zone) => ({ value: zone, label: zone }))}
+              />
+            </FieldLabel>
+            <TimeField id="campaign-scheduled" className="min-w-0" label={t("campaigns.scheduledTime")} value={scheduledTime} onChange={setScheduledTime} />
+            <FieldLabel label={t("campaigns.callerId")}>
+              <Select
+                value={callerId}
+                searchableFrom={0}
+                onChange={setCallerId}
+                placeholder={callerChoices.length ? "—" : t("campaigns.noCallerId")}
+                options={[
+                  { value: "", label: callerChoices.length ? "—" : t("campaigns.noCallerId") },
+                  ...callerChoices.map((number) => ({ value: number, label: number })),
+                ]}
+              />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.pace")}>
+              <input
+                id="campaign-pace"
+                className="input-field w-full"
+                type="number"
+                name="pace"
+                min={1}
+                value={pace}
+                onChange={(event) => setPace(Number(event.target.value))}
+                required
+              />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.maxAttempts")}>
+              <input
+                id="campaign-attempts"
+                className="input-field w-full"
+                type="number"
+                name="max_attempts"
+                min={1}
+                value={maxAttempts}
+                onChange={(event) => setMaxAttempts(Number(event.target.value))}
+                required
+              />
+            </FieldLabel>
+          </div>
+          <WeekdayField idPrefix="new" value={weekdays} onChange={setWeekdays} />
+        </CampaignSection>
+
+        <CampaignSection title={t("campaigns.sectionContacts")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-400">{t("campaigns.contacts")}</p>
             <button type="button" className="btn-ghost text-xs" onClick={() => setContacts((rows) => [...rows, emptyContact()])}>
               <Plus className="h-4 w-4" />
               {t("campaigns.addContact")}
             </button>
           </div>
           {contacts.map((contact) => (
-            <div key={contact.key} className="grid gap-2 md:grid-cols-[1fr_1fr_auto_auto_auto]">
+            <div key={contact.key} className="grid min-w-0 grid-cols-1 gap-2 rounded-xl border border-white/5 p-3 sm:grid-cols-2">
               <input
                 className="input-field"
                 name="phone"
@@ -297,7 +311,7 @@ export function Campaigns() {
               </label>
               <button
                 type="button"
-                className="btn-ghost text-xs"
+                className="btn-ghost justify-self-start text-xs sm:col-span-2"
                 aria-label={t("campaigns.removeContact")}
                 onClick={() => setContacts((rows) => rows.filter((row) => row.key !== contact.key))}
               >
@@ -305,7 +319,7 @@ export function Campaigns() {
               </button>
             </div>
           ))}
-        </div>
+        </CampaignSection>
 
         <button type="submit" className="btn-primary" disabled={save.isPending}>
           {t("campaigns.save")}
@@ -313,13 +327,17 @@ export function Campaigns() {
       </form>
 
       {data?.items.length ? (
-        <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
-          <ul className="space-y-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <ul className="flex gap-2 overflow-x-auto lg:block lg:space-y-2 lg:overflow-visible">
             {data.items.map((campaign) => (
-              <li key={campaign.id}>
+              <li key={campaign.id} className="min-w-[12rem] shrink-0 lg:min-w-0">
                 <button
                   type="button"
-                  className="glass-card w-full px-3 py-2 text-left text-sm"
+                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
+                    selected?.id === campaign.id
+                      ? "border-cyan-400/40 bg-cyan-400/10 text-slate-100"
+                      : "border-white/10 bg-white/[0.03] text-slate-300"
+                  }`}
                   onClick={() => setSelectedId(campaign.id)}
                 >
                   {campaign.name}
@@ -359,11 +377,17 @@ function WeekdayField({
   const { t } = useUiLocale();
   const selected = weekdaySet(value);
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm text-slate-300">{t("campaigns.weekdays")}</legend>
-      <div className="flex flex-wrap gap-3">
+    <fieldset className="min-w-0 space-y-2">
+      <legend className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("campaigns.weekdays")}</legend>
+      <div className="flex flex-wrap gap-2">
         {WEEKDAYS.map(([day, key]) => (
-          <label key={day} className="flex items-center gap-2 text-xs text-slate-300" htmlFor={`${idPrefix}-day-${day}`}>
+          <label
+            key={day}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+              selected.has(day) ? "border-cyan-400/40 bg-cyan-400/10 text-slate-100" : "border-white/10 text-slate-400"
+            }`}
+            htmlFor={`${idPrefix}-day-${day}`}
+          >
             <input
               id={`${idPrefix}-day-${day}`}
               type="checkbox"
@@ -546,7 +570,7 @@ function CampaignDetail({
   ] as const;
 
   return (
-    <section className="glass-card space-y-4 p-4">
+    <section className="glass-card min-w-0 space-y-4 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">{campaign.name}</h2>
@@ -575,7 +599,7 @@ function CampaignDetail({
       </div>
 
       <form
-        className="grid gap-3 md:grid-cols-2"
+        className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
           if (!weekdaySet(weekdays).size) {
@@ -585,63 +609,54 @@ function CampaignDetail({
           save.mutate();
         }}
       >
-        <label className="space-y-1 text-sm text-slate-300 md:col-span-2" htmlFor={`product-${campaign.id}`}>
-          <span>{t("campaigns.product")}</span>
-          <input id={`product-${campaign.id}`} className="input-field w-full" name="product" value={product} onChange={(event) => setProduct(event.target.value)} />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`opening-${campaign.id}`}>
-          <span>{t("campaigns.opening")}</span>
-          <textarea id={`opening-${campaign.id}`} className="input-field w-full" name="opening_line" rows={2} value={opening} onChange={(event) => setOpening(event.target.value)} />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`forbidden-${campaign.id}`}>
-          <span>{t("campaigns.forbidden")}</span>
-          <textarea id={`forbidden-${campaign.id}`} className="input-field w-full" name="forbidden" rows={2} value={forbidden} onChange={(event) => setForbidden(event.target.value)} />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`start-${campaign.id}`}>
-          <span>{t("campaigns.windowStart")}</span>
-          <input id={`start-${campaign.id}`} className="input-field w-full" type="time" name="window_start" value={windowStart} onChange={(event) => setWindowStart(event.target.value)} required />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`end-${campaign.id}`}>
-          <span>{t("campaigns.windowEnd")}</span>
-          <input id={`end-${campaign.id}`} className="input-field w-full" type="time" name="window_end" value={windowEnd} onChange={(event) => setWindowEnd(event.target.value)} required />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`zone-${campaign.id}`}>
-          <span>{t("campaigns.timezone")}</span>
-          <select id={`zone-${campaign.id}`} className="input-field w-full" name="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-            {zoneChoices(timezone).map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`clock-${campaign.id}`}>
-          <span>{t("campaigns.scheduledTime")}</span>
-          <input id={`clock-${campaign.id}`} className="input-field w-full" type="time" name="scheduled_time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`caller-${campaign.id}`}>
-          <span>{t("campaigns.callerId")}</span>
-          <select id={`caller-${campaign.id}`} className="input-field w-full" name="caller_id" value={callerId} onChange={(event) => setCallerId(event.target.value)}>
-            <option value="">{callerOptions.length ? "—" : t("campaigns.noCallerId")}</option>
-            {callerOptions.map((number) => (
-              <option key={number} value={number}>
-                {number}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`pace-${campaign.id}`}>
-          <span>{t("campaigns.pace")}</span>
-          <input id={`pace-${campaign.id}`} className="input-field w-full" type="number" min={1} name="pace" value={pace} onChange={(event) => setPace(Number(event.target.value))} required />
-        </label>
-        <label className="space-y-1 text-sm text-slate-300" htmlFor={`max-${campaign.id}`}>
-          <span>{t("campaigns.maxAttempts")}</span>
-          <input id={`max-${campaign.id}`} className="input-field w-full" type="number" min={1} name="max_attempts" value={maxAttempts} onChange={(event) => setMaxAttempts(Number(event.target.value))} required />
-        </label>
-        <div className="md:col-span-2">
+        <CampaignSection title={t("campaigns.sectionOffer")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FieldLabel label={t("campaigns.product")} wide>
+              <input id={`product-${campaign.id}`} className="input-field w-full" name="product" value={product} onChange={(event) => setProduct(event.target.value)} />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.opening")}>
+              <textarea id={`opening-${campaign.id}`} className="input-field w-full" name="opening_line" rows={2} value={opening} onChange={(event) => setOpening(event.target.value)} />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.forbidden")}>
+              <textarea id={`forbidden-${campaign.id}`} className="input-field w-full" name="forbidden" rows={2} value={forbidden} onChange={(event) => setForbidden(event.target.value)} />
+            </FieldLabel>
+          </div>
+        </CampaignSection>
+        <CampaignSection title={t("campaigns.sectionSchedule")}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TimeField id={`start-${campaign.id}`} className="min-w-0" label={t("campaigns.windowStart")} value={windowStart} onChange={setWindowStart} />
+            <TimeField id={`end-${campaign.id}`} className="min-w-0" label={t("campaigns.windowEnd")} value={windowEnd} onChange={setWindowEnd} />
+            <FieldLabel label={t("campaigns.timezone")}>
+              <Select
+                value={timezone}
+                searchableFrom={0}
+                onChange={setTimezone}
+                options={zoneChoices(timezone).map((zone) => ({ value: zone, label: zone }))}
+              />
+            </FieldLabel>
+            <TimeField id={`clock-${campaign.id}`} className="min-w-0" label={t("campaigns.scheduledTime")} value={scheduledTime} onChange={setScheduledTime} />
+            <FieldLabel label={t("campaigns.callerId")}>
+              <Select
+                value={callerId}
+                searchableFrom={0}
+                onChange={setCallerId}
+                placeholder={callerOptions.length ? "—" : t("campaigns.noCallerId")}
+                options={[
+                  { value: "", label: callerOptions.length ? "—" : t("campaigns.noCallerId") },
+                  ...callerOptions.map((number) => ({ value: number, label: number })),
+                ]}
+              />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.pace")}>
+              <input id={`pace-${campaign.id}`} className="input-field w-full" type="number" min={1} name="pace" value={pace} onChange={(event) => setPace(Number(event.target.value))} required />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.maxAttempts")}>
+              <input id={`max-${campaign.id}`} className="input-field w-full" type="number" min={1} name="max_attempts" value={maxAttempts} onChange={(event) => setMaxAttempts(Number(event.target.value))} required />
+            </FieldLabel>
+          </div>
           <WeekdayField idPrefix={campaign.id} value={weekdays} onChange={setWeekdays} />
-        </div>
-        <button type="submit" className="btn-primary md:col-span-2" disabled={save.isPending}>
+        </CampaignSection>
+        <button type="submit" className="btn-primary" disabled={save.isPending}>
           {t("campaigns.edit")}
         </button>
       </form>
@@ -655,9 +670,9 @@ function CampaignDetail({
         ))}
       </dl>
 
-      <div className="space-y-3">
+      <CampaignSection title={t("campaigns.sectionContacts")}>
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <h3 className="text-sm font-medium text-slate-200">{t("campaigns.contacts")}</h3>
+          <h4 className="text-sm font-medium text-slate-200">{t("campaigns.contacts")}</h4>
           <label className="text-xs text-slate-400" htmlFor={`search-${campaign.id}`}>
             {t("campaigns.search")}
             <input
@@ -671,8 +686,8 @@ function CampaignDetail({
         </div>
         <ul className="space-y-1 text-sm text-slate-300">
           {shown.map((contact) => (
-            <li key={contact.id} className="flex items-center justify-between gap-2">
-              <span>
+            <li key={contact.id} className="flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 break-words">
                 {contact.name} · {contact.phone}
                 {contact.may_call ? ` · ${t("campaigns.mayCall")}` : ""}
                 {contact.do_not_call ? ` · ${t("campaigns.doNotCall")}` : ""}
@@ -684,7 +699,7 @@ function CampaignDetail({
           ))}
         </ul>
         <form
-          className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
+          className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
           onSubmit={(event) => {
             event.preventDefault();
             add.mutate();
@@ -738,7 +753,7 @@ function CampaignDetail({
             {t("campaigns.pick")}
           </button>
         </fieldset>
-      </div>
+      </CampaignSection>
 
       <div>
         <h3 className="mb-2 text-sm font-medium text-slate-200">{t("campaigns.attempts")}</h3>
@@ -759,6 +774,7 @@ function CampaignDetail({
         )}
       </div>
 
+      <CampaignSection title={t("campaigns.sectionReport")}>
       <form
         className="space-y-3"
         onSubmit={(event) => {
@@ -766,27 +782,21 @@ function CampaignDetail({
           qc.invalidateQueries({ queryKey: ["campaign-report", campaign.id] });
         }}
       >
-        <h3 className="text-sm font-medium text-slate-200">{t("campaigns.report")}</h3>
-        <div className="grid gap-2 md:grid-cols-3">
-          <label className="space-y-1 text-sm text-slate-300" htmlFor={`from-${campaign.id}`}>
-            <span>{t("campaigns.from")}</span>
-            <input id={`from-${campaign.id}`} className="input-field w-full" type="date" name="start" value={from} onChange={(event) => setFrom(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor={`to-${campaign.id}`}>
-            <span>{t("campaigns.to")}</span>
-            <input id={`to-${campaign.id}`} className="input-field w-full" type="date" name="end" value={to} onChange={(event) => setTo(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm text-slate-300" htmlFor={`result-${campaign.id}`}>
-            <span>{t("campaigns.filterResult")}</span>
-            <select id={`result-${campaign.id}`} className="input-field w-full" name="result" value={result} onChange={(event) => setResult(event.target.value)}>
-              <option value="">{t("campaigns.allResults")}</option>
-              {RESULTS.map((item) => (
-                <option key={item} value={item}>
-                  {t(`campaigns.result.${item}`)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <h4 className="text-sm font-medium text-slate-200">{t("campaigns.report")}</h4>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <DateField id={`from-${campaign.id}`} className="min-w-0" label={t("campaigns.from")} value={from} onChange={setFrom} />
+          <DateField id={`to-${campaign.id}`} className="min-w-0" label={t("campaigns.to")} value={to} onChange={setTo} />
+          <FieldLabel label={t("campaigns.filterResult")}>
+            <Select
+              value={result}
+              searchableFrom={0}
+              onChange={setResult}
+              options={[
+                { value: "", label: t("campaigns.allResults") },
+                ...RESULTS.map((item) => ({ value: item, label: t(`campaigns.result.${item}`) })),
+              ]}
+            />
+          </FieldLabel>
         </div>
         <ul className="space-y-1 text-sm text-slate-300">
           {(report.data?.items ?? []).map((attempt) => (
@@ -811,6 +821,7 @@ function CampaignDetail({
           {t("campaigns.download")}
         </button>
       </form>
+      </CampaignSection>
     </section>
   );
 }

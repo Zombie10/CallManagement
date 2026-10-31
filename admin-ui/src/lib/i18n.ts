@@ -532,6 +532,10 @@ const es: Record<string, string> = {
   "campaigns.result.failed": "Falló",
   "campaigns.paused": "En pausa",
   "campaigns.needWeekday": "Elige al menos un día.",
+  "campaigns.sectionOffer": "Oferta",
+  "campaigns.sectionSchedule": "Horario",
+  "campaigns.sectionContacts": "Lista de contactos",
+  "campaigns.sectionReport": "Informe",
 };
 
 const en: Record<string, string> = {
@@ -1062,6 +1066,10 @@ const en: Record<string, string> = {
   "campaigns.result.failed": "Failed",
   "campaigns.paused": "Paused",
   "campaigns.needWeekday": "Choose at least one day.",
+  "campaigns.sectionOffer": "Offer",
+  "campaigns.sectionSchedule": "Schedule",
+  "campaigns.sectionContacts": "Contact list",
+  "campaigns.sectionReport": "Report",
 };
 
 export const CATALOG: Record<AdminLocale, Record<string, string>> = { es, en };

@@ -619,6 +619,10 @@ const campaignKeys = [
   "campaigns.result.failed",
   "campaigns.paused",
   "campaigns.needWeekday",
+  "campaigns.sectionOffer",
+  "campaigns.sectionSchedule",
+  "campaigns.sectionContacts",
+  "campaigns.sectionReport",
 ];
 for (const key of campaignKeys) {
   assert(key in CATALOG.es && key in CATALOG.en, key);
@@ -646,6 +650,21 @@ assert(campaignPage.includes('t("campaigns.search")'), "campaign search");
 assert(campaignPage.includes('t("campaigns.report")'), "campaign report");
 assert(campaignPage.includes('t("campaigns.download")'), "campaign download");
 assert(campaignPage.includes('type="file"'), "campaign file input");
+assert(campaignPage.includes('from "../components/Select"'), "campaign choice picker");
+assert(campaignPage.includes("<Select"), "campaign choice control");
+assert(campaignPage.includes("TimeField"), "campaign time picker");
+assert(campaignPage.includes("DateField"), "campaign date picker");
+assert(!campaignPage.includes("<select"), "campaign native select");
+assert(!campaignPage.includes('type="time"'), "campaign native time");
+assert(!campaignPage.includes('type="date"'), "campaign native date");
+for (const key of [
+  "campaigns.sectionOffer",
+  "campaigns.sectionSchedule",
+  "campaigns.sectionContacts",
+  "campaigns.sectionReport",
+]) {
+  assert(campaignPage.includes(`t("${key}")`), key);
+}
 assert(!campaignPage.includes("Campañas de ventas"), "campaign hardcoded title");
 for (const banned of ["SIP_TRUNK_ID", "LIVEKIT_", "systemctl", ".env", "wss://", "localhost"]) {
   assert(!campaignPage.includes(banned), `campaign page ${banned}`);
