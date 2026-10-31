@@ -56,6 +56,52 @@ import type {
   WebhookRecord,
 } from "./apiTypes";
 
+export type CampaignContactInput = {
+  phone: string;
+  name: string;
+  may_call: boolean;
+  do_not_call: boolean;
+};
+
+export type CampaignInput = {
+  name: string;
+  agent: string;
+  window_start: string;
+  window_end: string;
+  timezone: string;
+  pace: number;
+  max_attempts: number;
+  contacts: CampaignContactInput[];
+};
+
+export type CampaignAttempt = {
+  id: string;
+  contact_id: string;
+  result: string;
+  call_id: string | null;
+  phone: string;
+  customer_name: string | null;
+  qualification: string | null;
+  scheduled_time: string | null;
+  created_at: string;
+};
+
+export type SalesCampaign = {
+  id: string;
+  name: string;
+  agent: string;
+  window_start: string;
+  window_end: string;
+  timezone: string;
+  pace: number;
+  max_attempts: number;
+  contacts: Array<CampaignContactInput & { id: string }>;
+  attempts: CampaignAttempt[];
+  totals: { pending: number; dialed: number; skipped: number; meeting: number };
+};
+
+export type CampaignListResponse = { items: SalesCampaign[]; total: number };
+
 const API = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "")}/api`;
 
 let _tenantId: string | null = null;
@@ -332,6 +378,19 @@ export const api = {
     request<{ deleted: string }>(`/appointments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   customerProfile: (phone: string) =>
     request<CustomerProfileResponse>(`/customers/${encodeURIComponent(phone)}/profile`),
+  campaigns: () => request<CampaignListResponse>("/campaigns"),
+  createCampaign: (data: CampaignInput) =>
+    request<SalesCampaign>("/campaigns", { method: "POST", body: JSON.stringify(data) }),
+  addCampaignContact: (campaignId: string, data: CampaignContactInput) =>
+    request<SalesCampaign>(`/campaigns/${encodeURIComponent(campaignId)}/contacts`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  startCampaign: (campaignId: string, at?: string) =>
+    request<SalesCampaign>(`/campaigns/${encodeURIComponent(campaignId)}/start`, {
+      method: "POST",
+      body: JSON.stringify({ at: at ?? null }),
+    }),
   supervisor: () => request<SupervisorResponse>("/supervisor"),
   webhookDeliveries: (limit = 50) =>
     request<ListResponse<WebhookDelivery>>(`/webhooks/deliveries?limit=${limit}`),

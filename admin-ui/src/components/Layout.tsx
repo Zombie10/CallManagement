@@ -3,6 +3,7 @@ import {
   Bot,
   Building2,
   Headphones,
+  Megaphone,
   LayoutDashboard,
   LogOut,
   Phone,
@@ -39,6 +40,7 @@ const ALL_NAV: Array<{ to: string; icon: typeof LayoutDashboard; module: string 
   { to: "/analytics", icon: BarChart3, module: "analytics" },
   { to: "/supervisor", icon: Eye, module: "supervisor" },
   { to: "/appointments", icon: Headphones, module: "appointments" },
+  { to: "/campaigns", icon: Megaphone, module: "campaigns" },
   { to: "/users", icon: Users, module: "users" },
 ];
 

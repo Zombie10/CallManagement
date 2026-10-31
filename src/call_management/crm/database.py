@@ -22,7 +22,7 @@ __all__ = ["Appointment", "CallRecord", "Customer", "CRMDatabase", "get_crm", "r
 DB_PATH = Path(os.getenv("CRM_DB_PATH", "./data/crm.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Phones stay so the ficha can open. Call, session, room, and recording ids stay so
 # links are not rewritten when an 8–12 digit run looks like an account number.
@@ -134,6 +134,7 @@ class CRMDatabase:
             await self._migrate_v2(db)
             await self._migrate_v3(db)
             await self._migrate_v4(db)
+            await self._migrate_v5(db)
             await db.commit()
 
     async def _migrate_v2(self, db: aiosqlite.Connection) -> None:
@@ -194,6 +195,62 @@ class CRMDatabase:
         await db.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (4, utc_now_iso()),
+        )
+
+    async def _migrate_v5(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT MAX(version) AS v FROM schema_migrations") as cur:
+            row = await cur.fetchone()
+            current = row["v"] if row and row["v"] else 1
+        if current >= 5:
+            return
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS campaigns (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                agent TEXT NOT NULL,
+                window_start TEXT NOT NULL,
+                window_end TEXT NOT NULL,
+                timezone TEXT NOT NULL DEFAULT 'UTC',
+                pace INTEGER NOT NULL,
+                max_attempts INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS campaign_contacts (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                name TEXT NOT NULL,
+                may_call INTEGER NOT NULL DEFAULT 1,
+                do_not_call INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS campaign_attempts (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                contact_id TEXT NOT NULL,
+                result TEXT NOT NULL,
+                call_id TEXT,
+                phone TEXT NOT NULL,
+                customer_name TEXT,
+                dispatch_metadata TEXT,
+                qualification TEXT,
+                scheduled_time TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (5, utc_now_iso()),
         )
 
     @asynccontextmanager
@@ -1083,6 +1140,188 @@ class CRMDatabase:
                 [*params, limit],
             ) as cursor:
                 return [dict(r) for r in await cursor.fetchall()]
+
+    async def insert_campaign(
+        self,
+        *,
+        campaign_id: str,
+        name: str,
+        agent: str,
+        window_start: str,
+        window_end: str,
+        timezone: str,
+        pace: int,
+        max_attempts: int,
+        created_at: str,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                INSERT INTO campaigns
+                (id, name, agent, window_start, window_end, timezone, pace, max_attempts, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    campaign_id,
+                    name,
+                    agent,
+                    window_start,
+                    window_end,
+                    timezone,
+                    pace,
+                    max_attempts,
+                    created_at,
+                ),
+            )
+            await db.commit()
+
+    async def insert_campaign_contact(
+        self,
+        *,
+        contact_id: str,
+        campaign_id: str,
+        phone: str,
+        name: str,
+        may_call: bool,
+        do_not_call: bool,
+        created_at: str,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                INSERT INTO campaign_contacts
+                (id, campaign_id, phone, name, may_call, do_not_call, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    contact_id,
+                    campaign_id,
+                    phone,
+                    name,
+                    int(may_call),
+                    int(do_not_call),
+                    created_at,
+                ),
+            )
+            await db.commit()
+
+    async def list_campaign_rows(self) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute("SELECT * FROM campaigns ORDER BY created_at DESC") as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_campaign_row(self, campaign_id: str) -> dict | None:
+        async with self._connect() as db:
+            async with db.execute("SELECT * FROM campaigns WHERE id = ?", (campaign_id,)) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def list_campaign_contacts(self, campaign_id: str) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT * FROM campaign_contacts
+                WHERE campaign_id = ?
+                ORDER BY rowid ASC
+                """,
+                (campaign_id,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "campaign_id": row["campaign_id"],
+                "phone": row["phone"],
+                "name": row["name"],
+                "may_call": bool(row["may_call"]),
+                "do_not_call": bool(row["do_not_call"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    async def list_campaign_attempts(self, campaign_id: str) -> list[dict]:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT * FROM campaign_attempts
+                WHERE campaign_id = ?
+                ORDER BY rowid ASC
+                """,
+                (campaign_id,),
+            ) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def insert_campaign_attempt(
+        self,
+        *,
+        attempt_id: str,
+        campaign_id: str,
+        contact_id: str,
+        result: str,
+        call_id: str | None,
+        phone: str,
+        customer_name: str | None,
+        dispatch_metadata: str | None,
+        created_at: str,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                INSERT INTO campaign_attempts
+                (id, campaign_id, contact_id, result, call_id, phone, customer_name,
+                 dispatch_metadata, qualification, scheduled_time, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+                """,
+                (
+                    attempt_id,
+                    campaign_id,
+                    contact_id,
+                    result,
+                    call_id,
+                    phone,
+                    customer_name,
+                    dispatch_metadata,
+                    created_at,
+                ),
+            )
+            await db.commit()
+
+    async def mark_campaign_attempt_meeting(
+        self,
+        attempt_id: str,
+        *,
+        qualification: str,
+        scheduled_time: str,
+    ) -> None:
+        async with self._connect() as db:
+            await db.execute(
+                """
+                UPDATE campaign_attempts
+                SET result = 'meeting', qualification = ?, scheduled_time = ?
+                WHERE id = ?
+                """,
+                (qualification, scheduled_time, attempt_id),
+            )
+            await db.commit()
+
+    async def get_campaign_attempt(self, campaign_id: str, attempt_id: str) -> dict | None:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT * FROM campaign_attempts WHERE campaign_id = ? AND id = ?",
+                (campaign_id, attempt_id),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def find_campaign_attempt_by_call(self, call_id: str) -> dict | None:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT * FROM campaign_attempts WHERE call_id = ? ORDER BY created_at DESC LIMIT 1",
+                (call_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
 
     async def close(self) -> None:
         pass

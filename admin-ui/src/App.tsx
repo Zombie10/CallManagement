@@ -10,6 +10,7 @@ import { Customers } from "./pages/Customers";
 import { CallDetail } from "./pages/CallDetail";
 import { Calls } from "./pages/Calls";
 import { Appointments } from "./pages/Appointments";
+import { Campaigns } from "./pages/Campaigns";
 import { Playground } from "./pages/Playground";
 import { Profile } from "./pages/Profile";
 import { Users } from "./pages/Users";
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="calls/:callId" element={<CallDetail />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="appointments" element={<Appointments />} />
+          <Route path="campaigns" element={<Campaigns />} />
           <Route path="playground" element={<Playground />} />
           <Route path="profile" element={<Profile />} />
           <Route path="users" element={<Users />} />

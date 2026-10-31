@@ -35,6 +35,7 @@ from call_management.admin.schemas import (
     SettingsUpdate,
 )
 from call_management.admin.tenant_deps import require_super_admin, require_tenant_context, scoped_playground_context
+from call_management.admin.campaign_routes import router as campaign_router
 from call_management.admin.playground_routes import router as playground_router
 from call_management.admin.tenant_routes import router as tenant_router
 from call_management.agent_store import delete_profile, get_catalog, load_profiles, upsert_profile
@@ -82,6 +83,7 @@ app.include_router(auth_router)
 app.include_router(tenant_router)
 app.include_router(public_api_router)
 app.include_router(playground_router)
+app.include_router(campaign_router)
 
 
 @app.get("/api/health")

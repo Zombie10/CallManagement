@@ -59,6 +59,13 @@ MODULES: tuple[ModuleDef, ...] = (
     },
     {"id": "appointments", "label": "Citas", "route": "/appointments", "category": "CRM", "api_prefixes": ("/api/appointments",)},
     {
+        "id": "campaigns",
+        "label": "Campañas",
+        "route": "/campaigns",
+        "category": "CRM",
+        "api_prefixes": ("/api/campaigns",),
+    },
+    {
         "id": "supervisor",
         "label": "Supervisor",
         "route": "/supervisor",

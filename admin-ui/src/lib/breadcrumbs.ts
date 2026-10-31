@@ -11,6 +11,7 @@ export const ROUTE_KEYS: Record<string, string> = {
   calls: "nav.calls",
   analytics: "nav.analytics",
   appointments: "nav.appointments",
+  campaigns: "nav.campaigns",
   playground: "nav.playground",
   profile: "layout.myProfile",
   users: "nav.users",

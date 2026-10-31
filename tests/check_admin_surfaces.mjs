@@ -549,6 +549,63 @@ assert(microphoneErrorMessage("", "en") === translate("voice.micGeneric", "en"),
 const liveKitVoice = source("../admin-ui/src/hooks/useLiveKitVoice.ts");
 assert(liveKitVoice.includes("microphoneErrorMessage(err, locale)"), "livekit mic");
 
+const campaignKeys = [
+  "nav.campaigns",
+  "campaigns.title",
+  "campaigns.subtitle",
+  "campaigns.name",
+  "campaigns.agent",
+  "campaigns.agentOption",
+  "campaigns.windowStart",
+  "campaigns.windowEnd",
+  "campaigns.timezone",
+  "campaigns.pace",
+  "campaigns.maxAttempts",
+  "campaigns.phone",
+  "campaigns.contactName",
+  "campaigns.mayCall",
+  "campaigns.doNotCall",
+  "campaigns.addContact",
+  "campaigns.save",
+  "campaigns.start",
+  "campaigns.contacts",
+  "campaigns.attempts",
+  "campaigns.pending",
+  "campaigns.dialed",
+  "campaigns.skipped",
+  "campaigns.meeting",
+  "campaigns.empty",
+  "campaigns.loading",
+  "campaigns.result",
+  "campaigns.result.dialed",
+  "campaigns.result.meeting",
+  "campaigns.trunkHint",
+  "campaigns.saved",
+  "campaigns.removeContact",
+];
+for (const key of campaignKeys) {
+  assert(key in CATALOG.es && key in CATALOG.en, key);
+  assert(translate(key, "es") !== translate(key, "en"), key);
+  assert(translate(key, "es") !== key && translate(key, "en") !== key, key);
+}
+const campaignPage = source("../admin-ui/src/pages/Campaigns.tsx");
+assert(campaignPage.includes('t("campaigns.title")'), "campaign title");
+assert(campaignPage.includes('t("campaigns.save")'), "campaign save");
+assert(campaignPage.includes('t("campaigns.start")'), "campaign start");
+assert(campaignPage.includes('t("campaigns.mayCall")'), "campaign may call");
+assert(campaignPage.includes('t("campaigns.doNotCall")'), "campaign dnc");
+assert(campaignPage.includes('t("campaigns.trunkHint")'), "campaign trunk hint");
+assert(!campaignPage.includes("Campañas de ventas"), "campaign hardcoded title");
+for (const banned of ["SIP_TRUNK_ID", "LIVEKIT_", "systemctl", ".env", "wss://", "localhost"]) {
+  assert(!campaignPage.includes(banned), `campaign page ${banned}`);
+}
+assert(source("../admin-ui/src/App.tsx").includes('path="campaigns"'), "campaign route");
+assert(source("../admin-ui/src/components/Layout.tsx").includes('module: "campaigns"'), "campaign nav");
+assert(source("../admin-ui/src/lib/breadcrumbs.ts").includes('campaigns: "nav.campaigns"'), "campaign crumb");
+assert(pathSegmentLabel("campaigns", "es") === translate("nav.campaigns", "es"), "campaign crumb es");
+assert(pathSegmentLabel("campaigns", "en") === translate("nav.campaigns", "en"), "campaign crumb en");
+assert(DEFAULT_ADMIN_LOCALE === "es", "campaign default locale");
+
 console.log(when);
 console.log(supportUs);
 console.log(reception);

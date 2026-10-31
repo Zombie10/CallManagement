@@ -171,6 +171,10 @@ async def finalize_interaction(
         await call_ctx.crm.create_call_record(record)
         call_ctx.call_persisted = True
         call_ctx.recording_url = recording_url
+        if call_ctx.outcome == "sales_meeting_scheduled":
+            from call_management.campaigns.service import apply_campaign_call_outcome
+
+            await apply_campaign_call_outcome(call_ctx)
         logger.info(
             "Interaction persisted call_id=%s channel=%s transcript_chars=%s recording=%s",
             call_ctx.call_id,
