@@ -674,27 +674,39 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                 assert ctx.call_persisted is True
                 return ctx
 
+            async def _stored_call_result(phone: str) -> str:
+                listed = await client.get(f"/api/campaigns/{outcome_id}", headers=headers)
+                assert listed.status_code == 200, listed.text
+                row = next(item for item in listed.json()["attempts"] if item["phone"] == phone)
+                stored = await crm.find_campaign_attempt_by_call(row["call_id"])
+                assert stored is not None
+                assert stored["call_result"] == row["call_result"]
+                return stored["call_result"]
+
             await _end_leg(
                 RING_HANGUP_PHONE,
                 ("ringing", "hangup"),
                 rtc.DisconnectReason.USER_UNAVAILABLE,
             )
+            assert await _stored_call_result(RING_HANGUP_PHONE) == "no-answer"
             await _end_leg(
                 FAILED_LEG_PHONE,
                 ("dialing", "hangup"),
                 rtc.DisconnectReason.SIP_TRUNK_FAILURE,
             )
+            assert await _stored_call_result(FAILED_LEG_PHONE) == "failed"
             await _end_leg(
                 REJECTED_PHONE,
                 ("ringing", "hangup"),
                 rtc.DisconnectReason.USER_REJECTED,
             )
-            kept = await _end_leg(
+            assert await _stored_call_result(REJECTED_PHONE) == "busy"
+            await _end_leg(
                 ACTIVE_HANGUP_PHONE,
                 ("automation", "hangup"),
                 rtc.DisconnectReason.CLIENT_INITIATED,
             )
-            assert kept.outcome == "completed"
+            assert await _stored_call_result(ACTIVE_HANGUP_PHONE) == "answered"
 
             late_attempt = attempts[LATE_RECORDING_PHONE]
             late_ctx = CallContext(
