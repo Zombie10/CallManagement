@@ -13,7 +13,11 @@ from call_management.admin.auth_store import SESSION_COOKIE, create_user
 from call_management.agents.base import CallContext, outbound_sales_brief
 from call_management.campaigns.dialer import DialRequest, set_campaign_dialer
 from call_management.crm.session_persist import _background_attach_recording, finalize_interaction
-from call_management.server import _handle_attributes_changed, _parse_session_overrides
+from call_management.server import (
+    _handle_attributes_changed,
+    _handle_sip_participant_disconnected,
+    _parse_session_overrides,
+)
 from call_management.tenancy.context import resolve_crm_for_tenant
 from call_management.tenancy.platform_store import get_platform_store
 
@@ -272,6 +276,7 @@ RING_HANGUP_PHONE = "+15551110042"
 FAILED_LEG_PHONE = "+15551110043"
 LATE_RECORDING_PHONE = "+15551110044"
 ACTIVE_HANGUP_PHONE = "+15551110045"
+REJECTED_PHONE = "+15551110046"
 CALLER_A = "+15551000001"
 CALLER_B = "+15551000002"
 DUE = datetime(2026, 8, 19, 17, 0, tzinfo=ZoneInfo("UTC"))
@@ -527,7 +532,7 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                     "window_start": "00:00",
                     "window_end": "23:59",
                     "timezone": "UTC",
-                    "pace": 9,
+                    "pace": 10,
                     "max_attempts": 1,
                     "contacts": [
                         {"phone": phone, "name": f"Contacto {index}", "may_call": True, "do_not_call": False}
@@ -539,6 +544,7 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                                 FAILED_LEG_PHONE,
                                 LATE_RECORDING_PHONE,
                                 ACTIVE_HANGUP_PHONE,
+                                REJECTED_PHONE,
                             ],
                             start=1,
                         )
@@ -620,6 +626,7 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                 kind = rtc.ParticipantKind.PARTICIPANT_KIND_SIP
                 identity = "sip-out"
                 attributes: dict[str, str] = {}
+                disconnect_reason = rtc.DisconnectReason.UNKNOWN_REASON
 
             async def _plain_summary(call_ctx: CallContext) -> str:
                 from call_management.utils.summary import build_structured_summary
@@ -643,7 +650,11 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
 
             leg = _SipLeg()
 
-            async def _end_leg(phone: str, statuses: tuple[str, ...]) -> CallContext:
+            async def _end_leg(
+                phone: str,
+                statuses: tuple[str, ...],
+                reason: int,
+            ) -> CallContext:
                 attempt = attempts[phone]
                 ctx = CallContext(
                     call_id=attempt["call_id"],
@@ -655,13 +666,34 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
                     start_time="2020-01-01T00:00:00+00:00",
                 )
                 for status in statuses:
+                    leg.attributes["sip.callStatus"] = status
                     await _handle_attributes_changed({"sip.callStatus": status}, leg, ctx)
+                assert ctx.call_persisted is False
+                leg.disconnect_reason = reason
+                await _handle_sip_participant_disconnected(leg, ctx)
                 assert ctx.call_persisted is True
                 return ctx
 
-            await _end_leg(RING_HANGUP_PHONE, ("ringing", "hangup"))
-            await _end_leg(FAILED_LEG_PHONE, ("dialing", "failed"))
-            kept = await _end_leg(ACTIVE_HANGUP_PHONE, ("active", "hangup"))
+            await _end_leg(
+                RING_HANGUP_PHONE,
+                ("ringing", "hangup"),
+                rtc.DisconnectReason.USER_UNAVAILABLE,
+            )
+            await _end_leg(
+                FAILED_LEG_PHONE,
+                ("dialing", "hangup"),
+                rtc.DisconnectReason.SIP_TRUNK_FAILURE,
+            )
+            await _end_leg(
+                REJECTED_PHONE,
+                ("ringing", "hangup"),
+                rtc.DisconnectReason.USER_REJECTED,
+            )
+            kept = await _end_leg(
+                ACTIVE_HANGUP_PHONE,
+                ("automation", "hangup"),
+                rtc.DisconnectReason.CLIENT_INITIATED,
+            )
             assert kept.outcome == "completed"
 
             late_attempt = attempts[LATE_RECORDING_PHONE]
@@ -703,6 +735,7 @@ async def test_campaign_console_offer_schedule_list_result_and_caller(monkeypatc
             assert "El cliente aceptó la oferta." in (by_real[RESOLVED_PHONE].get("transcript") or "")
             assert by_real[RING_HANGUP_PHONE]["call_result"] == "no-answer"
             assert by_real[FAILED_LEG_PHONE]["call_result"] == "failed"
+            assert by_real[REJECTED_PHONE]["call_result"] == "busy"
             assert by_real[ACTIVE_HANGUP_PHONE]["call_result"] == "answered"
             assert by_real[LATE_RECORDING_PHONE]["call_result"] == "answered"
             assert by_real[LATE_RECORDING_PHONE]["recording_url"] == "https://cdn.example.com/late-recording.ogg"

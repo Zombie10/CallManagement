@@ -23,7 +23,11 @@ from call_management.agents import (
 )
 from call_management.agents.catalog import TEMPLATE_IDS
 from call_management.agents.runtime import build_runtime_agent
-from call_management.campaigns.eligibility import apply_sip_leg_end, note_sip_call_status
+from call_management.campaigns.eligibility import (
+    apply_sip_leg_end,
+    note_sip_call_status,
+    note_sip_disconnect_reason,
+)
 from call_management.config import get_model_config, get_voice_for_agent
 from call_management.crm.database import get_crm
 from call_management.crm.session_persist import finalize_interaction
@@ -541,7 +545,7 @@ async def _run_session(
     def on_participant_disconnected(participant: rtc.RemoteParticipant):
         logger.info("Participant left: %s (kind=%s)", participant.identity, participant.kind)
         if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-            asyncio.create_task(_handle_call_ended(call_ctx, cfg.enable_post_call_summary))
+            asyncio.create_task(_handle_sip_participant_disconnected(participant, call_ctx))
         elif is_playground_room and participant.identity.startswith("admin-"):
             asyncio.create_task(_handle_call_ended(call_ctx, cfg.enable_post_call_summary))
 
@@ -592,10 +596,23 @@ async def _handle_attributes_changed(
         call_ctx.call_notes.append(f"Call status: {new_status}")
 
         note_sip_call_status(call_ctx, new_status)
-        if str(new_status).strip().lower() in ("hangup", "failed"):
-            apply_sip_leg_end(call_ctx, str(new_status))
-            cfg = get_model_config()
-            await _handle_call_ended(call_ctx, cfg.enable_post_call_summary)
+
+
+async def _handle_sip_participant_disconnected(
+    participant: rtc.Participant,
+    call_ctx: CallContext,
+) -> None:
+    """Save the call only after LiveKit's disconnect reason is known.
+
+    sip.callStatus hangup arrives before disconnect_reason. Finalizing on
+    hangup would mark every pre-answer leg as no-answer.
+    """
+    status = (getattr(participant, "attributes", None) or {}).get("sip.callStatus")
+    if status:
+        note_sip_call_status(call_ctx, status)
+    note_sip_disconnect_reason(call_ctx, getattr(participant, "disconnect_reason", None))
+    cfg = get_model_config()
+    await _handle_call_ended(call_ctx, cfg.enable_post_call_summary)
 
 
 async def _handle_call_ended(call_ctx: CallContext, enable_summary: bool) -> None:

@@ -147,8 +147,13 @@ def map_call_outcome(outcome: str | None) -> str:
     return _OUTCOME_TO_RESULT.get(key, "failed")
 
 
-_SIP_ACTIVE = frozenset({"active", "answered"})
+_SIP_ACTIVE = frozenset({"active", "answered", "automation"})
 _SIP_BUSY = frozenset({"busy", "user_busy"})
+_DISCONNECT_RESULT = {
+    "USER_REJECTED": "busy",
+    "USER_UNAVAILABLE": "no-answer",
+    "SIP_TRUNK_FAILURE": "failed",
+}
 _PRESERVE_OUTCOMES = frozenset(
     {
         "resolved",
@@ -173,8 +178,25 @@ _PRESERVE_OUTCOMES = frozenset(
 )
 
 
+def sip_disconnect_reason_name(reason: object) -> str:
+    """LiveKit DisconnectReason as its enum name. Empty when unknown."""
+    if reason is None:
+        return ""
+    if isinstance(reason, str):
+        return reason.strip()
+    try:
+        from livekit import rtc
+
+        if isinstance(reason, int):
+            return rtc.DisconnectReason.Name(reason)
+    except (ValueError, AttributeError):
+        return ""
+    name = getattr(reason, "name", None)
+    return name.strip() if isinstance(name, str) else ""
+
+
 def note_sip_call_status(call_ctx: object, status: str | None) -> None:
-    """Remember whether this SIP leg was answered, busy, or failed."""
+    """Remember whether this SIP leg reached a connected state."""
     key = (status or "").strip().lower()
     setattr(call_ctx, "saw_sip_leg", True)
     if not key:
@@ -188,13 +210,30 @@ def note_sip_call_status(call_ctx: object, status: str | None) -> None:
         setattr(call_ctx, "sip_terminal_status", "failed")
 
 
+def note_sip_disconnect_reason(call_ctx: object, reason: object) -> None:
+    """Apply USER_REJECTED, USER_UNAVAILABLE, or SIP_TRUNK_FAILURE before save."""
+    setattr(call_ctx, "saw_sip_leg", True)
+    name = sip_disconnect_reason_name(reason)
+    if name:
+        setattr(call_ctx, "sip_disconnect_reason", name)
+    if getattr(call_ctx, "sip_leg_active", False):
+        return
+    mapped = _DISCONNECT_RESULT.get(name)
+    if not mapped:
+        return
+    existing = (getattr(call_ctx, "outcome", None) or "").strip().lower().replace(" ", "_")
+    if existing in _PRESERVE_OUTCOMES:
+        return
+    setattr(call_ctx, "outcome", mapped)
+
+
 def apply_sip_leg_end(call_ctx: object, status: str | None = None) -> None:
     """Classify a SIP leg that ended before anyone answered.
 
-    A resolved or scheduled sales call keeps its outcome. A leg that became
-    active is left for the normal completed/answered mapping. Ringing that
-    ends in hangup is no-answer. A failed status that never became active
-    is failed. Busy wins when that status was seen.
+    A resolved or scheduled sales call keeps its outcome. Active and
+    automation mean the callee connected, so the call stays answered.
+    A disconnect reason already stored as busy, no-answer, or failed is kept.
+    Ringing that ends with no reason is no-answer.
     """
     if status:
         note_sip_call_status(call_ctx, status)
