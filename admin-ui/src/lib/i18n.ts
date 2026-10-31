@@ -536,6 +536,12 @@ const es: Record<string, string> = {
   "campaigns.sectionSchedule": "Horario",
   "campaigns.sectionContacts": "Lista de contactos",
   "campaigns.sectionReport": "Informe",
+  "campaigns.addOne": "Agregar un contacto",
+  "campaigns.importHint": "Archivo CSV o de texto con nombre y teléfono.",
+  "campaigns.chooseFile": "Elegir archivo",
+  "campaigns.noFile": "Ningún archivo elegido",
+  "campaigns.searchCustomers": "Buscar cliente",
+  "campaigns.noMatch": "Nada coincide con la búsqueda.",
 };
 
 const en: Record<string, string> = {
@@ -1070,6 +1076,12 @@ const en: Record<string, string> = {
   "campaigns.sectionSchedule": "Schedule",
   "campaigns.sectionContacts": "Contact list",
   "campaigns.sectionReport": "Report",
+  "campaigns.addOne": "Add a contact",
+  "campaigns.importHint": "CSV or text file with a name and a phone number.",
+  "campaigns.chooseFile": "Choose a file",
+  "campaigns.noFile": "No file chosen",
+  "campaigns.searchCustomers": "Search customers",
+  "campaigns.noMatch": "Nothing matches the search.",
 };
 
 export const CATALOG: Record<AdminLocale, Record<string, string>> = { es, en };

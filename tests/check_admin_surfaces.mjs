@@ -623,6 +623,12 @@ const campaignKeys = [
   "campaigns.sectionSchedule",
   "campaigns.sectionContacts",
   "campaigns.sectionReport",
+  "campaigns.addOne",
+  "campaigns.importHint",
+  "campaigns.chooseFile",
+  "campaigns.noFile",
+  "campaigns.searchCustomers",
+  "campaigns.noMatch",
 ];
 for (const key of campaignKeys) {
   assert(key in CATALOG.es && key in CATALOG.en, key);

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Megaphone, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Megaphone, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DateField, TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
@@ -437,6 +437,9 @@ function CampaignDetail({
   const [phone, setPhone] = useState("");
   const [contactName, setContactName] = useState("");
   const [search, setSearch] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [importName, setImportName] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [result, setResult] = useState("");
   const [from, setFrom] = useState("");
@@ -561,6 +564,13 @@ function CampaignDetail({
   });
 
   const shown = search.trim() ? found.data?.contacts ?? [] : campaign.contacts;
+  const customerQueryText = customerQuery.trim().toLowerCase();
+  const customerRows = (customers.data?.items ?? []).filter((customer) => {
+    if (!customerQueryText) return true;
+    const name = (customer.name || "").toLowerCase();
+    const number = customer.phone_number.toLowerCase();
+    return name.includes(customerQueryText) || number.includes(customerQueryText);
+  });
   const callerOptions = [...new Set([campaign.caller_id, callerId, ...callerChoices].filter(Boolean))];
   const totals = [
     ["campaigns.pending", campaign.totals.pending],
@@ -671,51 +681,90 @@ function CampaignDetail({
       </dl>
 
       <CampaignSection title={t("campaigns.sectionContacts")}>
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <h4 className="text-sm font-medium text-slate-200">{t("campaigns.contacts")}</h4>
-          <label className="text-xs text-slate-400" htmlFor={`search-${campaign.id}`}>
-            {t("campaigns.search")}
+        <FieldLabel label={t("campaigns.search")}>
+          <span className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               id={`search-${campaign.id}`}
-              className="input-field ml-2"
+              className="input-field pl-9"
               name="q"
+              placeholder={t("campaigns.search")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </label>
-        </div>
-        <ul className="space-y-1 text-sm text-slate-300">
-          {shown.map((contact) => (
-            <li key={contact.id} className="flex min-w-0 items-center justify-between gap-2">
-              <span className="min-w-0 break-words">
-                {contact.name} · {contact.phone}
-                {contact.may_call ? ` · ${t("campaigns.mayCall")}` : ""}
-                {contact.do_not_call ? ` · ${t("campaigns.doNotCall")}` : ""}
-              </span>
-              <button type="button" className="btn-ghost text-xs" aria-label={t("campaigns.removeContact")} onClick={() => drop.mutate(contact.id)}>
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+          </span>
+        </FieldLabel>
+        {shown.length === 0 ? (
+          <p className="text-sm text-slate-500">{search.trim() ? t("campaigns.noMatch") : "—"}</p>
+        ) : (
+          <ul className="space-y-2 text-sm text-slate-300">
+            {shown.map((contact) => (
+              <li key={contact.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/5 px-3 py-2">
+                <span className="min-w-0 break-words">
+                  {contact.name} · {contact.phone}
+                  {contact.may_call ? ` · ${t("campaigns.mayCall")}` : ""}
+                  {contact.do_not_call ? ` · ${t("campaigns.doNotCall")}` : ""}
+                </span>
+                <button type="button" className="btn-ghost shrink-0 text-xs" aria-label={t("campaigns.removeContact")} onClick={() => drop.mutate(contact.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <form
-          className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+          className="space-y-3 rounded-xl border border-white/10 p-3"
           onSubmit={(event) => {
             event.preventDefault();
             add.mutate();
           }}
         >
-          <input className="input-field" name="phone" autoComplete="tel" aria-label={t("campaigns.phone")} value={phone} onChange={(event) => setPhone(event.target.value)} required />
-          <input className="input-field" name="contact_name" autoComplete="name" aria-label={t("campaigns.contactName")} value={contactName} onChange={(event) => setContactName(event.target.value)} required />
+          <p className="text-sm font-medium text-slate-200">{t("campaigns.addOne")}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FieldLabel label={t("campaigns.phone")}>
+              <input
+                className="input-field"
+                name="phone"
+                autoComplete="tel"
+                placeholder={t("campaigns.phone")}
+                aria-label={t("campaigns.phone")}
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                required
+              />
+            </FieldLabel>
+            <FieldLabel label={t("campaigns.contactName")}>
+              <input
+                className="input-field"
+                name="contact_name"
+                autoComplete="name"
+                placeholder={t("campaigns.contactName")}
+                aria-label={t("campaigns.contactName")}
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                required
+              />
+            </FieldLabel>
+          </div>
           <button type="submit" className="btn-ghost text-xs" disabled={add.isPending}>
+            <Plus className="h-4 w-4" />
             {t("campaigns.addContact")}
           </button>
         </form>
-        <label className="block text-sm text-slate-300" htmlFor={`import-${campaign.id}`}>
-          {t("campaigns.importFile")}
+        <div className="space-y-2 rounded-xl border border-white/10 p-3">
+          <p className="text-sm font-medium text-slate-200">{t("campaigns.importFile")}</p>
+          <p className="text-xs text-slate-500">{t("campaigns.importHint")}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="btn-ghost text-xs" onClick={() => fileRef.current?.click()}>
+              <Upload className="h-4 w-4" />
+              {t("campaigns.chooseFile")}
+            </button>
+            <span className="min-w-0 break-all text-sm text-slate-400">{importName || t("campaigns.noFile")}</span>
+          </div>
           <input
+            ref={fileRef}
             id={`import-${campaign.id}`}
-            className="mt-1 block text-sm"
+            className="sr-only"
             type="file"
             name="contacts_file"
             accept=".csv,.txt,text/csv,text/plain"
@@ -723,32 +772,50 @@ function CampaignDetail({
               const file = event.target.files?.[0];
               event.target.value = "";
               if (!file) return;
+              setImportName(file.name);
               file.text().then((text) => importFile.mutate(text)).catch((err: Error) => fail(err));
             }}
           />
-        </label>
-        <fieldset className="space-y-2">
-          <legend className="text-sm text-slate-300">{t("campaigns.pickCustomers")}</legend>
-          <div className="max-h-40 space-y-1 overflow-auto text-sm text-slate-300">
-            {(customers.data?.items ?? []).map((customer) => (
-              <label key={customer.phone_number} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="crm_phone"
-                  value={customer.phone_number}
-                  checked={picked.includes(customer.phone_number)}
-                  onChange={(event) =>
-                    setPicked((current) =>
-                      event.target.checked
-                        ? [...current, customer.phone_number]
-                        : current.filter((item) => item !== customer.phone_number),
-                    )
-                  }
-                />
-                {customer.name || customer.phone_number} · {customer.phone_number}
-              </label>
-            ))}
-          </div>
+        </div>
+        <fieldset className="space-y-3 rounded-xl border border-white/10 p-3">
+          <legend className="px-1 text-sm font-medium text-slate-200">{t("campaigns.pickCustomers")}</legend>
+          <FieldLabel label={t("campaigns.searchCustomers")}>
+            <span className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                id={`crm-search-${campaign.id}`}
+                className="input-field pl-9"
+                name="customer_q"
+                placeholder={t("campaigns.searchCustomers")}
+                value={customerQuery}
+                onChange={(event) => setCustomerQuery(event.target.value)}
+              />
+            </span>
+          </FieldLabel>
+          {customerRows.length === 0 ? (
+            <p className="text-sm text-slate-500">{t("campaigns.noMatch")}</p>
+          ) : (
+            <div className="max-h-48 space-y-1 overflow-auto text-sm text-slate-300">
+              {customerRows.map((customer) => (
+                <label key={customer.phone_number} className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-white/[0.03]">
+                  <input
+                    type="checkbox"
+                    name="crm_phone"
+                    value={customer.phone_number}
+                    checked={picked.includes(customer.phone_number)}
+                    onChange={(event) =>
+                      setPicked((current) =>
+                        event.target.checked
+                          ? [...current, customer.phone_number]
+                          : current.filter((item) => item !== customer.phone_number),
+                      )
+                    }
+                  />
+                  <span className="min-w-0 break-words">{customer.name || customer.phone_number} · {customer.phone_number}</span>
+                </label>
+              ))}
+            </div>
+          )}
           <button type="button" className="btn-ghost text-xs" disabled={!picked.length || fromCrm.isPending} onClick={() => fromCrm.mutate()}>
             {t("campaigns.pick")}
           </button>
