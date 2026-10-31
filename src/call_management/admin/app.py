@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 
 from contextlib import asynccontextmanager
@@ -49,6 +51,38 @@ from call_management.tenancy.webhooks import emit_event, WEBHOOK_EVENTS
 from call_management.xai.mcp import load_remote_mcp_config
 
 ADMIN_UI_DIST = PROJECT_ROOT / "admin-ui" / "dist"
+logger = logging.getLogger("call-management.admin")
+
+
+async def run_scheduled_campaigns_now() -> None:
+    """One clock tick: dial campaigns whose scheduled minute is due. No start button."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from call_management.campaigns.service import CampaignError, run_due_campaigns
+
+    now = datetime.now(ZoneInfo("UTC"))
+    for tenant in get_platform_store().list_tenants():
+        try:
+            crm = await resolve_crm_for_tenant(tenant.id)
+            result = await run_due_campaigns(crm, tenant_id=tenant.id, at=now)
+        except CampaignError as exc:
+            logger.info("Scheduled pass skipped for %s: %s", tenant.id, exc.message)
+            continue
+        except Exception:
+            logger.exception("Scheduled pass failed for %s", tenant.id)
+            continue
+        if result.get("total"):
+            logger.info("Scheduled campaign passes: %s tenant=%s", result["total"], tenant.id)
+
+
+async def _campaign_clock(stop: asyncio.Event) -> None:
+    while not stop.is_set():
+        await run_scheduled_campaigns_now()
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=20)
+        except asyncio.TimeoutError:
+            continue
 
 
 @asynccontextmanager
@@ -61,7 +95,20 @@ async def lifespan(_app: FastAPI):
     default_tenant = get_platform_store().ensure_default_tenant()
     await resolve_crm_for_tenant(default_tenant.id)
     await seed_demo_customers(tenant_id=default_tenant.id)
-    yield
+    stop_clock = asyncio.Event()
+    clock = None
+    if os.getenv("CAMPAIGN_SCHEDULER", "1") != "0":
+        clock = asyncio.create_task(_campaign_clock(stop_clock))
+    try:
+        yield
+    finally:
+        stop_clock.set()
+        if clock is not None:
+            clock.cancel()
+            try:
+                await clock
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(
