@@ -59,6 +59,8 @@ async def livekit_place_call(request: DialRequest) -> None:
                 metadata=request.metadata,
             )
         )
+        from livekit.protocol import sip as sip_proto
+
         await lk.sip.create_sip_participant(
             api.CreateSIPParticipantRequest(
                 sip_trunk_id=request.trunk_id,
@@ -67,6 +69,11 @@ async def livekit_place_call(request: DialRequest) -> None:
                 participant_identity=request.participant_identity,
                 participant_name=request.participant_name,
                 krisp_enabled=True,
+                # G.722 through the SIP bridge sounds thin on mobile phones.
+                media=sip_proto.SIPMediaConfig(
+                    only_listed_codecs=True,
+                    codecs=[sip_proto.SIPCodec(name="PCMU")],
+                ),
             )
         )
     finally:
