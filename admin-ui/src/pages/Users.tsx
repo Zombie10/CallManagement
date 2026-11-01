@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { ListFilterBar } from "../components/ListFilterBar";
 import { ModulePermissionPicker } from "../components/ModulePermissionPicker";
 import { UserPermissionEditor } from "../components/UserPermissionEditor";
@@ -16,8 +17,21 @@ function canManageUsers(role?: AdminRole) {
   return role === "admin" || role === "super_admin";
 }
 
+function localizedRole(t: (key: string) => string, id: string, fallback: string) {
+  const key = `profile.role.${id}`;
+  const label = t(key);
+  return label === key ? fallback : label;
+}
+
+function roleDescription(t: (key: string) => string, id: string, fallback?: string) {
+  const key = `users.roleDesc.${id}`;
+  const text = t(key);
+  return text === key ? fallback : text;
+}
+
 export function Users() {
   const { user } = useAuth();
+  const { t } = useUiLocale();
   const { isSuperAdmin } = useTenant();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -147,14 +161,12 @@ export function Users() {
     <div className="animate-page-enter space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-xl font-semibold tracking-tight sm:text-3xl">Usuarios</h1>
-          <p className="mt-1 text-sm text-slate-400 sm:text-base">
-            Roles y módulos de acceso por usuario (entradas del menú y APIs)
-          </p>
+          <h1 className="font-display text-xl font-semibold tracking-tight sm:text-3xl">{t("users.title")}</h1>
+          <p className="mt-1 text-sm text-slate-400 sm:text-base">{t("users.subtitle")}</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => setShowForm((v) => !v)}>
           <UserPlus className="h-4 w-4" />
-          Nuevo usuario
+          {t("users.new")}
         </button>
       </header>
 
@@ -166,11 +178,11 @@ export function Users() {
         <div className="glass-card space-y-4 p-6">
           <h2 className="flex items-center gap-2 font-medium">
             <Plus className="h-4 w-4 text-cyan-400" />
-            Crear usuario
+            {t("users.createTitle")}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1.5">
-              <span className="text-sm text-slate-400">Usuario</span>
+              <span className="text-sm text-slate-400">{t("users.username")}</span>
               <input
                 className="input-field"
                 value={form.username}
@@ -179,7 +191,7 @@ export function Users() {
               />
             </label>
             <label className="space-y-1.5">
-              <span className="text-sm text-slate-400">Nombre</span>
+              <span className="text-sm text-slate-400">{t("users.displayName")}</span>
               <input
                 className="input-field"
                 value={form.display_name}
@@ -187,7 +199,7 @@ export function Users() {
               />
             </label>
             <label className="space-y-1.5">
-              <span className="text-sm text-slate-400">Contraseña</span>
+              <span className="text-sm text-slate-400">{t("users.password")}</span>
               <input
                 type="password"
                 className="input-field"
@@ -196,7 +208,7 @@ export function Users() {
               />
             </label>
             <label className="space-y-1.5">
-              <span className="text-sm text-slate-400">Rol</span>
+              <span className="text-sm text-slate-400">{t("users.role")}</span>
               <Select
                 value={form.role}
                 onChange={(role) => {
@@ -205,22 +217,22 @@ export function Users() {
                 }}
                 options={roles.map((r) => ({
                   value: r.id,
-                  label: r.label,
-                  description: r.description,
+                  label: localizedRole(t, r.id, r.label),
+                  description: roleDescription(t, r.id, r.description),
                 }))}
               />
             </label>
             {isSuperAdmin && (
               <label className="space-y-1.5 sm:col-span-2">
                 <span className="text-sm text-slate-400">
-                  Empresa {form.role === "super_admin" ? "(solo orquestador)" : "(requerida)"}
+                  {form.role === "super_admin" ? t("users.companyOrchestrator") : t("users.companyRequired")}
                 </span>
                 <Select
                   value={form.tenant_id}
                   onChange={(v) => setForm((f) => ({ ...f, tenant_id: v }))}
                   options={
                     form.role === "super_admin"
-                      ? [{ value: "", label: "Sin empresa (orquestador)" }, ...tenantOptions]
+                      ? [{ value: "", label: t("users.noCompanyOrchestrator") }, ...tenantOptions]
                       : tenantOptions
                   }
                 />
@@ -252,7 +264,7 @@ export function Users() {
             onClick={() => createMutation.mutate()}
           >
             {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Crear
+            {t("users.create")}
           </button>
         </div>
       )}
@@ -260,7 +272,7 @@ export function Users() {
       <ListFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por usuario, nombre o rol…"
+        searchPlaceholder={t("users.search")}
         resultCount={filteredUsers.length}
         totalCount={data?.users.length ?? 0}
         onClear={clearUserFilters}
@@ -271,8 +283,8 @@ export function Users() {
           searchableFrom={0}
           onChange={setRoleFilter}
           options={[
-            { value: "all", label: "Todos los roles" },
-            ...roles.map((r) => ({ value: r.id, label: r.label })),
+            { value: "all", label: t("users.allRoles") },
+            ...roles.map((r) => ({ value: r.id, label: localizedRole(t, r.id, r.label) })),
           ]}
         />
         <Select
@@ -281,9 +293,9 @@ export function Users() {
           searchableFrom={0}
           onChange={(v) => setStatusFilter(v as typeof statusFilter)}
           options={[
-            { value: "all", label: "Todos" },
-            { value: "enabled", label: "Activos" },
-            { value: "disabled", label: "Desactivados" },
+            { value: "all", label: t("users.all") },
+            { value: "enabled", label: t("users.active") },
+            { value: "disabled", label: t("users.inactive") },
           ]}
         />
         {isSuperAdmin && (
@@ -292,8 +304,8 @@ export function Users() {
             value={tenantFilter}
             onChange={setTenantFilter}
             options={[
-              { value: "all", label: "Todas las empresas" },
-              { value: "none", label: "Sin empresa" },
+              { value: "all", label: t("users.allCompanies") },
+              { value: "none", label: t("users.noCompany") },
               ...tenantOptions.map((t) => ({ value: t.value, label: t.label })),
             ]}
           />
@@ -301,7 +313,7 @@ export function Users() {
       </ListFilterBar>
 
       {isLoading ? (
-        <div className="glass-card p-6 text-sm text-slate-500">Cargando usuarios…</div>
+        <div className="glass-card p-6 text-sm text-slate-500">{t("users.loading")}</div>
       ) : (
         <>
           <div className="space-y-3 md:hidden">
@@ -333,7 +345,7 @@ export function Users() {
                   updateMutation.mutate({ id: row.id, patch: { modules } })
                 }
                 onDelete={() => {
-                  if (window.confirm(`¿Eliminar al usuario "${row.username}"?`)) {
+                  if (window.confirm(t("users.confirmDelete", { name: row.username }))) {
                     deleteMutation.mutate(row.id);
                   }
                 }}
@@ -341,25 +353,25 @@ export function Users() {
             ))}
           </div>
 
-          <div className="glass-card hidden w-full md:block">
+          <div className="glass-card hidden min-w-0 max-w-full overflow-x-auto md:block">
             <TableScroll>
-              <table className={`data-table ${isSuperAdmin ? "min-w-[980px]" : "min-w-[860px]"}`}>
+              <table className="data-table data-table-controls w-full min-w-[44rem]">
                 <colgroup>
-                  <col style={{ width: isSuperAdmin ? "18%" : "22%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                  {isSuperAdmin && <col style={{ width: "18%" }} />}
                   <col style={{ width: "14%" }} />
-                  <col style={{ width: isSuperAdmin ? "24%" : "28%" }} />
-                  {isSuperAdmin && <col style={{ width: "16%" }} />}
-                  <col style={{ width: "10%" }} />
-                  <col style={{ width: isSuperAdmin ? "18%" : "20%" }} />
+                  <col style={{ width: isSuperAdmin ? "14%" : "18%" }} />
                 </colgroup>
                 <thead className="border-b border-white/5 bg-white/[0.02] text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Usuario</th>
-                    <th className="px-4 py-3">Rol</th>
-                    <th className="px-4 py-3">Módulos</th>
-                    {isSuperAdmin && <th className="px-4 py-3">Empresa</th>}
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Acciones</th>
+                    <th className="px-3 py-3">{t("users.colUser")}</th>
+                    <th className="px-3 py-3">{t("users.colRole")}</th>
+                    <th className="px-3 py-3">{t("users.colModules")}</th>
+                    {isSuperAdmin && <th className="px-3 py-3">{t("users.colCompany")}</th>}
+                    <th className="px-3 py-3">{t("users.colStatus")}</th>
+                    <th className="px-2 py-3 text-right">{t("users.colActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -391,7 +403,7 @@ export function Users() {
                         updateMutation.mutate({ id: row.id, patch: { modules } })
                       }
                       onDelete={() => {
-                  if (window.confirm(`¿Eliminar al usuario "${row.username}"?`)) {
+                  if (window.confirm(t("users.confirmDelete", { name: row.username }))) {
                     deleteMutation.mutate(row.id);
                   }
                 }}
@@ -453,8 +465,9 @@ function UserMobileCard({
     setSelected(row.modules?.length ? row.modules : roleDefaults[row.role] || []);
   }, [row.id, row.modules, row.role, roleDefaults]);
 
+  const { t } = useUiLocale();
   const moduleCount = row.effective_modules?.length ?? 0;
-  const customLabel = row.modules?.length ? "Personalizado" : "Rol completo";
+  const customLabel = row.modules?.length ? t("users.custom") : t("users.fullRole");
 
   return (
     <article className="glass-card space-y-3 p-4">
@@ -472,18 +485,22 @@ function UserMobileCard({
 
       <div className="grid gap-3">
         <label className="space-y-1.5">
-          <span className="text-xs text-slate-500">Rol</span>
+          <span className="text-xs text-slate-500">{t("users.role")}</span>
           {isProtected ? (
             <span className="inline-flex items-center gap-1 text-sm text-cyan-300">
               <Shield className="h-3 w-3" />
-              Super admin
+              {t("profile.role.super_admin")}
             </span>
           ) : (
             <Select
-              className="w-full"
+              className="w-full min-w-0"
               size="sm"
               value={row.role}
-              options={roles.map((r) => ({ value: r.id, label: r.label }))}
+              options={roles.map((r) => ({
+                value: r.id,
+                label: localizedRole(t, r.id, r.label),
+                description: roleDescription(t, r.id),
+              }))}
               disabled={busy}
               onChange={(role) => onRoleChange(role as AdminRole)}
             />
@@ -492,15 +509,15 @@ function UserMobileCard({
 
         {isSuperAdmin && (
           <label className="space-y-1.5">
-            <span className="text-xs text-slate-500">Empresa</span>
+            <span className="text-xs text-slate-500">{t("users.company")}</span>
             {isProtected ? (
               <span className="text-sm text-slate-400">{tenantName}</span>
             ) : (
               <Select
-                className="w-full"
+                className="w-full min-w-0"
                 size="sm"
                 value={row.tenant_id || ""}
-                options={[{ value: "", label: "Global" }, ...tenantOptions]}
+                options={[{ value: "", label: t("users.global") }, ...tenantOptions]}
                 disabled={busy}
                 onChange={onTenantChange}
               />
@@ -516,7 +533,7 @@ function UserMobileCard({
             onClick={onTogglePermissions}
           >
             <KeyRound className="h-3.5 w-3.5" />
-            {moduleCount} módulos · {customLabel}
+            {t("users.moduleLine", { count: moduleCount, label: customLabel })}
           </button>
           <button
             type="button"
@@ -527,7 +544,7 @@ function UserMobileCard({
             disabled={isProtected || busy}
             onClick={onToggleEnabled}
           >
-            {row.enabled ? "Activo" : "Desactivado"}
+            {row.enabled ? t("users.enabled") : t("users.disabled")}
           </button>
         </div>
       </div>
@@ -594,74 +611,79 @@ function UserRow({
     setSelected(row.modules?.length ? row.modules : roleDefaults[row.role] || []);
   }, [row.id, row.modules, row.role, roleDefaults]);
 
+  const { t } = useUiLocale();
   const moduleCount = row.effective_modules?.length ?? 0;
-  const customLabel = row.modules?.length ? "Personalizado" : "Rol completo";
+  const customLabel = row.modules?.length ? t("users.custom") : t("users.fullRole");
 
   return (
     <>
       <tr className="border-b border-white/5 last:border-0">
-        <td className="px-4 py-3">
-          <p className="font-medium text-slate-200">{row.display_name}</p>
-          <p className="text-xs text-slate-500">@{row.username}</p>
+        <td className="px-3 py-3">
+          <p className="truncate font-medium text-slate-200">{row.display_name}</p>
+          <p className="truncate text-xs text-slate-500">@{row.username}</p>
         </td>
-        <td className="px-4 py-3">
+        <td className="px-3 py-3">
           {isProtected ? (
-            <span className="inline-flex items-center gap-1 text-cyan-300">
-              <Shield className="h-3 w-3" />
-              Super admin
+            <span className="inline-flex min-w-0 items-center gap-1 text-cyan-300">
+              <Shield className="h-3 w-3 shrink-0" />
+              <span className="truncate">{t("profile.role.super_admin")}</span>
             </span>
           ) : (
             <Select
-              className="w-44"
+              className="w-full min-w-0"
               size="sm"
               value={row.role}
-              options={roles.map((r) => ({ value: r.id, label: r.label }))}
+              options={roles.map((r) => ({
+                value: r.id,
+                label: localizedRole(t, r.id, r.label),
+                description: roleDescription(t, r.id),
+              }))}
               disabled={busy}
               onChange={(role) => onRoleChange(role as AdminRole)}
             />
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="px-3 py-3">
           <button
             type="button"
-            className="flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200"
+            className="flex min-w-0 items-center gap-1.5 text-left text-xs text-cyan-300 hover:text-cyan-200"
             disabled={isProtected}
             onClick={onTogglePermissions}
           >
-            <KeyRound className="h-3.5 w-3.5" />
-            {moduleCount} · {customLabel}
+            <KeyRound className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">{t("users.moduleLine", { count: moduleCount, label: customLabel })}</span>
           </button>
         </td>
         {isSuperAdmin && (
-          <td className="px-4 py-3">
+          <td className="px-3 py-3">
             {isProtected ? (
-              <span className="text-xs text-slate-500">{tenantName}</span>
+              <span className="block truncate text-xs text-slate-500">{tenantName}</span>
             ) : (
               <Select
-                className="w-40"
+                className="w-full min-w-0"
                 size="sm"
                 value={row.tenant_id || ""}
-                options={[{ value: "", label: "Global" }, ...tenantOptions]}
+                options={[{ value: "", label: t("users.global") }, ...tenantOptions]}
                 disabled={busy}
                 onChange={onTenantChange}
               />
             )}
           </td>
         )}
-        <td className="px-4 py-3">
+        <td className="px-3 py-3">
           <button
             type="button"
             className={clsx(
-              "rounded-full px-2 py-0.5 text-xs",
+              "max-w-full truncate rounded-full px-2 py-0.5 text-xs",
               row.enabled ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300",
             )}
             disabled={isProtected || busy}
             onClick={onToggleEnabled}
           >
-            {row.enabled ? "Activo" : "Desactivado"}
+            {row.enabled ? t("users.enabled") : t("users.disabled")}
           </button>
         </td>
-        <td className="px-4 py-3 text-right">
+        <td className="px-2 py-3 text-right">
           {!isSelf && !isProtected && (
             <button type="button" className="btn-ghost px-2 text-red-300" disabled={busy} onClick={onDelete}>
               <Trash2 className="h-4 w-4" />

@@ -23,6 +23,7 @@ import { TimeField } from "../components/DateField";
 import { Select } from "../components/Select";
 import { VoicePicker } from "../components/VoicePicker";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { agentLabel, templateOptionsFromProfiles } from "../lib/agents";
 import {
   api,
@@ -34,13 +35,7 @@ import {
 import { TELEPHONY_MODE_STYLES } from "../lib/telephony";
 import clsx from "clsx";
 
-const STATUS_OPTIONS = [
-  { value: "draft", label: "Borrador", description: "En configuración" },
-  { value: "active", label: "Activo", description: "Recibe llamadas" },
-  { value: "paused", label: "Pausado", description: "Sin llamadas" },
-];
-
-const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DAY_LABELS = [0, 1, 2, 3, 4, 5, 6];
 
 const SCHEDULE_BADGE: Record<ScheduleStatus, { label: string; className: string }> = {
   open: { label: "Abierto", className: "bg-emerald-500/15 text-emerald-300" },
@@ -56,6 +51,7 @@ const CHANNEL_META: Record<string, { icon: typeof Terminal; title: string }> = {
 };
 
 function TelephonyChannels({ agent }: { agent: AgentInstanceRecord }) {
+  const { t } = useUiLocale();
   const telephony = agent.telephony;
   if (!telephony) return null;
   const modeStyle = TELEPHONY_MODE_STYLES[telephony.mode];
@@ -86,7 +82,7 @@ function TelephonyChannels({ agent }: { agent: AgentInstanceRecord }) {
               )}
             >
               <Icon className="h-3 w-3 shrink-0" />
-              {meta?.title || ch.label}
+              {t(`myAgents.channel.${ch.id}`) === `myAgents.channel.${ch.id}` ? meta?.title || ch.label : t(`myAgents.channel.${ch.id}`)}
             </span>
           );
         })}
@@ -125,6 +121,7 @@ function AgentCard({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useUiLocale();
   const statusColor =
     agent.status === "active"
       ? "border-emerald-500/30 bg-emerald-500/5"
@@ -162,7 +159,11 @@ function AgentCard({
           {sched && agent.status === "active" && (
             <span className={clsx("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]", sched.className)}>
               <Clock className="h-3 w-3" />
-              {sched.label}
+              {agent.schedule_status === "open"
+                ? t("myAgents.schedule.open")
+                : agent.schedule_status === "closed"
+                  ? t("myAgents.schedule.closed")
+                  : sched.label}
             </span>
           )}
         </div>
@@ -182,7 +183,7 @@ function AgentCard({
                   <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-300">dispatch OK</span>
                 )}
                 {detail?.is_livekit_phone_number && !detail.dispatch_assigned && (
-                  <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-300">sin dispatch</span>
+                  <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-300">{t("myAgents.noDispatch")}</span>
                 )}
               </p>
             );
@@ -191,9 +192,9 @@ function AgentCard({
       )}
       <TelephonyChannels agent={agent} />
       <p className="mt-2 text-xs text-slate-500">
-        {agent.call_count_today ?? 0} llamadas hoy · {agent.locale.toUpperCase()}
+        {t("myAgents.callsToday", { count: agent.call_count_today ?? 0 })} · {agent.locale.toUpperCase()}
         {agent.max_concurrent_calls != null && (
-          <> · máx. {agent.max_concurrent_calls} simultáneas</>
+          <> · {t("myAgents.maxSimultaneous", { count: agent.max_concurrent_calls })}</>
         )}
       </p>
       <div className="mt-3 flex gap-1 opacity-0 transition group-hover:opacity-100">
@@ -213,6 +214,7 @@ export function TenantAgents() {
   const location = useLocation();
   const activeCompanyNotice = (location.state as { activeCompanyNotice?: string } | null)?.activeCompanyNotice;
   const { tenant, tenantId, isSuperAdmin, setTenantId } = useTenant();
+  const { t } = useUiLocale();
   const { data: agentsCatalog } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["tenant-agents", tenantId],
@@ -264,7 +266,7 @@ export function TenantAgents() {
     mutationFn: async () => {
       const payload = buildPayload();
       if (isNew) return api.createTenantAgent(payload);
-      if (!editing) throw new Error("Sin agente");
+      if (!editing) throw new Error(t("myAgents.missing"));
       const saved = await api.updateTenantAgent(editing.id, payload);
       await api.saveAgentSchedules(editing.id, schedules);
       return saved;
@@ -350,7 +352,7 @@ export function TenantAgents() {
   if (!tenantId) {
     return (
       <div className="glass-card p-8 text-center text-slate-400">
-        {isSuperAdmin ? "Selecciona una empresa en Orquestador → Gestionar" : "Sin empresa asignada"}
+        {isSuperAdmin ? t("myAgents.needCompany") : t("myAgents.noCompany")}
       </div>
     );
   }
@@ -360,7 +362,7 @@ export function TenantAgents() {
   const showLoading = !tenantId || isLoading || (isFetching && !agentsForTenant);
 
   if (showLoading && !agentsForTenant?.length) {
-    return <div className="glass-card p-8 text-slate-400">Cargando agentes…</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("myAgents.loading")}</div>;
   }
 
   const showEditor = isNew || editing;
@@ -369,20 +371,20 @@ export function TenantAgents() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Mis agentes</h1>
+          <h1 className="font-display text-3xl font-semibold">{t("myAgents.title")}</h1>
           <p className="mt-1 text-slate-400">
-            {tenant?.name || data?.tenant.name} — cada agente con su voz, teléfono y base de datos aislada
-            {isFetching && <span className="ml-2 text-cyan-400/80">actualizando…</span>}
+            {t("myAgents.subtitle", { name: tenant?.name || data?.tenant.name || "" })}
+            {isFetching && <span className="ml-2 text-cyan-400/80">{t("myAgents.updating")}</span>}
           </p>
           {activeCompanyNotice && (
             <p role="status" className="mt-3 rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-              Empresa activa: {activeCompanyNotice}
+              {t("common.activeCompany", { name: activeCompanyNotice })}
             </p>
           )}
         </div>
         <button type="button" className="btn-primary" onClick={openNew}>
           <Plus className="h-4 w-4" />
-          Nuevo agente
+          {t("myAgents.new")}
         </button>
       </header>
 
@@ -402,7 +404,7 @@ export function TenantAgents() {
           className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 text-slate-500 transition hover:border-cyan-400/30 hover:text-cyan-300"
         >
           <Plus className="mb-2 h-8 w-8" />
-          Agregar agente
+          {t("myAgents.add")}
         </button>
       </div>
 
@@ -417,11 +419,9 @@ export function TenantAgents() {
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/5 px-5 py-4 sm:px-7 sm:py-5">
             <div>
               <h2 id="tenant-agent-editor-title" className="font-display text-xl font-semibold sm:text-2xl">
-                {isNew ? "Nuevo agente" : "Editar agente"}
+                {isNew ? t("myAgents.editorNew") : t("myAgents.editorEdit")}
               </h2>
-              <p className="mt-0.5 text-sm text-slate-400">
-                Voz, telefonía y límites · panel ampliado
-              </p>
+              <p className="mt-0.5 text-sm text-slate-400">{t("myAgents.editorHint")}</p>
             </div>
             <button type="button" className="btn-ghost" onClick={() => { setEditing(null); setIsNew(false); }}>
               <X className="h-4 w-4" />
@@ -432,7 +432,7 @@ export function TenantAgents() {
             <div className="grid gap-4 sm:grid-cols-2">
             <input
               className="input-field w-full sm:col-span-2"
-              placeholder="Nombre visible"
+              placeholder={t("myAgents.displayName")}
               value={draft.display_name}
               onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))}
             />
@@ -455,18 +455,22 @@ export function TenantAgents() {
               className="w-full"
               value={draft.status || "draft"}
               onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
-              options={STATUS_OPTIONS}
+              options={[
+                { value: "draft", label: t("myAgents.status.draft"), description: t("myAgents.status.draftHint") },
+                { value: "active", label: t("myAgents.status.active"), description: t("myAgents.status.activeHint") },
+                { value: "paused", label: t("myAgents.status.paused"), description: t("myAgents.status.pausedHint") },
+              ]}
               searchableFrom={0}
             />
             <label className="block space-y-1.5 sm:col-span-2">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Máx. llamadas simultáneas (agente)
+                {t("myAgents.maxConcurrent")}
               </span>
               <input
-                className="input-field w-full"
+                className="input-field w-full min-w-0"
                 type="number"
                 min={1}
-                placeholder="Sin límite propio (usa solo el de empresa)"
+                placeholder={t("myAgents.noOwnLimit")}
                 value={draft.max_concurrent_calls ?? ""}
                 onChange={(e) =>
                   setDraft((d) => ({
@@ -476,38 +480,35 @@ export function TenantAgents() {
                 }
               />
               <p className="text-xs text-slate-500">
-                Ej.: banco 8, recepción 4. Vacío = solo aplica el límite global de la empresa.
+                {t("myAgents.maxHint")}
               </p>
             </label>
             </div>
             <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/5 p-3 text-xs text-cyan-100/90">
               <p className="flex items-center gap-1.5 font-medium text-cyan-200">
                 <Info className="h-3.5 w-3.5" />
-                Canales de prueba vs producción
+                {t("myAgents.channelsTitle")}
               </p>
               <ul className="mt-2 list-inside list-disc space-y-1 text-slate-400">
                 <li>
-                  <strong className="text-slate-300">Consola local</strong> — terminal, sin LiveKit Cloud
+                  <strong className="text-slate-300">{t("myAgents.channelConsole")}</strong> — {t("myAgents.channelConsoleBody")}
                 </li>
                 <li>
-                  <strong className="text-slate-300">Admin · xAI directo</strong> — solo voz Grok
+                  <strong className="text-slate-300">{t("myAgents.channelXai")}</strong> — {t("myAgents.channelXaiBody")}
                 </li>
                 <li>
-                  <strong className="text-slate-300">Admin · LiveKit producción</strong> — misma pipeline que PSTN
+                  <strong className="text-slate-300">{t("myAgents.channelLk")}</strong> — {t("myAgents.channelLkBody")}
                 </li>
                 <li>
-                  <strong className="text-slate-300">Teléfono PSTN</strong> — requiere DID real y worker activo
+                  <strong className="text-slate-300">{t("myAgents.channelPstn")}</strong> — {t("myAgents.channelPstnBody")}
                 </li>
               </ul>
-              <p className="mt-2 text-slate-500">
-                Si el número es un <strong className="text-slate-400">LiveKit Phone Number</strong> del proyecto,
-                al guardar se crea y asigna la dispatch rule automáticamente.
-              </p>
+              <p className="mt-2 text-slate-500">{t("myAgents.livekitNote")}</p>
             </div>
 
             {provisionNotes && provisionNotes.length > 0 && (
               <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3 text-xs">
-                <p className="font-medium text-emerald-200">Telefonía LiveKit</p>
+                <p className="font-medium text-emerald-200">{t("myAgents.livekitTitle")}</p>
                 <ul className="mt-1 space-y-1 text-slate-300">
                   {provisionNotes.map((note) => (
                     <li key={note.phone}>
@@ -521,21 +522,21 @@ export function TenantAgents() {
             <label className="block space-y-1.5">
               <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
                 <Phone className="h-3 w-3" />
-                Teléfono principal (E.164)
+                {t("myAgents.primaryPhone")}
               </span>
-              <div className="flex gap-2">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
                 <input
-                  className="input-field flex-1"
+                  className="input-field min-w-0"
                   placeholder="+50255551234"
                   value={draft.phone_number || ""}
                   onChange={(e) => setDraft((d) => ({ ...d, phone_number: e.target.value }))}
                 />
                 <input
-                  className="input-field w-24"
+                  className="input-field min-w-0"
                   type="number"
                   min={1}
-                  title="Límite por número"
-                  placeholder="Máx."
+                  title={t("myAgents.perNumber")}
+                  placeholder={t("myAgents.maxShort")}
                   value={phoneLimits[(draft.phone_number || "").trim()] || ""}
                   onChange={(e) => {
                     const num = (draft.phone_number || "").trim();
@@ -547,12 +548,12 @@ export function TenantAgents() {
             </label>
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                Números adicionales (DID)
+                {t("myAgents.extraNumbers")}
               </p>
               {extraPhones.map((num, i) => (
-                <div key={i} className="mb-2 flex gap-2">
+                <div key={i} className="mb-2 grid min-w-0 grid-cols-[minmax(0,1fr)_5.5rem_auto] gap-2">
                   <input
-                    className="input-field flex-1"
+                    className="input-field min-w-0"
                     placeholder="+50255559999"
                     value={num}
                     onChange={(e) => {
@@ -574,11 +575,11 @@ export function TenantAgents() {
                     }}
                   />
                   <input
-                    className="input-field w-24"
+                    className="input-field min-w-0"
                     type="number"
                     min={1}
-                    title="Límite por número"
-                    placeholder="Máx."
+                    title={t("myAgents.perNumber")}
+                    placeholder={t("myAgents.maxShort")}
                     value={phoneLimits[num.trim()] || ""}
                     onChange={(e) =>
                       setPhoneLimits((prev) => ({ ...prev, [num.trim()]: e.target.value }))
@@ -598,7 +599,7 @@ export function TenantAgents() {
                 className="btn-ghost text-xs"
                 onClick={() => setExtraPhones([...extraPhones, ""])}
               >
-                + Otro número
+                + {t("myAgents.anotherNumber")}
               </button>
             </div>
             <VoicePicker
@@ -620,12 +621,12 @@ export function TenantAgents() {
 
             {!isNew && (
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Horario (opcional)</p>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{t("myAgents.schedule")}</p>
                 <div className="space-y-2">
                   {schedules.map((s, i) => (
-                    <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+                    <div key={i} className="grid min-w-0 grid-cols-1 items-center gap-2 text-sm sm:grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_auto_minmax(0,1fr)]">
                       <Select
-                        className="w-24"
+                        className="w-full min-w-0"
                         size="sm"
                         value={String(s.day_of_week)}
                         searchableFrom={0}
@@ -634,13 +635,13 @@ export function TenantAgents() {
                           next[i] = { ...s, day_of_week: Number(v) };
                           setSchedules(next);
                         }}
-                        options={DAY_LABELS.map((l, di) => ({
+                        options={DAY_LABELS.map((_, di) => ({
                           value: String(di),
-                          label: l,
+                          label: t(`myAgents.day.${di}`),
                         }))}
                       />
                       <TimeField
-                        className="w-32"
+                        className="w-full min-w-0"
                         value={s.start_time}
                         onChange={(start_time) => {
                           const next = [...schedules];
@@ -650,7 +651,7 @@ export function TenantAgents() {
                       />
                       <span className="text-slate-500">—</span>
                       <TimeField
-                        className="w-32"
+                        className="w-full min-w-0"
                         value={s.end_time}
                         onChange={(end_time) => {
                           const next = [...schedules];
@@ -665,7 +666,7 @@ export function TenantAgents() {
                     className="btn-ghost text-xs"
                     onClick={() => setSchedules([...schedules, { day_of_week: 1, start_time: "09:00", end_time: "17:00" }])}
                   >
-                    + Franja horaria
+                    + {t("myAgents.addWindow")}
                   </button>
                 </div>
               </div>
@@ -679,7 +680,7 @@ export function TenantAgents() {
                 onClick={() => save.mutate()}
               >
                 {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Guardar agente
+                {t("myAgents.save")}
               </button>
             </div>
           </div>

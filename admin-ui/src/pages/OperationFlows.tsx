@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { InteractiveFlow } from "../components/InteractiveFlow";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { agentLabel } from "../lib/agents";
 import {
   FLOW_CATEGORIES,
@@ -40,6 +41,7 @@ function statusStyle(status: string) {
 
 export function OperationFlows() {
   const { tenantId, tenant } = useTenant();
+  const { locale, t } = useUiLocale();
   const [mode, setMode] = useState<ViewMode>("agents");
   const [category, setCategory] = useState<FlowCategory | "all">("all");
   const [query, setQuery] = useState("");
@@ -106,8 +108,9 @@ export function OperationFlows() {
         function_tools: selectedAgent.function_tools,
       },
       variantFlowId,
+      locale,
     );
-  }, [selectedAgent, variantFlowId]);
+  }, [selectedAgent, variantFlowId, locale]);
 
   const platformFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -153,12 +156,10 @@ export function OperationFlows() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-              Flujos / Operación
+              {t("flows.title")}
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-400 sm:text-base">
-              Documentación de plantillas (no es el runtime en vivo de la instancia). Elige un
-              agente de la empresa para ver la plantilla asociada, o explora los flujos de
-              plataforma.
+              {t("flows.subtitle")}
               {tenant?.name ? (
                 <span className="text-slate-500"> · {tenant.name}</span>
               ) : null}
@@ -179,7 +180,7 @@ export function OperationFlows() {
               )}
             >
               <Bot className="h-3.5 w-3.5" />
-              Agentes de la empresa
+              {t("flows.companyAgents")}
             </button>
             <button
               type="button"
@@ -192,7 +193,7 @@ export function OperationFlows() {
               )}
             >
               <Workflow className="h-3.5 w-3.5" />
-              Flujos de plataforma
+              {t("flows.platform")}
             </button>
           </div>
 
@@ -201,9 +202,7 @@ export function OperationFlows() {
             <input
               className="input-field pl-9"
               placeholder={
-                mode === "agents"
-                  ? "Buscar agente, plantilla, DID o voz…"
-                  : "Buscar flujo o paso…"
+                mode === "agents" ? t("flows.searchAgents") : t("flows.searchFlows")
               }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -226,7 +225,7 @@ export function OperationFlows() {
                         : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200",
                     )}
                   >
-                    {c.label}
+                    {t(`flows.category.${c.id}`)}
                   </button>
                 );
               })}
@@ -237,7 +236,7 @@ export function OperationFlows() {
 
       {!tenantId ? (
         <div className="glass-card p-8 text-center text-slate-400">
-          Selecciona una empresa en la barra de contexto para ver sus agentes y flujos.
+          {t("flows.needCompany")}
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(16rem,20rem)_1fr]">
@@ -247,26 +246,26 @@ export function OperationFlows() {
               <>
                 <div className="mb-2 flex items-center justify-between px-2">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                    Agentes configurados
+                    {t("flows.configured")}
                   </p>
                   <Link
                     to="/my-agents"
                     className="text-[11px] text-cyan-400/90 hover:text-cyan-300"
                   >
-                    Gestionar
+                    {t("flows.manage")}
                   </Link>
                 </div>
                 <nav className="list-scroll-panel space-y-1.5 pr-1">
                   {agentsLoading && (
-                    <p className="px-2 py-6 text-center text-sm text-slate-500">Cargando…</p>
+                    <p className="px-2 py-6 text-center text-sm text-slate-500">{t("flows.loading")}</p>
                   )}
                   {!agentsLoading && agentFiltered.length === 0 && (
                     <div className="space-y-3 px-2 py-6 text-center">
                       <p className="text-sm text-slate-500">
-                        Esta empresa aún no tiene agentes configurados.
+                        {t("flows.noneConfigured")}
                       </p>
                       <Link to="/my-agents" className="btn-primary text-xs">
-                        Ir a Mis agentes
+                        {t("flows.goAgents")}
                       </Link>
                     </div>
                   )}
@@ -364,15 +363,16 @@ export function OperationFlows() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-cyan-400/80">
-                        Agente de la empresa · flujo interactivo
+                        {t("flows.companyAgentKicker")}
                       </p>
                       <h2 className="font-display text-lg font-semibold text-slate-50 sm:text-xl">
                         {selectedAgent.display_name}
                       </h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Plantilla <span className="text-slate-300">{agentLabel(selectedAgent.template_id)}</span>
-                        {" · "}
-                        Voz xAI <span className="text-slate-300">{selectedAgent.voice}</span>
+                        {t("flows.templateVoice", {
+                          template: agentLabel(selectedAgent.template_id),
+                          voice: selectedAgent.voice,
+                        })}
                         {agentPhones(selectedAgent)[0]
                           ? ` · ${agentPhones(selectedAgent)[0]}`
                           : ""}
@@ -382,14 +382,14 @@ export function OperationFlows() {
                       to="/my-agents"
                       className="btn-ghost text-xs"
                     >
-                      Editar en Mis agentes
+                      {t("flows.editInAgents")}
                     </Link>
                   </div>
 
                   {/* Variant flows for this agent template */}
                   <div className="flex flex-wrap gap-1.5">
                     <span className="mr-1 self-center text-[10px] uppercase tracking-wide text-slate-500">
-                      Flujo:
+                      {t("flows.flowLabel")}:
                     </span>
                     {related.map((f) => {
                       const on = variantFlowId === f.id;
@@ -418,16 +418,16 @@ export function OperationFlows() {
             ) : mode === "agents" && !agentsLoading && !agents.length ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
                 <Bot className="h-10 w-10 text-slate-600" />
-                <p className="text-slate-400">No hay agentes en esta empresa.</p>
+                <p className="text-slate-400">{t("flows.noneInCompany")}</p>
                 <Link to="/my-agents" className="btn-primary">
-                  Configurar agentes
+                  {t("flows.configure")}
                 </Link>
               </div>
             ) : mode === "platform" && platformActive ? (
               <>
                 <div className="shrink-0 border-b border-white/5 px-4 py-4 sm:px-6">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-300/80">
-                    Flujo de plataforma
+                    {t("flows.platformFlow")}
                   </p>
                   <h2 className="font-display text-lg font-semibold text-slate-50 sm:text-xl">
                     {platformActive.title}
@@ -439,7 +439,7 @@ export function OperationFlows() {
                 </div>
               </>
             ) : (
-              <p className="p-8 text-center text-slate-500">Selecciona un agente o flujo.</p>
+              <p className="p-8 text-center text-slate-500">{t("flows.pick")}</p>
             )}
           </section>
         </div>

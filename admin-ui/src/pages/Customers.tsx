@@ -6,18 +6,25 @@ import { ListFilterBar } from "../components/ListFilterBar";
 import { Select } from "../components/Select";
 import { TableScroll } from "../components/TableScroll";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
 import { formatAdminDateTime } from "../lib/formatDateTime";
 
 type VipFilter = "all" | "vip" | "normal";
 
-function shownPhone(phoneValid: boolean | undefined, phoneDisplay: string | null | undefined, phone: string) {
-  if (phoneValid === false || !phoneDisplay) return "Teléfono inválido";
+function shownPhone(
+  phoneValid: boolean | undefined,
+  phoneDisplay: string | null | undefined,
+  phone: string,
+  invalidLabel: string,
+) {
+  if (phoneValid === false || !phoneDisplay) return invalidLabel;
   return phoneDisplay || phone;
 }
 
 export function Customers() {
   const qc = useQueryClient();
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const [search, setSearch] = useState("");
   const [vipFilter, setVipFilter] = useState<VipFilter>("all");
@@ -52,20 +59,22 @@ export function Customers() {
   const clearFilters = () => setVipFilter("all");
 
   if (!tenantId || (isLoading && !data)) {
-    return <div className="glass-card p-8 text-slate-400">Cargando clientes...</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("customers.loading")}</div>;
   }
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-xl font-semibold sm:text-3xl">Clientes CRM</h1>
-        <p className="mt-1 text-sm text-slate-400 sm:text-base">{data?.total ?? 0} clientes registrados</p>
+        <h1 className="font-display text-xl font-semibold sm:text-3xl">{t("customers.title")}</h1>
+        <p className="mt-1 text-sm text-slate-400 sm:text-base">
+          {t("customers.count", { count: data?.total ?? 0 })}
+        </p>
       </header>
 
       <ListFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por teléfono, nombre o email…"
+        searchPlaceholder={t("customers.search")}
         resultCount={filtered.length}
         totalCount={data?.items.length ?? 0}
         onClear={clearFilters}
@@ -76,9 +85,9 @@ export function Customers() {
           searchableFrom={0}
           onChange={(v) => setVipFilter(v as VipFilter)}
           options={[
-            { value: "all", label: "Todos" },
-            { value: "vip", label: "Solo VIP" },
-            { value: "normal", label: "Sin VIP" },
+            { value: "all", label: t("customers.all") },
+            { value: "vip", label: t("customers.vipOnly") },
+            { value: "normal", label: t("customers.noVip") },
           ]}
         />
       </ListFilterBar>
@@ -88,15 +97,15 @@ export function Customers() {
           <article key={c.phone_number} className="glass-card space-y-3 p-4">
             <div>
               <p className="font-mono text-sm text-cyan-200">
-                {shownPhone(c.phone_valid, c.phone_display, c.phone_number)}
+                {shownPhone(c.phone_valid, c.phone_display, c.phone_number, t("customers.invalidPhone"))}
               </p>
               <Link
                 to={`/customers/${encodeURIComponent(c.phone_number)}`}
                 className="mt-1 block font-medium text-slate-100 hover:text-cyan-200"
               >
-                {c.name || "Sin nombre"}
+                {c.name || t("customers.noName")}
               </Link>
-              <p className="text-sm text-slate-400">{c.email || "Sin email"}</p>
+              <p className="text-sm text-slate-400">{c.email || t("customers.noEmail")}</p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button
@@ -104,7 +113,7 @@ export function Customers() {
                 className={`rounded-lg px-3 py-2 text-xs ${c.vip ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-slate-500"}`}
                 onClick={() => toggleVip.mutate({ phone: c.phone_number, vip: !c.vip })}
               >
-                <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : "Normal"}
+                <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : t("customers.normal")}
               </button>
               <p className="text-xs text-slate-500">{formatAdminDateTime(c.updated_at)}</p>
             </div>
@@ -113,7 +122,7 @@ export function Customers() {
         {filtered.length === 0 && (
           <div className="glass-card flex flex-col items-center gap-2 py-12 text-slate-500">
             <Users className="h-8 w-8" />
-            <p>Sin clientes que coincidan</p>
+            <p>{t("customers.empty")}</p>
           </div>
         )}
       </div>
@@ -130,25 +139,25 @@ export function Customers() {
             </colgroup>
             <thead className="border-b border-white/10 bg-white/5 text-xs uppercase text-slate-400">
               <tr>
-                <th className="px-4 py-3">Teléfono</th>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">{t("customers.phone")}</th>
+                <th className="px-4 py-3">{t("customers.name")}</th>
+                <th className="px-4 py-3">{t("customers.email")}</th>
                 <th className="px-4 py-3">VIP</th>
-                <th className="px-4 py-3">Actualizado</th>
+                <th className="px-4 py-3">{t("customers.updated")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.phone_number} className="border-b border-white/5 hover:bg-white/5">
                   <td className="px-4 py-3 font-mono text-cyan-200">
-                    {shownPhone(c.phone_valid, c.phone_display, c.phone_number)}
+                    {shownPhone(c.phone_valid, c.phone_display, c.phone_number, t("customers.invalidPhone"))}
                   </td>
                   <td className="px-4 py-3">
                     <Link
                       to={`/customers/${encodeURIComponent(c.phone_number)}`}
                       className="hover:text-cyan-200"
                     >
-                      {c.name || "Sin nombre"}
+                      {c.name || t("customers.noName")}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-400">{c.email || "—"}</td>
@@ -158,7 +167,7 @@ export function Customers() {
                       className={`rounded-lg px-2 py-1 text-xs ${c.vip ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-slate-500"}`}
                       onClick={() => toggleVip.mutate({ phone: c.phone_number, vip: !c.vip })}
                     >
-                      <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : "Normal"}
+                      <Crown className="inline h-3 w-3" /> {c.vip ? "VIP" : t("customers.normal")}
                     </button>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{formatAdminDateTime(c.updated_at)}</td>
@@ -170,7 +179,7 @@ export function Customers() {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-12 text-slate-500">
             <Users className="h-8 w-8" />
-            <p>Sin clientes que coincidan</p>
+            <p>{t("customers.empty")}</p>
           </div>
         )}
       </div>

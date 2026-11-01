@@ -5,6 +5,7 @@ import { DateTimeField } from "../components/DateField";
 import { ListFilterBar } from "../components/ListFilterBar";
 import { Select } from "../components/Select";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api, type AppointmentInput } from "../lib/api";
 
 const emptyForm: AppointmentInput = {
@@ -23,6 +24,7 @@ function parseApptTime(value: string): number {
 
 export function Appointments() {
   const qc = useQueryClient();
+  const { t } = useUiLocale();
   const { tenantId } = useTenant();
   const [form, setForm] = useState<AppointmentInput | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,15 +76,15 @@ export function Appointments() {
   }, [data?.items, search, whenFilter]);
 
   if (!tenantId || (isLoading && !data)) {
-    return <div className="glass-card p-8 text-slate-400">Cargando citas...</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("appointments.loading")}</div>;
   }
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Citas & Callbacks</h1>
-          <p className="mt-1 text-slate-400">{data?.total ?? 0} citas programadas</p>
+          <h1 className="font-display text-3xl font-semibold">{t("appointments.title")}</h1>
+          <p className="mt-1 text-slate-400">{t("appointments.count", { count: data?.total ?? 0 })}</p>
         </div>
         <button
           type="button"
@@ -93,14 +95,14 @@ export function Appointments() {
           }}
         >
           <Plus className="h-4 w-4" />
-          Nueva cita
+          {t("appointments.new")}
         </button>
       </header>
 
       <ListFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Buscar por teléfono, propósito o notas…"
+        searchPlaceholder={t("appointments.search")}
         resultCount={filtered.length}
         totalCount={data?.items.length ?? 0}
         onClear={() => setWhenFilter("all")}
@@ -111,9 +113,9 @@ export function Appointments() {
           onChange={(v) => setWhenFilter(v as WhenFilter)}
           searchableFrom={0}
           options={[
-            { value: "all", label: "Todas" },
-            { value: "upcoming", label: "Próximas" },
-            { value: "past", label: "Pasadas" },
+            { value: "all", label: t("appointments.all") },
+            { value: "upcoming", label: t("appointments.upcoming") },
+            { value: "past", label: t("appointments.past") },
           ]}
         />
       </ListFilterBar>
@@ -122,7 +124,7 @@ export function Appointments() {
         <div className="glass-card grid gap-4 p-5 sm:grid-cols-2">
           <label className="block space-y-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Teléfono cliente
+              {t("appointments.phone")}
             </span>
             <input
               className="input-field"
@@ -132,28 +134,28 @@ export function Appointments() {
             />
           </label>
           <DateTimeField
-            label="Fecha y hora"
+            label={t("appointments.when")}
             value={form.scheduled_time}
             onChange={(scheduled_time) => setForm({ ...form, scheduled_time })}
           />
           <label className="block space-y-1.5 sm:col-span-2">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Propósito
+              {t("appointments.purpose")}
             </span>
             <input
               className="input-field"
-              placeholder="Motivo de la cita"
+              placeholder={t("appointments.purposeHint")}
               value={form.purpose}
               onChange={(e) => setForm({ ...form, purpose: e.target.value })}
             />
           </label>
           <label className="block space-y-1.5 sm:col-span-2">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Notas
+              {t("appointments.notes")}
             </span>
             <textarea
               className="input-field min-h-[80px]"
-              placeholder="Notas opcionales"
+              placeholder={t("appointments.notesHint")}
               value={form.notes || ""}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
@@ -165,10 +167,10 @@ export function Appointments() {
               disabled={save.isPending || !form.customer_phone || !form.scheduled_time}
               onClick={() => save.mutate()}
             >
-              {editingId ? "Guardar cambios" : "Crear cita"}
+              {editingId ? t("appointments.save") : t("appointments.create")}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
-              Cancelar
+              {t("appointments.cancel")}
             </button>
           </div>
         </div>
@@ -216,7 +218,7 @@ export function Appointments() {
         ))}
         {filtered.length === 0 && (
           <div className="glass-card col-span-full py-12 text-center text-slate-500">
-            Sin citas que coincidan
+            {t("appointments.empty")}
           </div>
         )}
       </div>

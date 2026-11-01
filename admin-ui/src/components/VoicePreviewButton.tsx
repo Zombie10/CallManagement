@@ -2,6 +2,7 @@ import { Loader2, Pause, Volume2 } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import clsx from "clsx";
 import { api } from "../lib/api";
+import { useUiLocale } from "../contexts/LocaleContext";
 
 type VoicePreviewButtonProps = {
   voiceId: string;
@@ -21,9 +22,11 @@ export function VoicePreviewButton({
   language,
   className,
   compact = false,
-  label = "Probar voz",
+  label,
   stopPropagation = true,
 }: VoicePreviewButtonProps) {
+  const { t } = useUiLocale();
+  const buttonLabel = label || t("voice.preview");
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +75,7 @@ export function VoicePreviewButton({
       return;
     }
     if (!voiceId) {
-      setError("Selecciona una voz");
+      setError(t("voice.pickFirst"));
       return;
     }
 
@@ -92,12 +95,12 @@ export function VoicePreviewButton({
       audio.onended = () => setPlaying(false);
       audio.onerror = () => {
         setPlaying(false);
-        setError("No se pudo reproducir el audio");
+        setError(t("voice.playFailed"));
       };
       await audio.play();
       setPlaying(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al generar la muestra");
+      setError(err instanceof Error ? err.message : t("voice.sampleFailed"));
       setPlaying(false);
     } finally {
       setLoading(false);
@@ -120,7 +123,7 @@ export function VoicePreviewButton({
             : "bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-400/30 hover:bg-cyan-500/25",
           (loading || !voiceId) && "cursor-not-allowed opacity-60",
         )}
-        title={language ? `Escuchar en ${language}` : "Escuchar muestra de voz"}
+        title={language ? t("voice.listenIn", { language }) : t("voice.listenSample")}
       >
         {loading ? (
           <Loader2 className={clsx("animate-spin", compact ? "h-3 w-3" : "h-3.5 w-3.5")} />
@@ -129,7 +132,7 @@ export function VoicePreviewButton({
         ) : (
           <Volume2 className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
         )}
-        {loading ? "Generando…" : playing ? "Detener" : label}
+        {loading ? t("voice.generating") : playing ? t("voice.stop") : buttonLabel}
       </button>
       {error && <p className="max-w-[16rem] text-[11px] leading-snug text-red-300/90">{error}</p>}
     </div>

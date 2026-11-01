@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { api, type AuthUserResponse } from "../lib/api";
+import { initialAdminLocale, translate } from "../lib/i18n";
 
 type AuthContextValue = {
   user: AuthUserResponse | null;
@@ -23,7 +24,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const result = await refetch();
     if (result.isError || !result.data) {
-      throw new Error("Sesión no válida tras el login");
+      let locale = initialAdminLocale(null);
+      try {
+        locale = initialAdminLocale(localStorage.getItem("callmgmt.adminLocale"));
+      } catch {
+        /* keep the default locale */
+      }
+      throw new Error(translate("login.sessionInvalid", locale));
     }
     return result.data;
   }, [refetch]);

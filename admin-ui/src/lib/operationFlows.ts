@@ -1,4 +1,6 @@
-/** Flujos operativos interactivos para la página Flujos / Operación. */
+/** Interactive operations flows for the Flows / Operations page. */
+
+import { DEFAULT_ADMIN_LOCALE, translate, type AdminLocale } from "./i18n";
 
 export type FlowCategory = "vision" | "llamadas" | "agentes" | "pruebas" | "admin";
 
@@ -93,29 +95,30 @@ export type AgentFlowContext = {
 export function flowForAgent(
   agent: AgentFlowContext,
   baseFlowId?: string,
+  uiLocale: AdminLocale = DEFAULT_ADMIN_LOCALE,
 ): FlowSection {
   const template = agent.template_id || "receptionist";
   const flowId = baseFlowId || TEMPLATE_PRIMARY_FLOW[template] || "dialogo";
   const base = getFlowById(flowId) || OPERATION_FLOWS[0]!;
-  const phones =
-    agent.phone_numbers?.filter(Boolean).join(", ") || "Sin DID configurado";
+  const phones = agent.phone_numbers?.filter(Boolean).join(", ") || translate("flows.noDid", uiLocale);
+  const label = (key: string, value: string | number) => translate(key, uiLocale, { value });
   const intro: FlowStep = {
     id: `agent-${agent.id}-intro`,
     title: agent.display_name,
-    description: `Instancia de la empresa · plantilla ${template}`,
+    description: translate("flows.agentIntro", uiLocale, { template }),
     kind: "start",
     actor: agent.display_name,
     next: base.steps[0]?.id,
-    tags: [agent.status, agent.voice || "voz xAI", agent.locale || "locale"].filter(Boolean) as string[],
+    tags: [agent.status, agent.voice || "xAI", agent.locale || "locale"].filter(Boolean) as string[],
     details: [
-      `Plantilla: ${template}`,
-      `Voz xAI: ${agent.voice || "—"}`,
-      `Idioma: ${agent.locale || "—"}`,
-      `Teléfonos: ${phones}`,
+      label("flows.detailTemplate", template),
+      label("flows.detailVoice", agent.voice || "—"),
+      label("flows.detailLocale", agent.locale || "—"),
+      label("flows.detailPhones", phones),
       agent.max_concurrent_calls
-        ? `Máx. simultáneas: ${agent.max_concurrent_calls}`
-        : "Máx. simultáneas: límite de empresa",
-      agent.schedule_status ? `Horario: ${agent.schedule_status}` : undefined,
+        ? label("flows.detailMax", agent.max_concurrent_calls)
+        : translate("flows.maxCompany", uiLocale),
+      agent.schedule_status ? label("flows.detailSchedule", agent.schedule_status) : undefined,
     ].filter(Boolean) as string[],
   };
 
@@ -123,8 +126,8 @@ export function flowForAgent(
   if (agent.custom_instructions?.trim()) {
     runtimeSteps.push({
       id: `agent-${agent.id}-instructions`,
-      title: "Instrucciones de esta instancia",
-      description: "Override configurado en Mis agentes (se combina con estilo e idioma).",
+      title: translate("flows.instanceInstructions", uiLocale),
+      description: translate("flows.instanceInstructionsHint", uiLocale),
       kind: "process",
       actor: agent.display_name,
       next: base.steps[0]?.id,
@@ -135,8 +138,8 @@ export function flowForAgent(
   if (agent.function_tools?.length) {
     runtimeSteps.push({
       id: `agent-${agent.id}-tools`,
-      title: "Tools de esta instancia",
-      description: "Herramientas habilitadas en la instancia (runtime).",
+      title: translate("flows.instanceTools", uiLocale),
+      description: translate("flows.instanceToolsHint", uiLocale),
       kind: "system",
       next: base.steps[0]?.id,
       tags: agent.function_tools,
@@ -152,7 +155,11 @@ export function flowForAgent(
     ...base,
     id: `agent-flow-${agent.id}-${flowId}`,
     title: `${agent.display_name} · ${base.title}`,
-    summary: `Documentación de plantilla (no runtime en vivo) para “${agent.display_name}” (${template}). ${base.summary}`,
+    summary: translate("flows.agentSummary", uiLocale, {
+      name: agent.display_name,
+      template,
+      summary: base.summary,
+    }),
     category: "agentes",
     durationHint: agent.status,
     steps: [intro, ...runtimeSteps, ...base.steps],

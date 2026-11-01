@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import type { FlowBranch, FlowNodeKind, FlowSection, FlowStep } from "../lib/operationFlows";
 import { stepsById } from "../lib/operationFlows";
+import { useUiLocale } from "../contexts/LocaleContext";
 
 const KIND_META: Record<
   FlowNodeKind,
@@ -93,6 +94,12 @@ type InteractiveFlowProps = {
 };
 
 export function InteractiveFlow({ flow }: InteractiveFlowProps) {
+  const { t } = useUiLocale();
+  const kindLabel = (kind: FlowNodeKind) => {
+    const key = `flows.kind.${kind}`;
+    const label = t(key);
+    return label === key ? KIND_META[kind].label : label;
+  };
   const map = useMemo(() => stepsById(flow), [flow]);
   const startId = flow.steps[0]?.id ?? "";
   const [activeId, setActiveId] = useState(startId);
@@ -141,7 +148,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
   const progress = Math.round((visited.size / Math.max(flow.steps.length, 1)) * 100);
 
   if (!activeStep) {
-    return <p className="p-6 text-sm text-slate-500">Flujo vacío.</p>;
+    return <p className="p-6 text-sm text-slate-500">{t("flows.empty")}</p>;
   }
 
   const step = activeStep;
@@ -154,7 +161,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
       <div className="shrink-0 lg:w-56">
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-            Recorrido
+            {t("flows.journey")}
           </p>
           <span className="text-[11px] text-cyan-300/80">{progress}%</span>
         </div>
@@ -211,7 +218,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
                     {s.title}
                   </p>
                   <p className={clsx("text-[10px] uppercase tracking-wide", km.text, "opacity-70")}>
-                    {km.label}
+                    {kindLabel(s.kind)}
                   </p>
                 </div>
               </button>
@@ -243,7 +250,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
               </div>
               <div>
                 <p className={clsx("text-[11px] font-semibold uppercase tracking-wider", meta.text)}>
-                  {meta.label}
+                  {kindLabel(step.kind)}
                   {step.actor ? ` · ${step.actor}` : ""}
                 </p>
                 <h3 className="mt-0.5 font-display text-xl font-semibold text-white sm:text-2xl">
@@ -259,11 +266,11 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn-ghost px-3 py-2 text-xs" onClick={goBack} disabled={trail.length < 2}>
                 <ChevronLeft className="h-3.5 w-3.5" />
-                Atrás
+                {t("flows.back")}
               </button>
               <button type="button" className="btn-ghost px-3 py-2 text-xs" onClick={restart}>
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reiniciar
+                {t("flows.restart")}
               </button>
             </div>
           </div>
@@ -297,7 +304,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
         <div className="mt-4 space-y-3">
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
             <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-            {step.branches?.length ? "Elige el camino" : "Continuar"}
+            {step.branches?.length ? t("flows.choosePath") : t("flows.continue")}
           </p>
 
           {step.branches && step.branches.length > 0 ? (
@@ -332,15 +339,15 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
               onClick={continueLinear}
               className="btn-primary w-full sm:w-auto"
             >
-              Siguiente paso
+              {t("flows.next")}
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-slate-400">Fin de este recorrido.</p>
+              <p className="text-sm text-slate-400">{t("flows.end")}</p>
               <button type="button" className="btn-primary" onClick={restart}>
                 <RotateCcw className="h-4 w-4" />
-                Ver de nuevo
+                {t("flows.replay")}
               </button>
             </div>
           )}
@@ -350,7 +357,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
         {trail.length > 1 && (
           <div className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-3">
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-              Tu camino
+              {t("flows.yourPath")}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
               {trail.map((id, i) => {
@@ -382,7 +389,7 @@ export function InteractiveFlow({ flow }: InteractiveFlowProps) {
         {!step.branches?.length && linearPath(flow).length > 1 && (
           <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-600">
             <GitBranch className="h-3 w-3" />
-            Tip: también puedes saltar a cualquier paso del recorrido de la izquierda.
+            {t("flows.jumpTip")}
           </p>
         )}
       </div>

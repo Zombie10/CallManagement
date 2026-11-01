@@ -150,6 +150,15 @@
     @apply overflow-hidden text-ellipsis;
   }
 
+  .data-table-controls th,
+  .data-table-controls td {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: normal;
+    vertical-align: middle;
+  }
+
   .data-table-detail th,
   .data-table-detail td {
     @apply align-top;
@@ -174,7 +183,7 @@
   }
 
   .select-trigger {
-    @apply inline-flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-3 py-2.5 text-sm text-slate-100 shadow-inner outline-none transition-all duration-300 hover:border-cyan-400/25 hover:from-white/[0.09] focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 disabled:cursor-not-allowed;
+    @apply inline-flex min-h-[44px] w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-3 py-2.5 text-sm text-slate-100 shadow-inner outline-none transition-all duration-300 hover:border-cyan-400/25 hover:from-white/[0.09] focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 disabled:cursor-not-allowed;
   }
 
   .select-trigger-sm {

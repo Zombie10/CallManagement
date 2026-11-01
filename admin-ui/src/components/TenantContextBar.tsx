@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import clsx from "clsx";
 import { Select } from "./Select";
 import { useTenant } from "../contexts/TenantContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
 
 const TENANT_SCOPED_ROLES = new Set(["super_admin", "admin", "playground", "viewer"]);
@@ -16,6 +17,7 @@ type Props = {
 
 export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
   const { tenant, tenantId, isSuperAdmin, setTenantId, loading } = useTenant();
+  const { t } = useUiLocale();
   const { data: tenantsList } = useQuery({
     queryKey: ["tenants"],
     queryFn: api.listTenants,
@@ -32,7 +34,7 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
   if (loading) {
     return (
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-slate-500">
-        Cargando empresa…
+        {t("tenant.loading")}
       </div>
     );
   }
@@ -59,7 +61,7 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-              Empresa activa
+              {t("tenant.active")}
             </p>
             {tenant ? (
               <p className="truncate font-medium text-slate-100">
@@ -67,11 +69,11 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
                 <span className="ml-2 font-mono text-xs font-normal text-slate-500">{tenant.slug}</span>
               </p>
             ) : (
-              <p className="text-sm text-amber-300">Ninguna empresa seleccionada</p>
+              <p className="text-sm text-amber-300">{t("tenant.none")}</p>
             )}
             {agentLabel && (
               <p className="truncate text-xs text-cyan-300/90">
-                Agente: <span className="font-medium">{agentLabel}</span>
+                {t("tenant.agent", { name: agentLabel })}
               </p>
             )}
           </div>
@@ -88,7 +90,7 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-              Empresa activa
+              {t("tenant.active")}
             </p>
             {tenant ? (
               <p className="truncate font-medium text-slate-100">
@@ -96,11 +98,11 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
                 <span className="ml-2 font-mono text-xs font-normal text-slate-500">{tenant.slug}</span>
               </p>
             ) : (
-              <p className="text-sm text-amber-300">Ninguna empresa seleccionada</p>
+              <p className="text-sm text-amber-300">{t("tenant.none")}</p>
             )}
             {agentLabel && (
               <p className="truncate text-xs text-cyan-300/90">
-                Agente: <span className="font-medium">{agentLabel}</span>
+                {t("tenant.agent", { name: agentLabel })}
               </p>
             )}
           </div>
@@ -111,21 +113,21 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
         {showTenantPicker && (
           <div className="w-full min-w-0 sm:w-56">
             <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-500 sm:sr-only">
-              Empresa activa
+              {t("tenant.active")}
             </p>
             <Select
               className="w-full"
               value={tenantId || ""}
               onChange={(id) => setTenantId(id || null)}
               options={tenantOptions}
-              placeholder="Cambiar empresa…"
+              placeholder={t("tenant.change")}
               size="sm"
             />
           </div>
         )}
         {isSuperAdmin && (
           <Link to="/tenants" className="btn-ghost w-full justify-center px-2 py-1.5 text-xs sm:w-auto">
-            Empresas
+            {t("tenant.companies")}
             <ChevronRight className="h-3 w-3" />
           </Link>
         )}
@@ -134,14 +136,14 @@ export function TenantContextBar({ emphasis = false, agentLabel }: Props) {
             to={isSuperAdmin ? "/tenants" : "/my-agents"}
             className="btn-primary w-full justify-center px-3 py-1.5 text-xs sm:w-auto"
           >
-            {isSuperAdmin ? "Elegir empresa" : "Configurar empresa"}
+            {isSuperAdmin ? t("tenant.pick") : t("tenant.setup")}
           </Link>
         )}
       </div>
 
       {showTenantPicker && agentLabel && (
         <p className="truncate text-xs text-cyan-300/90 sm:hidden">
-          Agente: <span className="font-medium">{agentLabel}</span>
+          {t("tenant.agent", { name: agentLabel })}
         </p>
       )}
     </div>

@@ -1,4 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { initialAdminLocale, translate, type AdminLocale } from "../lib/i18n";
+
+function panelLocale(): AdminLocale {
+  try {
+    return initialAdminLocale(localStorage.getItem("callmgmt.adminLocale"));
+  } catch {
+    return initialAdminLocale(null);
+  }
+}
 
 type Props = { children: ReactNode };
 type State = { error: Error | null };
@@ -16,13 +25,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      const locale = panelLocale();
       return (
         <div className="flex min-h-screen items-center justify-center p-6">
           <div className="glass-card max-w-lg p-8 text-center">
-            <h1 className="font-display text-xl font-semibold text-red-200">Error en el panel</h1>
+            <h1 className="font-display text-xl font-semibold text-red-200">
+              {translate("errors.panelTitle", locale)}
+            </h1>
             <p className="mt-3 text-sm text-slate-400">
-              Recarga la página con <kbd className="rounded bg-white/10 px-1.5 py-0.5">Ctrl+Shift+R</kbd> (o
-              Cmd+Shift+R en Mac) para limpiar caché.
+              {translate("errors.panelLead", locale)}{" "}
+              <kbd className="rounded bg-white/10 px-1.5 py-0.5">Ctrl+Shift+R</kbd>{" "}
+              {translate("errors.panelMac", locale)}
             </p>
             <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 font-mono text-xs text-red-300">
               {this.state.error.message}
@@ -32,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="btn-primary mt-6"
               onClick={() => window.location.reload()}
             >
-              Recargar
+              {translate("errors.reload", locale)}
             </button>
           </div>
         </div>

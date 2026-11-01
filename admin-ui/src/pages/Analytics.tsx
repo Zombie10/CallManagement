@@ -385,23 +385,49 @@ export function Analytics() {
             />
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-xs text-slate-500">{t("analytics.minDuration")}</span>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <label className="flex min-w-0 flex-col gap-1.5">
+              <span className="block text-xs leading-snug text-slate-500">{t("analytics.minDuration")}</span>
               <input
                 type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
                 className="input-field w-full"
                 value={filters.minDuration}
-                onChange={(e) => setFilters((f) => ({ ...f, minDuration: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
+                }}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next !== "" && !/^\d+$/.test(next)) {
+                    e.target.value = filters.minDuration;
+                    return;
+                  }
+                  setFilters((f) => ({ ...f, minDuration: next }));
+                }}
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-xs text-slate-500">{t("analytics.maxDuration")}</span>
+            <label className="flex min-w-0 flex-col gap-1.5">
+              <span className="block text-xs leading-snug text-slate-500">{t("analytics.maxDuration")}</span>
               <input
                 type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
                 className="input-field w-full"
                 value={filters.maxDuration}
-                onChange={(e) => setFilters((f) => ({ ...f, maxDuration: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
+                }}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next !== "" && !/^\d+$/.test(next)) {
+                    e.target.value = filters.maxDuration;
+                    return;
+                  }
+                  setFilters((f) => ({ ...f, maxDuration: next }));
+                }}
               />
             </label>
           </div>
@@ -417,9 +443,9 @@ export function Analytics() {
             </div>
             <div className="space-y-2">
               {filters.customFilters.map((cf, i) => (
-                <div key={i} className="flex flex-wrap gap-1 rounded-lg bg-white/[0.03] p-2">
+                <div key={i} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-1 rounded-lg bg-white/[0.03] p-2">
                   <Select
-                    className="w-28"
+                    className="min-w-0 w-full"
                     size="sm"
                     searchableFrom={0}
                     value={cf.field}
@@ -427,15 +453,22 @@ export function Analytics() {
                     options={FILTER_FIELDS.map((f) => ({ value: f.value, label: t(`analytics.field.${f.value}`) }))}
                   />
                   <Select
-                    className="w-24"
+                    className="min-w-0 w-full"
                     size="sm"
                     searchableFrom={0}
                     value={cf.op}
                     onChange={(op) => updateCustomFilter(i, { op })}
                     options={FILTER_OPS.map((o) => ({ value: o.value, label: t(`analytics.op.${o.value}`) }))}
                   />
+                  <button
+                    type="button"
+                    className="btn-ghost px-1 text-red-300"
+                    onClick={() => removeCustomFilter(i)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <input
-                    className="input-field min-w-0 flex-1 text-xs"
+                    className="input-field col-span-3 min-w-0 text-xs"
                     placeholder={t("analytics.valuePlaceholder")}
                     value={String(cf.value ?? "")}
                     onChange={(e) => {
@@ -451,13 +484,6 @@ export function Analytics() {
                       updateCustomFilter(i, { value: parsed });
                     }}
                   />
-                  <button
-                    type="button"
-                    className="btn-ghost px-1 text-red-300"
-                    onClick={() => removeCustomFilter(i)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
                 </div>
               ))}
             </div>
@@ -474,11 +500,11 @@ export function Analytics() {
               onChange={(v) => setFilters((f) => ({ ...f, groupBy: v as ReportFiltersState["groupBy"] }))}
               options={dimensionOptions}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-[10px] text-slate-500">{t("analytics.pivotRows")}</span>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="min-w-0">
+                <span className="mb-1 block text-[10px] leading-snug text-slate-500">{t("analytics.pivotRows")}</span>
                 <Select
-                  className="w-full"
+                  className="w-full min-w-0"
                   size="sm"
                   value={filters.pivotRow}
                   onChange={(v) =>
@@ -487,10 +513,10 @@ export function Analytics() {
                   options={dimensionOptions}
                 />
               </div>
-              <div>
-                <span className="text-[10px] text-slate-500">{t("analytics.pivotCols")}</span>
+              <div className="min-w-0">
+                <span className="mb-1 block text-[10px] leading-snug text-slate-500">{t("analytics.pivotCols")}</span>
                 <Select
-                  className="w-full"
+                  className="w-full min-w-0"
                   size="sm"
                   value={filters.pivotCol}
                   onChange={(v) =>

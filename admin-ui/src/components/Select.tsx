@@ -1,6 +1,7 @@
 import { ChevronDown, Check, Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { FloatingPortal } from "./FloatingPortal";
 
 export type SelectOption = {
@@ -25,7 +26,7 @@ export function Select({
   value,
   onChange,
   options,
-  placeholder = "Seleccionar…",
+  placeholder,
   disabled = false,
   className,
   size = "md",
@@ -38,6 +39,8 @@ export function Select({
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
+  const { t } = useUiLocale();
+  const prompt = placeholder ?? t("filters.choose");
   const selected = options.find((o) => o.value === value);
   const showSearch = searchableFrom > 0 && options.length >= searchableFrom;
 
@@ -80,7 +83,7 @@ export function Select({
         onClick={() => !disabled && setOpen((v) => !v)}
       >
         <span className={clsx("min-w-0 truncate", !selected && "text-slate-500")}>
-          {selected?.label || placeholder}
+          {selected?.label || prompt}
         </span>
         <ChevronDown
           className={clsx(
@@ -108,7 +111,7 @@ export function Select({
               <input
                 ref={searchRef}
                 className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 pl-8 pr-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
-                placeholder="Buscar…"
+                placeholder={t("filters.search")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.stopPropagation()}
@@ -143,7 +146,7 @@ export function Select({
             );
           })}
           {filtered.length === 0 && (
-            <li className="px-3 py-4 text-center text-xs text-slate-500">Sin resultados</li>
+            <li className="px-3 py-4 text-center text-xs text-slate-500">{t("filters.noResults")}</li>
           )}
         </ul>
       </FloatingPortal>

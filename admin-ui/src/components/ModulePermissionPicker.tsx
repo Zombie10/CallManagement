@@ -1,7 +1,16 @@
 import { useMemo } from "react";
 import type { AdminModule, AdminRole } from "../lib/api";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { defaultModulesForRole, modulesForRole } from "../lib/permissions";
 import clsx from "clsx";
+
+function catalogLabel(t: (key: string) => string, keys: string[], fallback: string) {
+  for (const key of keys) {
+    const label = t(key);
+    if (label !== key) return label;
+  }
+  return fallback;
+}
 
 type Props = {
   role: AdminRole;
@@ -26,6 +35,7 @@ export function ModulePermissionPicker({
   onSelectedChange,
   disabled,
 }: Props) {
+  const { t } = useUiLocale();
   const available = useMemo(
     () => modulesForRole(role, catalog, roleCeilings),
     [role, catalog, roleCeilings],
@@ -51,10 +61,12 @@ export function ModulePermissionPicker({
     onCustomChange(false);
   };
 
+  const roleName = catalogLabel(t, [`profile.role.${role}`], role);
+
   return (
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-200">Módulos permitidos</p>
+        <p className="text-sm font-medium text-slate-200">{t("users.modulesAllowed")}</p>
         <div className="flex gap-2 text-xs">
           <button
             type="button"
@@ -65,7 +77,7 @@ export function ModulePermissionPicker({
             disabled={disabled}
             onClick={applyRoleDefaults}
           >
-            Todos del rol
+            {t("users.roleDefaults")}
           </button>
           <button
             type="button"
@@ -79,7 +91,7 @@ export function ModulePermissionPicker({
               if (!selected.length) onSelectedChange(defaultModulesForRole(role, roleDefaults));
             }}
           >
-            Personalizado
+            {t("users.custom")}
           </button>
         </div>
       </div>
@@ -89,7 +101,7 @@ export function ModulePermissionPicker({
           {byCategory.map(([category, mods]) => (
             <div key={category}>
               <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {category}
+                {catalogLabel(t, [`users.category.${category}`], category)}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {mods.map((m) => (
@@ -105,22 +117,24 @@ export function ModulePermissionPicker({
                         : "bg-white/5 text-slate-400 hover:bg-white/10",
                     )}
                   >
-                    {m.label}
+                    {catalogLabel(t, [`nav.${m.id}`, `users.module.${m.id}`], m.label)}
                   </button>
                 ))}
               </div>
             </div>
           ))}
           {!selected.length && (
-            <p className="text-xs text-amber-200">Selecciona al menos un módulo</p>
+            <p className="text-xs text-amber-200">{t("users.pickModule")}</p>
           )}
         </div>
       )}
 
       {!custom && (
         <p className="text-xs text-slate-500">
-          Acceso completo según rol <strong className="text-slate-400">{role}</strong> (
-          {defaultModulesForRole(role, roleDefaults).length} módulos)
+          {t("users.fullAccess", {
+            role: roleName,
+            count: defaultModulesForRole(role, roleDefaults).length,
+          })}
         </p>
       )}
     </div>

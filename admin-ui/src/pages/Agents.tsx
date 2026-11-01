@@ -98,7 +98,7 @@ function AgentEditor({
   onDelete?: () => void;
   saving: boolean;
 }) {
-  const { locale } = useUiLocale();
+  const { locale, t } = useUiLocale();
   const [genderFilter, setGenderFilter] = useState("");
   const [ageFilter, setAgeFilter] = useState("");
   const [langFilter, setLangFilter] = useState("");
@@ -146,12 +146,10 @@ function AgentEditor({
           </div>
           <div>
             <h2 className="font-display text-2xl font-semibold tracking-tight">
-              {isNew ? "Nuevo agente" : draft.display_name || draft.name}
+              {isNew ? t("agents.new") : draft.display_name || draft.name}
             </h2>
             <p className="mt-0.5 text-sm text-slate-400">
-              {isNew
-                ? "Configura voz, idioma, herramientas e instrucciones"
-                : draft.name}
+              {isNew ? t("agents.configure") : draft.name}
             </p>
           </div>
         </div>
@@ -173,18 +171,18 @@ function AgentEditor({
           </label>
         )}
         <label className="space-y-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Nombre</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("agents.name")}</span>
           <input
-            className="input-field"
+            className="input-field min-w-0"
             value={draft.display_name || ""}
             onChange={(e) => onChange({ ...draft, display_name: e.target.value })}
-            placeholder="Nombre visible"
+            placeholder={t("agents.namePlaceholder")}
           />
         </label>
         <label className="space-y-1.5">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
             <Mic className="mr-1 inline h-3 w-3" />
-            Proveedor
+            {t("agents.provider")}
           </span>
           <Select
             value={draft.provider || "xai"}
@@ -199,7 +197,7 @@ function AgentEditor({
         <label className="space-y-1.5">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
             <Globe className="mr-1 inline h-3 w-3" />
-            Idioma (texto / LLM)
+            {t("agents.textLocale")}
           </span>
           <Select
             value={draft.locale || "es"}
@@ -218,7 +216,7 @@ function AgentEditor({
             onChange={(e) => onChange({ ...draft, enabled: e.target.checked })}
             className="h-4 w-4 rounded border-white/20 bg-surface-800 text-cyan-500"
           />
-          <span className="text-sm text-slate-300">Agente activo</span>
+          <span className="text-sm text-slate-300">{t("agents.active")}</span>
         </label>
       </div>
 
@@ -227,22 +225,21 @@ function AgentEditor({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-                <Mic className="h-4 w-4 text-cyan-400" /> Voces xAI (Speech / TTS)
+                <Mic className="h-4 w-4 text-cyan-400" /> {t("agents.voicesTitle")}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Voces oficiales de xAI (Grok Voice). Selecciona una y escucha una muestra TTS en el idioma elegido.
-              </p>
+              <p className="mt-1 text-xs text-slate-500">{t("agents.voicesHint")}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex min-w-[14rem] flex-col gap-1 text-xs text-slate-400">
-                Idioma de voz (ASR / muestra)
+            <div className="grid w-full min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,16rem)_auto]">
+              <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-400">
+                {t("agents.voiceLanguage")}
                 <Select
+                  className="w-full min-w-0"
                   value={voiceLanguage}
                   onChange={(voice_language) => onChange({ ...draft, voice_language })}
                   options={[
                     {
                       value: "",
-                      label: `Heredar de locale (${draft.locale})`,
+                      label: t("agents.inheritLocale", { locale: draft.locale || "es" }),
                     },
                     ...(catalog.voice_language_options || []).map((opt) => ({
                       value: opt.code,
@@ -258,8 +255,8 @@ function AgentEditor({
                     language={previewLanguage}
                     label={
                       selectedVoice
-                        ? `Escuchar ${selectedVoice.name}`
-                        : "Probar voz"
+                        ? t("agents.listenName", { name: selectedVoice.name })
+                        : t("agents.previewVoice")
                     }
                   />
                 </div>
@@ -271,59 +268,59 @@ function AgentEditor({
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-500/5 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-cyan-50">
-                  Seleccionada: {selectedVoice.name}
+                  {t("agents.selected", { name: selectedVoice.name })}
                   <span className="ml-2 text-xs font-normal text-cyan-200/70">
                     {selectedVoice.tone}
                   </span>
                 </p>
                 <p className="mt-0.5 text-xs text-slate-400">
-                  Muestra en{" "}
-                  <span className="text-slate-300">
-                    {(catalog.voice_language_options || []).find((o) => o.code === previewLanguage)
-                      ?.label || previewLanguage}
-                  </span>
+                  {t("agents.sampleIn", {
+                    language:
+                      (catalog.voice_language_options || []).find((o) => o.code === previewLanguage)
+                        ?.label || previewLanguage,
+                  })}
                 </p>
               </div>
               <VoicePreviewButton voiceId={selectedVoice.id} language={previewLanguage} />
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Select
-              className="w-40"
+              className="w-full min-w-0"
               size="sm"
               value={genderFilter}
               onChange={setGenderFilter}
               searchableFrom={0}
               options={[
-                { value: "", label: "Género: todos" },
+                { value: "", label: t("agents.genderAll") },
                 ...(catalog.gender_options || []).map((g) => ({
                   value: g,
-                  label: GENDER_LABELS[g] || g,
+                  label: t(`agents.gender.${g}`) === `agents.gender.${g}` ? GENDER_LABELS[g] || g : t(`agents.gender.${g}`),
                 })),
               ]}
             />
             <Select
-              className="w-40"
+              className="w-full min-w-0"
               size="sm"
               value={ageFilter}
               onChange={setAgeFilter}
               searchableFrom={0}
               options={[
-                { value: "", label: "Edad: todas" },
+                { value: "", label: t("agents.ageAll") },
                 ...(catalog.age_group_options || []).map((a) => ({
                   value: a,
-                  label: a === "adult" ? "Adulto" : a,
+                  label: a === "adult" ? t("agents.age.adult") : a,
                 })),
               ]}
             />
             <Select
-              className="w-48"
+              className="w-full min-w-0"
               size="sm"
               value={langFilter}
               onChange={setLangFilter}
               options={[
-                { value: "", label: "Idioma voz: todos" },
+                { value: "", label: t("agents.voiceLangAll") },
                 ...(catalog.voice_language_options || []).map((opt) => ({
                   value: opt.code,
                   label: opt.label,
@@ -353,7 +350,11 @@ function AgentEditor({
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-base font-medium text-slate-100">{v.name}</span>
                       <span className="text-xs text-slate-500">
-                        {GENDER_LABELS[v.gender] || v.gender}
+                        {(() => {
+                          const key = `agents.gender.${v.gender}`;
+                          const label = t(key);
+                          return label === key ? GENDER_LABELS[v.gender] || v.gender : label;
+                        })()}
                       </span>
                     </div>
                     <p className="mt-1.5 text-sm text-cyan-300/85">{v.tone}</p>
@@ -386,7 +387,7 @@ function AgentEditor({
                       compact
                       voiceId={v.id}
                       language={previewLanguage}
-                      label="Escuchar"
+                      label={t("agents.listen")}
                     />
                   </div>
                 </div>
@@ -394,7 +395,7 @@ function AgentEditor({
             })}
             {!filteredVoices.length && (
               <p className="col-span-full text-sm text-slate-500">
-                Ninguna voz coincide con los filtros.
+                {t("agents.noVoices")}
               </p>
             )}
           </div>
@@ -409,11 +410,9 @@ function AgentEditor({
 
       <div>
         <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-          <ArrowRightLeft className="h-3 w-3" /> Function Tools — Handoffs & CRM
+          <ArrowRightLeft className="h-3 w-3" /> {t("agents.functionTools")}
         </p>
-        <p className="mb-2 text-xs text-slate-500">
-          Transferencias entre agentes y acciones CRM. Requeridos para redireccionar en texto y voz.
-        </p>
+        <p className="mb-2 text-xs text-slate-500">{t("agents.functionToolsHint")}</p>
         <div className="flex flex-wrap gap-2">
           {(catalog.function_tool_catalog || []).map((tool) => {
             const active = (draft.function_tools || []).includes(tool.id);
@@ -437,7 +436,7 @@ function AgentEditor({
 
       <div>
         <p className="mb-2 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-          <Wrench className="h-3 w-3" /> xAI Built-in Tools
+          <Wrench className="h-3 w-3" /> {t("agents.builtinTools")}
         </p>
         <div className="flex flex-wrap gap-2">
           {catalog.available_tools.map((tool) => {
@@ -466,7 +465,7 @@ function AgentEditor({
         </p>
         {mcpServerIds.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No hay servidores MCP configurados. Añádelos en Configuración → Remote MCP.
+            {t("agents.mcpEmpty")}
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -494,15 +493,15 @@ function AgentEditor({
       <div className="flex flex-wrap gap-2 border-t border-white/5 pt-4">
         <button type="button" onClick={onSave} disabled={saving} className="btn-primary">
           <Save className="h-4 w-4" />
-          {saving ? "Guardando..." : "Guardar"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
         <button type="button" onClick={onCancel} className="btn-ghost">
-          Cancelar
+          {t("common.cancel")}
         </button>
         {!isNew && !isProtected && onDelete && (
           <button type="button" onClick={onDelete} className="btn-ghost ml-auto text-red-400 hover:text-red-300">
             <Trash2 className="h-4 w-4" />
-            Eliminar
+            {t("common.delete")}
           </button>
         )}
       </div>
@@ -511,7 +510,7 @@ function AgentEditor({
 }
 
 export function Agents() {
-  const { locale } = useUiLocale();
+  const { locale, t } = useUiLocale();
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["agents"], queryFn: api.agents });
   const [editing, setEditing] = useState<string | null>(null);
@@ -570,7 +569,7 @@ export function Agents() {
   };
 
   if (isLoading || !data) {
-    return <div className="glass-card p-8 text-slate-400">Cargando agentes...</div>;
+    return <div className="glass-card p-8 text-slate-400">{t("agents.loading")}</div>;
   }
 
   const { catalog, mcp_server_ids: mcpServerIds } = data;
@@ -584,10 +583,8 @@ export function Agents() {
     return (
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <header>
-          <h1 className="font-display text-3xl font-semibold">Agentes & Tools</h1>
-          <p className="mt-1 text-slate-400">
-            Voz xAI, instrucciones, handoffs, tools y MCP por agente
-          </p>
+          <h1 className="font-display text-3xl font-semibold">{t("agents.pageTitle")}</h1>
+          <p className="mt-1 text-slate-400">{t("agents.editorSubtitle")}</p>
         </header>
         <AgentEditor
           draft={draft}
@@ -611,7 +608,7 @@ export function Agents() {
           onDelete={
             !isNew && !catalog.protected_agents.includes(name)
               ? () => {
-                  if (confirm(`¿Eliminar agente "${name}"?`)) {
+                  if (confirm(t("agents.confirmDelete", { name }))) {
                     deleteMutation.mutate(name);
                   }
                 }
@@ -631,14 +628,12 @@ export function Agents() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Agentes & Tools</h1>
-          <p className="mt-1 text-slate-400">
-            Perfiles de voz, instrucciones, handoffs, xAI tools y MCP
-          </p>
+          <h1 className="font-display text-3xl font-semibold">{t("agents.pageTitle")}</h1>
+          <p className="mt-1 text-slate-400">{t("agents.pageSubtitle")}</p>
         </div>
         <button type="button" onClick={startCreate} className="btn-primary">
           <Plus className="h-4 w-4" />
-          Nuevo agente
+          {t("agents.new")}
         </button>
       </header>
 
@@ -666,7 +661,7 @@ export function Agents() {
                       ` · ${voiceEntry?.name || profile.voice}`}
                     {" · "}
                     {localeLabel(profile.locale)}
-                    {profile.has_custom_instructions && " · instrucciones custom"}
+                    {profile.has_custom_instructions && ` · ${t("agents.customMark")}`}
                   </p>
                 </div>
                 {!profile.enabled && (
@@ -677,7 +672,7 @@ export function Agents() {
               <div className="space-y-3 text-sm">
                 <div>
                   <p className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-slate-500">
-                    <ArrowRightLeft className="h-3 w-3" /> Handoffs
+                    <ArrowRightLeft className="h-3 w-3" /> {t("agents.handoffs")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {(profile.function_tools || [])

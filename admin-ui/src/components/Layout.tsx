@@ -44,7 +44,7 @@ const ALL_NAV: Array<{ to: string; icon: typeof LayoutDashboard; module: string 
   { to: "/users", icon: Users, module: "users" },
 ];
 
-function LanguageSwitch() {
+export function LanguageSwitch() {
   const { locale, setLocale, t } = useUiLocale();
   const choice = (id: AdminLocale, label: string) => (
     <button

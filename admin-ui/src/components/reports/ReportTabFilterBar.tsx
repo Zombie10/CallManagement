@@ -5,6 +5,7 @@ import { Select } from "../Select";
 import type { CustomReportFilter } from "../../lib/api";
 import { CHANNEL_FILTER_OPTIONS } from "../../lib/reportDisplay";
 import type { ReportFiltersState } from "../../lib/reports";
+import { useUiLocale } from "../../contexts/LocaleContext";
 import clsx from "clsx";
 
 type Option = { value: string; label: string };
@@ -47,7 +48,8 @@ function PillToggle({
   const toggle = (v: string) => {
     onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   };
-  if (!options.length) return <span className="text-xs text-slate-600">Sin opciones</span>;
+  const { t } = useUiLocale();
+  if (!options.length) return <span className="text-xs text-slate-600">{t("analytics.noOptions")}</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {visible.map((o) => (
@@ -83,6 +85,7 @@ export function ReportTabFilterBar({
   dimensionOptions = [],
   resultLabel,
 }: Props) {
+  const { t } = useUiLocale();
   const active = countActive(filters);
 
   const clearQuick = () => {
@@ -100,33 +103,33 @@ export function ReportTabFilterBar({
 
   return (
     <div className="glass-card space-y-3 p-3 sm:p-4">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto]">
         <DateField
-          className="w-[10.5rem]"
-          label="Desde"
+          className="min-w-0 w-full"
+          label={t("analytics.from")}
           value={filters.dateFrom}
           onChange={(dateFrom) => setFilters((f) => ({ ...f, dateFrom }))}
         />
         <DateField
-          className="w-[10.5rem]"
-          label="Hasta"
+          className="min-w-0 w-full"
+          label={t("analytics.to")}
           value={filters.dateTo}
           onChange={(dateTo) => setFilters((f) => ({ ...f, dateTo }))}
         />
-        <label className="min-w-[8rem] flex-1 space-y-1">
-          <span className="text-[10px] text-slate-500">Teléfono origen</span>
+        <label className="min-w-0 space-y-1">
+          <span className="text-[10px] text-slate-500">{t("analytics.fromContains")}</span>
           <input
-            className="input-field text-xs"
+            className="input-field min-w-0 text-xs"
             placeholder="+502…"
             value={filters.fromNumber}
             onChange={(e) => setFilters((f) => ({ ...f, fromNumber: e.target.value }))}
           />
         </label>
         {showGroupBy && dimensionOptions.length > 0 && (
-          <label className="space-y-1">
-            <span className="text-[10px] text-slate-500">Agrupar por</span>
+          <label className="min-w-0 space-y-1">
+            <span className="text-[10px] text-slate-500">{t("report.groupBy")}</span>
             <Select
-              className="w-36"
+              className="w-full min-w-0"
               size="sm"
               value={filters.groupBy}
               onChange={(v) => setFilters((f) => ({ ...f, groupBy: v as ReportFiltersState["groupBy"] }))}
@@ -136,19 +139,19 @@ export function ReportTabFilterBar({
         )}
         <button type="button" className="btn-primary text-xs" disabled={isFetching} onClick={onApply}>
           {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Aplicar
+          {t("report.apply")}
         </button>
         {active > 0 && (
           <button type="button" className="btn-ghost text-xs" onClick={clearQuick}>
             <X className="h-3.5 w-3.5" />
-            Limpiar
+            {t("filters.clear")}
           </button>
         )}
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">Outcomes</p>
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("report.outcomes")}</p>
           <PillToggle
             options={outcomeOptions}
             selected={filters.outcomes}
@@ -156,7 +159,7 @@ export function ReportTabFilterBar({
           />
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">Agentes</p>
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("analytics.agents")}</p>
           <PillToggle
             options={agentOptions}
             selected={filters.agentIds}
@@ -165,7 +168,7 @@ export function ReportTabFilterBar({
           />
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">Canales</p>
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">{t("analytics.channels")}</p>
           <PillToggle
             options={CHANNEL_FILTER_OPTIONS}
             selected={filters.channels}

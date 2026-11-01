@@ -13,11 +13,15 @@ import {
 import clsx from "clsx";
 import { normalizeAppPath } from "../lib/paths";
 import { AppLogoMark } from "../components/AppLogo";
+import { LanguageSwitch } from "../components/Layout";
+import { useUiLocale } from "../contexts/LocaleContext";
+import { initialAdminLocale, translate } from "../lib/i18n";
 
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { refresh } = useAuth();
+  const { t } = useUiLocale();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +41,7 @@ export function Login() {
       );
       navigate(target, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo validar la sesión");
+      setError(err instanceof Error ? err.message : t("login.sessionInvalid"));
     } finally {
       setSubmitting(false);
     }
@@ -56,12 +60,12 @@ export function Login() {
 
   const passkeyLogin = useMutation({
     mutationFn: async () => {
-      if (!canPasskey) throw new Error("Passkeys no disponibles en este navegador");
+      if (!canPasskey) throw new Error(t("login.passkeyUnavailable"));
       const { challenge_id, options } = await api.passkeyLoginOptions(username || undefined);
       const credential = (await navigator.credentials.get({
         publicKey: prepareRequestOptions(options),
       })) as PublicKeyCredential | null;
-      if (!credential) throw new Error("Inicio con passkey cancelado");
+      if (!credential) throw new Error(t("login.passkeyCancelled"));
       return api.passkeyLoginVerify(challenge_id, credentialToJSON(credential));
     },
     onSuccess: (data) => {
@@ -87,7 +91,10 @@ export function Login() {
             <AppLogoMark size="xl" className="shadow-glow-lg" />
           </div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Call Management</h1>
-          <p className="mt-2 text-sm text-slate-400">Acceso seguro al panel de administración</p>
+          <p className="mt-2 text-sm text-slate-400">{t("login.subtitle")}</p>
+          <div className="mt-4 flex justify-center">
+            <LanguageSwitch />
+          </div>
         </div>
 
         <div className="glass-card-elevated p-6 sm:p-8">
@@ -116,12 +123,12 @@ export function Login() {
               onClick={() => setMode("password")}
             >
               <KeyRound className="mr-1.5 inline h-4 w-4" />
-              Contraseña
+              {t("login.passwordTab")}
             </button>
           </div>
 
           <label className="mb-4 block space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Usuario</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("login.username")}</span>
             <input
               className="input-field"
               value={username}
@@ -133,7 +140,7 @@ export function Login() {
 
           {mode === "password" && (
             <label className="mb-6 block space-y-1.5 animate-fade-in">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Contraseña</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{t("login.password")}</span>
               <input
                 className="input-field"
                 type="password"
@@ -164,7 +171,7 @@ export function Login() {
               }}
             >
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Fingerprint className="h-5 w-5" />}
-              {busy ? "Entrando…" : "Entrar con huella / Face ID"}
+              {busy ? t("login.entering") : t("login.passkeyEnter")}
             </button>
           ) : (
             <button
@@ -178,13 +185,13 @@ export function Login() {
               }}
             >
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-5 w-5" />}
-              {busy ? "Entrando…" : "Iniciar sesión"}
+              {busy ? t("login.entering") : t("login.signIn")}
             </button>
           )}
 
           {!canPasskey && mode === "passkey" && (
             <p className="mt-3 text-center text-xs text-amber-300/90">
-              Passkeys requieren HTTPS o localhost en un navegador compatible.
+              {t("login.passkeyNeedHttps")}
             </p>
           )}
 
@@ -220,6 +227,11 @@ export async function registerPasskey(deviceName: string): Promise<void> {
   const credential = (await navigator.credentials.create({
     publicKey: prepareCreationOptions(options),
   })) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Registro cancelado");
+  if (!credential) {
+    const locale = initialAdminLocale(
+      typeof localStorage === "undefined" ? null : localStorage.getItem("callmgmt.adminLocale"),
+    );
+    throw new Error(translate("login.passkeyRegisterCancelled", locale));
+  }
   await api.passkeyRegisterVerify(challenge_id, credentialToJSON(credential), deviceName);
 }

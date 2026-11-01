@@ -1,5 +1,6 @@
 import { ModulePermissionPicker } from "./ModulePermissionPicker";
 import type { AdminModule, AdminRole } from "../lib/api";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { useEffect, useState } from "react";
 
 type UserPermissionEditorProps = {
@@ -23,6 +24,7 @@ export function UserPermissionEditor({
   onSave,
   onClose,
 }: UserPermissionEditorProps) {
+  const { t } = useUiLocale();
   const [custom, setCustom] = useState(!!modules?.length);
   const [selected, setSelected] = useState(modules?.length ? modules : roleDefaults[role] || []);
 
@@ -51,10 +53,10 @@ export function UserPermissionEditor({
           disabled={busy || (custom && !selected.length)}
           onClick={() => onSave(custom ? selected : null)}
         >
-          Guardar permisos
+          {t("users.savePermissions")}
         </button>
         <button type="button" className="btn-ghost text-sm" onClick={onClose}>
-          Cerrar
+          {t("users.close")}
         </button>
       </div>
     </div>
