@@ -682,6 +682,117 @@ assert(pathSegmentLabel("campaigns", "es") === translate("nav.campaigns", "es"),
 assert(pathSegmentLabel("campaigns", "en") === translate("nav.campaigns", "en"), "campaign crumb en");
 assert(DEFAULT_ADMIN_LOCALE === "es", "campaign default locale");
 
+const OLD_ORBIT = "M25.4 10.2A12 12 0 1 0 25.4 29.8";
+const HEADSET = "M11 22.4v-3.2a9 9 0 0 1 18 0v3.2";
+const logo = source("../admin-ui/src/components/AppLogo.tsx");
+const favicon = source("../admin-ui/public/favicon.svg");
+const indexHtml = source("../admin-ui/index.html");
+const login = source("../admin-ui/src/pages/Login.tsx");
+const profile = source("../admin-ui/src/pages/Profile.tsx");
+const shell = source("../admin-ui/src/components/Layout.tsx");
+
+function drawingPaths(text) {
+  return [...text.matchAll(/\bd="([^"]+)"/g)].map((match) => match[1]);
+}
+
+function markBoxes(text) {
+  return [...text.matchAll(/<(?:rect|circle)\b([^>]*?)\/?>/g)]
+    .map((match) => {
+      const attrs = Object.fromEntries(
+        [...match[1].matchAll(/([\w:-]+)="([^"]+)"/g)].map((attr) => [attr[1], attr[2]]),
+      );
+      return ["x", "y", "width", "height", "rx", "cx", "cy", "r"]
+        .filter((key) => attrs[key] != null)
+        .map((key) => `${key}=${attrs[key]}`)
+        .join(",");
+    })
+    .filter((box) => box && !box.includes("width=64"));
+}
+
+const logoPaths = drawingPaths(logo);
+const iconPaths = drawingPaths(favicon);
+assert(logoPaths.length > 0 && logoPaths.join("|") === iconPaths.join("|"), "shared glyph paths");
+assert(markBoxes(logo).join("|") === markBoxes(favicon).join("|"), "shared glyph boxes");
+assert(logo.includes(HEADSET) && favicon.includes(HEADSET), "headset glyph");
+assert(!logo.includes(OLD_ORBIT) && !favicon.includes(OLD_ORBIT), "old orbit");
+assert(indexHtml.includes('rel="icon"') && indexHtml.includes("%BASE_URL%favicon.svg"), "favicon link");
+assert(login.includes("<AppLogoMark"), "login mark");
+assert(logo.includes("<AppLogoMark"), "in-app mark");
+assert(shell.includes("<AppLogo"), "shell mark");
+assert(shell.includes('subtitle={t("layout.subtitle")}'), "localized subtitle");
+
+const profileKeys = [
+  "layout.subtitle",
+  "profile.title",
+  "profile.subtitle",
+  "profile.role.admin",
+  "profile.role.playground",
+  "profile.role.viewer",
+  "profile.role.super_admin",
+  "profile.displayName",
+  "profile.save",
+  "profile.saved",
+  "profile.changePassword",
+  "profile.currentPassword",
+  "profile.newPassword",
+  "profile.updatePassword",
+  "profile.passwordChanged",
+  "profile.passkeys",
+  "profile.passkeyHint",
+  "profile.registered",
+  "profile.confirmDelete",
+  "profile.passkeyRemoved",
+  "profile.noPasskeys",
+  "profile.addPasskey",
+  "profile.passkeyAdded",
+  "profile.deviceApple",
+  "profile.deviceOther",
+];
+for (const key of profileKeys) {
+  assert(key in CATALOG.es && key in CATALOG.en, key);
+  assert(translate(key, "es") !== translate(key, "en"), `${key} locale`);
+  assert(translate(key, "es") !== key && translate(key, "en") !== key, `${key} raw`);
+}
+for (const key of profileKeys) {
+  if (key === "layout.subtitle") continue;
+  assert(
+    profile.includes(`t("${key}")`) || profile.includes(`t("${key}",`),
+    `profile ${key}`,
+  );
+}
+for (const hardcoded of [
+  "Mi perfil",
+  "Guardar perfil",
+  "Cambiar contraseña",
+  "Passkeys (huella / Face ID)",
+]) {
+  assert(!profile.includes(hardcoded), `hardcoded ${hardcoded}`);
+}
+assert(profile.includes("useUiLocale"), "profile locale helper");
+assert(profile.includes("api.updateProfile"), "profile save api");
+assert(profile.includes("api.changePassword"), "profile password api");
+assert(profile.includes("registerPasskey"), "profile passkey api");
+assert(profile.includes("api.deletePasskey"), "profile delete api");
+assert(profile.includes("user.username"), "profile username");
+
+const narrowAt = shell.indexOf("md:hidden");
+assert(narrowAt > 0, "narrow nav");
+const wideShell = shell.slice(0, narrowAt);
+const narrowShell = shell.slice(narrowAt);
+assert(wideShell.includes('to="/profile"') && wideShell.includes("display_name"), "wide profile link");
+assert(narrowShell.includes('to="/profile"') && narrowShell.includes("display_name"), "narrow profile link");
+assert(narrowShell.includes("<AppLogoMark"), "narrow mark");
+assert(profile.includes("formatAdminDay"), "profile day format");
+assert(!profile.includes("toLocaleDateString"), "profile locale date");
+for (const banned of ["SIP_TRUNK_ID", "LIVEKIT_", "systemctl", ".env", "wss://", "localhost"]) {
+  assert(!profile.includes(banned), `profile ${banned}`);
+  assert(!shell.includes(banned), `shell ${banned}`);
+}
+
+console.log(HEADSET);
+console.log(translate("profile.title", "es"));
+console.log(translate("profile.title", "en"));
+console.log(translate("layout.subtitle", "es"));
 console.log(when);
 console.log(supportUs);
 console.log(reception);

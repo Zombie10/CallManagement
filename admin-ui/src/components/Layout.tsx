@@ -23,7 +23,7 @@ import { useUiLocale } from "../contexts/LocaleContext";
 import { shouldShowTenantBar, TenantContextBar } from "./TenantContextBar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { moduleAllowed } from "../lib/permissions";
-import { AppLogo } from "./AppLogo";
+import { AppLogo, AppLogoMark } from "./AppLogo";
 import type { AdminLocale } from "../lib/i18n";
 
 const ALL_NAV: Array<{ to: string; icon: typeof LayoutDashboard; module: string }> = [
@@ -80,7 +80,7 @@ export function Layout() {
     <div className="mx-auto flex min-h-dvh max-w-[1600px] gap-4 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:gap-6 md:p-6">
       <aside className="glass-card animate-fade-in hidden w-64 shrink-0 flex-col p-4 md:flex">
         <div className="mb-8 px-2">
-          <AppLogo size="md" subtitle="Admin Console" />
+          <AppLogo size="md" subtitle={t("layout.subtitle")} />
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {nav.map(({ to, icon: Icon, module }) => (
@@ -119,7 +119,17 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden">
-        <nav className="glass-card flex gap-1 overflow-x-auto p-2 md:hidden">
+        <nav className="glass-card flex items-center gap-1 overflow-x-auto p-2 md:hidden">
+          <AppLogoMark size="sm" className="mr-1" />
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              clsx("nav-item shrink-0 text-xs", isActive && "nav-item-active")
+            }
+          >
+            <UserCircle className="h-4 w-4" />
+            <span className="max-w-[9rem] truncate">{user?.display_name}</span>
+          </NavLink>
           <LanguageSwitch />
           {nav.map(({ to, icon: Icon, module }) => (
             <NavLink

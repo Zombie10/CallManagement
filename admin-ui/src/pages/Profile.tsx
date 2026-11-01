@@ -2,17 +2,14 @@ import { useMutation } from "@tanstack/react-query";
 import { Fingerprint, KeyRound, Loader2, Shield, Trash2, UserCircle } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useUiLocale } from "../contexts/LocaleContext";
 import { api } from "../lib/api";
+import { formatAdminDay } from "../lib/formatDateTime";
 import { registerPasskey } from "./Login";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador",
-  playground: "Probar agente",
-  viewer: "Solo lectura",
-};
 
 export function Profile() {
   const { user, refresh } = useAuth();
+  const { t } = useUiLocale();
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -22,7 +19,7 @@ export function Profile() {
   const saveProfile = useMutation({
     mutationFn: () => api.updateProfile(displayName.trim()),
     onSuccess: async () => {
-      setMessage("Perfil actualizado");
+      setMessage(t("profile.saved"));
       setError(null);
       await refresh();
     },
@@ -32,7 +29,7 @@ export function Profile() {
   const changePassword = useMutation({
     mutationFn: () => api.changePassword(currentPassword, newPassword),
     onSuccess: () => {
-      setMessage("Contraseña cambiada");
+      setMessage(t("profile.passwordChanged"));
       setError(null);
       setCurrentPassword("");
       setNewPassword("");
@@ -42,14 +39,11 @@ export function Profile() {
 
   const addPasskey = useMutation({
     mutationFn: async () => {
-      const name =
-        typeof window !== "undefined" && /iPhone|iPad|Mac/.test(navigator.userAgent)
-          ? "Face ID / Touch ID"
-          : "Huella / Passkey";
-      await registerPasskey(name);
+      const apple = typeof window !== "undefined" && /iPhone|iPad|Mac/.test(navigator.userAgent);
+      await registerPasskey(apple ? t("profile.deviceApple") : t("profile.deviceOther"));
     },
     onSuccess: async () => {
-      setMessage("Passkey registrado");
+      setMessage(t("profile.passkeyAdded"));
       setError(null);
       await refresh();
     },
@@ -59,7 +53,7 @@ export function Profile() {
   const removePasskey = useMutation({
     mutationFn: (id: string) => api.deletePasskey(id),
     onSuccess: async () => {
-      setMessage("Passkey eliminado");
+      setMessage(t("profile.passkeyRemoved"));
       setError(null);
       await refresh();
     },
@@ -68,11 +62,22 @@ export function Profile() {
 
   if (!user) return null;
 
+  const roleLabel =
+    user.role === "admin"
+      ? t("profile.role.admin")
+      : user.role === "playground"
+        ? t("profile.role.playground")
+        : user.role === "viewer"
+          ? t("profile.role.viewer")
+          : user.role === "super_admin"
+            ? t("profile.role.super_admin")
+            : user.role;
+
   return (
     <div className="animate-page-enter mx-auto max-w-2xl space-y-6">
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Mi perfil</h1>
-        <p className="mt-1 text-slate-400">Contraseña, passkeys y datos de tu cuenta</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("profile.title")}</h1>
+        <p className="mt-1 text-slate-400">{t("profile.subtitle")}</p>
       </header>
 
       {(message || error) && (
@@ -92,13 +97,13 @@ export function Profile() {
             <p className="font-medium text-slate-100">@{user.username}</p>
             <p className="flex items-center gap-1 text-xs text-slate-500">
               <Shield className="h-3 w-3" />
-              {ROLE_LABELS[user.role] || user.role}
+              {roleLabel}
             </p>
           </div>
         </div>
 
         <label className="block space-y-1.5">
-          <span className="text-sm text-slate-400">Nombre para mostrar</span>
+          <span className="text-sm text-slate-400">{t("profile.displayName")}</span>
           <input
             className="input-field"
             value={displayName}
@@ -113,17 +118,17 @@ export function Profile() {
           onClick={() => saveProfile.mutate()}
         >
           {saveProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Guardar perfil
+          {t("profile.save")}
         </button>
       </section>
 
       <section className="glass-card space-y-4 p-6">
         <h2 className="flex items-center gap-2 font-medium text-slate-200">
           <KeyRound className="h-4 w-4 text-cyan-400" />
-          Cambiar contraseña
+          {t("profile.changePassword")}
         </h2>
         <label className="block space-y-1.5">
-          <span className="text-sm text-slate-400">Contraseña actual</span>
+          <span className="text-sm text-slate-400">{t("profile.currentPassword")}</span>
           <input
             type="password"
             className="input-field"
@@ -133,7 +138,7 @@ export function Profile() {
           />
         </label>
         <label className="block space-y-1.5">
-          <span className="text-sm text-slate-400">Nueva contraseña (mín. 8)</span>
+          <span className="text-sm text-slate-400">{t("profile.newPassword")}</span>
           <input
             type="password"
             className="input-field"
@@ -151,18 +156,16 @@ export function Profile() {
           onClick={() => changePassword.mutate()}
         >
           {changePassword.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Actualizar contraseña
+          {t("profile.updatePassword")}
         </button>
       </section>
 
       <section className="glass-card space-y-4 p-6">
         <h2 className="flex items-center gap-2 font-medium text-slate-200">
           <Fingerprint className="h-4 w-4 text-cyan-400" />
-          Passkeys (huella / Face ID)
+          {t("profile.passkeys")}
         </h2>
-        <p className="text-sm text-slate-500">
-          Inicia sesión sin contraseña desde este dispositivo.
-        </p>
+        <p className="text-sm text-slate-500">{t("profile.passkeyHint")}</p>
 
         {user.passkeys?.length ? (
           <ul className="space-y-2">
@@ -174,7 +177,9 @@ export function Profile() {
                 <div>
                   <p className="text-sm text-slate-200">{pk.device_name}</p>
                   <p className="text-xs text-slate-500">
-                    Registrado {new Date(pk.created_at).toLocaleDateString()}
+                    {t("profile.registered", {
+                      date: formatAdminDay(pk.created_at),
+                    })}
                   </p>
                 </div>
                 <button
@@ -182,7 +187,7 @@ export function Profile() {
                   className="btn-ghost px-2 text-red-300"
                   disabled={removePasskey.isPending}
                   onClick={() => {
-                    if (window.confirm(`¿Eliminar el passkey "${pk.device_name}"?`)) {
+                    if (window.confirm(t("profile.confirmDelete", { name: pk.device_name }))) {
                       removePasskey.mutate(pk.id);
                     }
                   }}
@@ -193,7 +198,7 @@ export function Profile() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-500">Aún no tienes passkeys registrados.</p>
+          <p className="text-sm text-slate-500">{t("profile.noPasskeys")}</p>
         )}
 
         <button
@@ -203,7 +208,7 @@ export function Profile() {
           onClick={() => addPasskey.mutate()}
         >
           {addPasskey.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
-          Añadir passkey
+          {t("profile.addPasskey")}
         </button>
       </section>
     </div>

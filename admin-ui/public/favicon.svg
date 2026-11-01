@@ -8,10 +8,13 @@
   </defs>
   <rect width="64" height="64" rx="16" fill="url(#g)"/>
   <g transform="translate(8 8) scale(1.2)">
-    <path d="M25.4 10.2A12 12 0 1 0 25.4 29.8" stroke="#ecfeff" stroke-width="3.1" stroke-linecap="round"/>
-    <circle cx="25.4" cy="10.2" r="2.35" fill="#ecfeff"/>
-    <rect x="13.4" y="16.4" width="2.7" height="7.2" rx="1.35" fill="#ecfeff" opacity=".78"/>
-    <rect x="18.65" y="12.2" width="2.7" height="15.6" rx="1.35" fill="#ecfeff"/>
-    <rect x="23.9" y="15" width="2.7" height="10" rx="1.35" fill="#ecfeff" opacity=".78"/>
+    <path d="M11 22.4v-3.2a9 9 0 0 1 18 0v3.2" stroke="#ecfeff" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="7.2" y="20.2" width="6.2" height="8.8" rx="2.4" fill="#ecfeff"/>
+    <rect x="26.6" y="20.2" width="6.2" height="8.8" rx="2.4" fill="#ecfeff"/>
+    <path d="M30.2 28.2c1.8 2.2 1.2 5-.8 6.2" stroke="#ecfeff" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="29.2" cy="34.8" r="1.55" fill="#ecfeff"/>
+    <rect x="16.2" y="17.4" width="2" height="5.6" rx="1" fill="#ecfeff" opacity=".78"/>
+    <rect x="19" y="14.8" width="2" height="10.8" rx="1" fill="#ecfeff"/>
+    <rect x="21.8" y="16.4" width="2" height="7.6" rx="1" fill="#ecfeff" opacity=".78"/>
   </g>
 </svg>
